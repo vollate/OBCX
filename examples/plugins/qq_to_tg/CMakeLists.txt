@@ -6,21 +6,21 @@ find_package(tomlplusplus REQUIRED)
 # Create the QQ to TG plugin shared library
 add_library(
   qq_to_tg_plugin SHARED
-  QQToTGPlugin.cpp
-  QQToTGPlugin.hpp
+  qq_to_tg_plugin.cpp
+  qq_to_tg_plugin.hpp
   # BridgeBot dependencies
-  ../BridgeBot/Config.cpp
-  ../BridgeBot/QQHandler.cpp
-  ../BridgeBot/TelegramHandler.cpp
-  ../BridgeBot/MediaProcessor.cpp
-  ../BridgeBot/PathManager.cpp
-  ../BridgeBot/DatabaseManager.cpp
-  ../BridgeBot/RetryQueueManager.cpp
-  ../BridgeBot/telegram/TelegramMediaProcessor.cpp
-  ../BridgeBot/telegram/TelegramMessageFormatter.cpp
-  ../BridgeBot/telegram/TelegramCommandHandler.cpp
-  ../BridgeBot/telegram/TelegramEventHandler.cpp
-  ../BridgeBot/qq/QQMediaProcessor.cpp)
+  ../BridgeBot/config.cpp
+  ../BridgeBot/qq_handler.cpp
+  ../BridgeBot/telegram_handler.cpp
+  ../BridgeBot/media_processor.cpp
+  ../BridgeBot/path_manager.cpp
+  ../BridgeBot/database_manager.cpp
+  ../BridgeBot/retry_queue_manager.cpp
+  ../BridgeBot/telegram/telegram_media_processor.cpp
+  ../BridgeBot/telegram/telegram_message_formatter.cpp
+  ../BridgeBot/telegram/telegram_command_handler.cpp
+  ../BridgeBot/telegram/telegram_event_handler.cpp
+  ../BridgeBot/qq/qq_media_processor.cpp)
 
 # Set the output name to match plugin loading expectations
 set_target_properties(
