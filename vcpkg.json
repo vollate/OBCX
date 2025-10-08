@@ -5,6 +5,7 @@
   "dependencies": [
     "tomlplusplus",
     "boost-beast",
+    "boost-thread",
     "spdlog",
     "fmt",
     "nlohmann-json",
