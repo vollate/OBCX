@@ -1,7 +1,7 @@
 #include "media_processor.hpp"
 
-#include "path_manager.hpp"
 #include "common/logger.hpp"
+#include "path_manager.hpp"
 
 #include <algorithm>
 #include <cctype>

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "database_manager.hpp"
 #include "common/message_type.hpp"
 #include "core/tg_bot.hpp"
+#include "database_manager.hpp"
 #include "interfaces/bot.hpp"
 #include "telegram/telegram_command_handler.hpp"
 #include "telegram/telegram_event_handler.hpp"

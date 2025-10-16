@@ -57,6 +57,9 @@ private:
   boost::asio::awaitable<void> handle_qq_message(
       obcx::core::IBot &bot, const obcx::common::MessageEvent &event);
 
+  boost::asio::awaitable<void> handle_qq_heartbeat(
+      obcx::core::IBot &bot, const obcx::common::HeartbeatEvent &event);
+
   // Configuration
   Config config_;
 

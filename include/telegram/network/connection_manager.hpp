@@ -1,8 +1,8 @@
 #pragma once
 
 #include "common/message_type.hpp"
-#include "network/http_client.hpp"
 #include "interfaces/connection_manager.hpp"
+#include "network/http_client.hpp"
 #include "network/proxy_http_client.hpp"
 #include "telegram/adapter/protocol_adapter.hpp"
 #include <atomic>

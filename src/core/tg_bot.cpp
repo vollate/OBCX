@@ -2,8 +2,8 @@
 
 #include "../../include/telegram/network/connection_manager.hpp"
 #include "common/logger.hpp"
-#include "network/http_client.hpp"
 #include "interfaces/connection_manager.hpp"
+#include "network/http_client.hpp"
 #include "telegram/adapter/protocol_adapter.hpp"
 
 #include "common/media_converter.hpp"

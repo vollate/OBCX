@@ -2,10 +2,10 @@
 #include "media_processor.hpp"
 #include "telegram_handler.hpp"
 
-#include "path_manager.hpp"
 #include "common/logger.hpp"
 #include "common/media_converter.hpp"
 #include "core/tg_bot.hpp"
+#include "path_manager.hpp"
 #include "telegram/network/connection_manager.hpp"
 
 #include <algorithm>

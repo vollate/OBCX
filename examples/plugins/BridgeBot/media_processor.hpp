@@ -8,8 +8,8 @@
 #include <string>
 #include <utility>
 
-#include "path_manager.hpp"
 #include "common/logger.hpp"
+#include "path_manager.hpp"
 
 namespace bridge {
 

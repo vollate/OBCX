@@ -65,9 +65,10 @@ bool QQToTGPlugin::initialize() {
       // 获取所有bot实例的带锁访问
       auto [lock, bots] = get_bots();
 
-      // 找到QQ bot并注册消息回调
+      // 找到QQ bot并注册消息回调和心跳回调
       for (auto &bot_ptr : bots) {
         if (auto *qq_bot = dynamic_cast<obcx::core::QQBot *>(bot_ptr.get())) {
+          // 注册消息事件回调
           qq_bot->on_event<obcx::common::MessageEvent>(
               [this](obcx::core::IBot &bot,
                      const obcx::common::MessageEvent &event)
@@ -75,6 +76,16 @@ bool QQToTGPlugin::initialize() {
                 co_await handle_qq_message(bot, event);
               });
           OBCX_INFO("Registered QQ message callback for QQ to TG plugin");
+
+          // 注册心跳事件回调
+          qq_bot->on_event<obcx::common::HeartbeatEvent>(
+              [this](obcx::core::IBot &bot,
+                     const obcx::common::HeartbeatEvent &event)
+                  -> boost::asio::awaitable<void> {
+                co_await handle_qq_heartbeat(bot, event);
+              });
+          OBCX_INFO("Registered QQ heartbeat callback for QQ to TG plugin");
+
           break;
         }
       }
@@ -140,6 +151,22 @@ boost::asio::awaitable<void> QQToTGPlugin::handle_qq_message(
       }
     } catch (const std::exception &e) {
       OBCX_ERROR("Error accessing bot list: {}", e.what());
+    }
+  }
+
+  co_return;
+}
+
+boost::asio::awaitable<void> QQToTGPlugin::handle_qq_heartbeat(
+    obcx::core::IBot &bot, const obcx::common::HeartbeatEvent &event) {
+  // 确保这是QQ bot的心跳
+  if (auto *qq_bot = dynamic_cast<obcx::core::QQBot *>(&bot)) {
+    // 更新QQ平台的心跳时间
+    if (db_manager_) {
+      db_manager_->update_platform_heartbeat("qq",
+                                             std::chrono::system_clock::now());
+      OBCX_DEBUG("QQ platform heartbeat updated, interval: {}ms",
+                 event.interval);
     }
   }
 

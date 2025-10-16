@@ -7,7 +7,6 @@
 #include "core/qq_bot.hpp"
 #include "core/tg_bot.hpp"
 #include "network/http_client.hpp"
-#include "telegram/adapter/protocol_adapter.hpp"
 
 #include <boost/asio/io_context.hpp>
 #include <fmt/format.h>
@@ -15,6 +14,7 @@
 #include <nlohmann/json.hpp>
 #include <regex>
 #include <sstream>
+#include <utility>
 
 namespace bridge {
 
@@ -203,7 +203,8 @@ obcx::common::MessageSegment format_miniapp_message(
 
 QQHandler::QQHandler(std::shared_ptr<obcx::storage::DatabaseManager> db_manager,
                      std::shared_ptr<RetryQueueManager> retry_manager)
-    : db_manager_(db_manager), retry_manager_(retry_manager) {}
+    : db_manager_(std::move(db_manager)),
+      retry_manager_(std::move(retry_manager)) {}
 
 auto QQHandler::forward_to_telegram(obcx::core::IBot &telegram_bot,
                                     obcx::core::IBot &qq_bot,
@@ -1464,7 +1465,8 @@ auto QQHandler::handle_checkalive_command(obcx::core::IBot &telegram_bot,
       response_text +=
           fmt::format("最后活动: {} ({} 秒前)\n", tg_timestamp, tg_duration);
 
-      if (tg_duration > 300) { // 5分钟无活动认为异常
+      if (tg_duration > 300) {
+        // 5分钟无活动认为异常
         response_text += "⚠️ Telegram平台可能离线";
       } else {
         response_text += "✅ Telegram平台正常";

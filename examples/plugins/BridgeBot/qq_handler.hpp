@@ -1,7 +1,7 @@
 #pragma once
 
-#include "database_manager.hpp"
 #include "common/message_type.hpp"
+#include "database_manager.hpp"
 #include "interfaces/bot.hpp"
 
 #include <boost/asio.hpp>

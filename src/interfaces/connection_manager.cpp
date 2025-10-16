@@ -1,10 +1,10 @@
 #include "interfaces/connection_manager.hpp"
-#include "onebot11/adapter/protocol_adapter.hpp"
-#include "telegram/adapter/protocol_adapter.hpp"
-#include "telegram/network/connection_manager.hpp"
 #include "interfaces/protocol_adapter.hpp"
+#include "onebot11/adapter/protocol_adapter.hpp"
 #include "onebot11/network/http/connection_manager.hpp"
 #include "onebot11/network/websocket/connection_manager.hpp"
+#include "telegram/adapter/protocol_adapter.hpp"
+#include "telegram/network/connection_manager.hpp"
 
 #include <boost/asio/io_context.hpp>
 
