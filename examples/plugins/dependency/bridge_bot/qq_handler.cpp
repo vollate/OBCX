@@ -237,6 +237,24 @@ auto QQHandler::forward_to_telegram(obcx::core::IBot &telegram_bot,
     co_return;
   }
 
+  // 检查是否启用QQ到TG转发
+  if (bridge_config->mode == BridgeMode::GROUP_TO_GROUP) {
+    if (!bridge_config->enable_qq_to_tg) {
+      OBCX_DEBUG("QQ群 {} 到Telegram群 {} 的转发已禁用，跳过", qq_group_id,
+                 telegram_group_id);
+      co_return;
+    }
+  } else if (bridge_config->mode == BridgeMode::TOPIC_TO_GROUP) {
+    // Topic模式：需要检查具体的topic配置
+    const TopicBridgeConfig *topic_config =
+        get_topic_config(telegram_group_id, topic_id);
+    if (!topic_config || !topic_config->enable_qq_to_tg) {
+      OBCX_DEBUG("QQ群 {} 到Telegram topic {} 的转发已禁用，跳过", qq_group_id,
+                 topic_id);
+      co_return;
+    }
+  }
+
   // 检查是否是 /checkalive 命令
   if (event.raw_message.starts_with("/checkalive")) {
     OBCX_INFO("检测到 /checkalive 命令，处理存活检查请求");

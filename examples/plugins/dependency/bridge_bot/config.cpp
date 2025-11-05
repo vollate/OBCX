@@ -36,11 +36,17 @@ void load_group_mappings() {
               item_table["show_qq_to_tg_sender"].value_or(true);
           bool show_tg_to_qq_sender =
               item_table["show_tg_to_qq_sender"].value_or(true);
+          bool enable_qq_to_tg =
+              item_table["enable_qq_to_tg"].value_or(true);
+          bool enable_tg_to_qq =
+              item_table["enable_tg_to_qq"].value_or(true);
 
           if (!telegram_group_id.empty() && !qq_group_id.empty()) {
             GroupBridgeConfig config(telegram_group_id, qq_group_id,
                                      show_qq_to_tg_sender,
-                                     show_tg_to_qq_sender);
+                                     show_tg_to_qq_sender,
+                                     enable_qq_to_tg,
+                                     enable_tg_to_qq);
             GROUP_MAP[telegram_group_id] = config;
             OBCX_INFO("Loaded group mapping: {} -> {}", telegram_group_id,
                       qq_group_id);
@@ -65,6 +71,10 @@ void load_group_mappings() {
               item_table["show_qq_to_tg_sender"].value_or(true);
           bool show_tg_to_qq_sender =
               item_table["show_tg_to_qq_sender"].value_or(true);
+          bool enable_qq_to_tg =
+              item_table["enable_qq_to_tg"].value_or(true);
+          bool enable_tg_to_qq =
+              item_table["enable_tg_to_qq"].value_or(true);
 
           if (!telegram_group_id.empty()) {
             std::vector<TopicBridgeConfig> topics;
@@ -97,11 +107,17 @@ void load_group_mappings() {
                       topic_table["show_qq_to_tg_sender"].value_or(true);
                   bool topic_show_tg_to_qq =
                       topic_table["show_tg_to_qq_sender"].value_or(true);
+                  bool topic_enable_qq_to_tg =
+                      topic_table["enable_qq_to_tg"].value_or(true);
+                  bool topic_enable_tg_to_qq =
+                      topic_table["enable_tg_to_qq"].value_or(true);
 
                   if (telegram_topic_id != -1 && !qq_group_id.empty()) {
                     topics.emplace_back(telegram_topic_id, qq_group_id,
                                         topic_show_qq_to_tg,
-                                        topic_show_tg_to_qq);
+                                        topic_show_tg_to_qq,
+                                        topic_enable_qq_to_tg,
+                                        topic_enable_tg_to_qq);
                     OBCX_INFO("Loaded topic mapping: {}:{} -> {}",
                               telegram_group_id, telegram_topic_id,
                               qq_group_id);
@@ -113,7 +129,9 @@ void load_group_mappings() {
             if (!topics.empty()) {
               GroupBridgeConfig config(telegram_group_id, topics,
                                        show_qq_to_tg_sender,
-                                       show_tg_to_qq_sender);
+                                       show_tg_to_qq_sender,
+                                       enable_qq_to_tg,
+                                       enable_tg_to_qq);
               GROUP_MAP[telegram_group_id] = config;
               OBCX_INFO("Loaded topic group mapping for TG {} with {} topics",
                         telegram_group_id, topics.size());

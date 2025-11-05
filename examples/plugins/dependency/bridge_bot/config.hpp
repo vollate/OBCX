@@ -25,11 +25,15 @@ struct TopicBridgeConfig {
   std::string qq_group_id;   // 对应的QQ群ID
   bool show_qq_to_tg_sender; // QQ到TG显示发送者
   bool show_tg_to_qq_sender; // TG到QQ显示发送者
+  bool enable_qq_to_tg;      // 启用QQ到TG转发
+  bool enable_tg_to_qq;      // 启用TG到QQ转发
 
   TopicBridgeConfig(int64_t topic_id, const std::string &qq_id,
-                    bool qq_to_tg = true, bool tg_to_qq = true)
+                    bool qq_to_tg = true, bool tg_to_qq = true,
+                    bool enable_qq_tg = true, bool enable_tg_qq = true)
       : telegram_topic_id{topic_id}, qq_group_id{qq_id},
-        show_qq_to_tg_sender{qq_to_tg}, show_tg_to_qq_sender{tg_to_qq} {}
+        show_qq_to_tg_sender{qq_to_tg}, show_tg_to_qq_sender{tg_to_qq},
+        enable_qq_to_tg{enable_qq_tg}, enable_tg_to_qq{enable_tg_qq} {}
 };
 
 /**
@@ -47,24 +51,30 @@ struct GroupBridgeConfig {
 
   bool show_qq_to_tg_sender; // QQ到Telegram显示发送者
   bool show_tg_to_qq_sender; // Telegram到QQ显示发送者
+  bool enable_qq_to_tg;      // 启用QQ到TG转发
+  bool enable_tg_to_qq;      // 启用TG到QQ转发
 
   // 默认构造函数
   GroupBridgeConfig() = default;
 
   // 群组模式构造函数
   GroupBridgeConfig(const std::string &tg_id, const std::string &qq_id,
-                    bool qq_to_tg = true, bool tg_to_qq = true)
+                    bool qq_to_tg = true, bool tg_to_qq = true,
+                    bool enable_qq_tg = true, bool enable_tg_qq = true)
       : telegram_group_id{tg_id}, mode{BridgeMode::GROUP_TO_GROUP},
         qq_group_id{qq_id}, show_qq_to_tg_sender{qq_to_tg},
-        show_tg_to_qq_sender{tg_to_qq} {}
+        show_tg_to_qq_sender{tg_to_qq}, enable_qq_to_tg{enable_qq_tg},
+        enable_tg_to_qq{enable_tg_qq} {}
 
   // Topic模式构造函数
   GroupBridgeConfig(const std::string &tg_id,
                     const std::vector<TopicBridgeConfig> &topic_configs,
-                    bool qq_to_tg = true, bool tg_to_qq = true)
+                    bool qq_to_tg = true, bool tg_to_qq = true,
+                    bool enable_qq_tg = true, bool enable_tg_qq = true)
       : telegram_group_id{tg_id}, mode{BridgeMode::TOPIC_TO_GROUP},
         topics{topic_configs}, show_qq_to_tg_sender{qq_to_tg},
-        show_tg_to_qq_sender{tg_to_qq} {}
+        show_tg_to_qq_sender{tg_to_qq}, enable_qq_to_tg{enable_qq_tg},
+        enable_tg_to_qq{enable_tg_qq} {}
 };
 
 // 动态加载的群组桥接映射配置

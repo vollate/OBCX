@@ -61,6 +61,13 @@ auto TelegramHandler::forward_to_qq(obcx::core::IBot &telegram_bot,
     qq_group_id = bridge_config->qq_group_id;
     OBCX_DEBUG("群组模式：Telegram群 {} 转发到QQ群 {}", telegram_group_id,
                qq_group_id);
+
+    // 检查是否启用TG到QQ转发
+    if (!bridge_config->enable_tg_to_qq) {
+      OBCX_DEBUG("Telegram群 {} 到QQ群 {} 的转发已禁用，跳过", telegram_group_id,
+                 qq_group_id);
+      co_return;
+    }
   } else {
     // Topic模式：根据topic ID查找对应的QQ群
     int64_t message_thread_id = -1;
@@ -79,6 +86,13 @@ auto TelegramHandler::forward_to_qq(obcx::core::IBot &telegram_bot,
     qq_group_id = topic_config->qq_group_id;
     OBCX_DEBUG("Topic模式：Telegram topic {} 转发到QQ群 {}", message_thread_id,
                qq_group_id);
+
+    // 检查是否启用TG到QQ转发（Topic级别）
+    if (!topic_config->enable_tg_to_qq) {
+      OBCX_DEBUG("Telegram topic {} 到QQ群 {} 的转发已禁用，跳过", message_thread_id,
+                 qq_group_id);
+      co_return;
+    }
   }
 
   // 检查是否是 /recall 命令
