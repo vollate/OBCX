@@ -5,10 +5,10 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 
-#include "../BridgeBot/config.hpp"
-#include "../BridgeBot/database_manager.hpp"
-#include "../BridgeBot/qq_handler.hpp"
-#include "../BridgeBot/retry_queue_manager.hpp"
+#include "../dependency/bridge_bot/config.hpp"
+#include "../dependency/bridge_bot/database_manager.hpp"
+#include "../dependency/bridge_bot/qq_handler.hpp"
+#include "../dependency/bridge_bot/retry_queue_manager.hpp"
 #include "common/config_loader.hpp"
 
 namespace plugins {

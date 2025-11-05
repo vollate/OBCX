@@ -5,10 +5,10 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 
-#include "../BridgeBot/config.hpp"
-#include "../BridgeBot/database_manager.hpp"
-#include "../BridgeBot/retry_queue_manager.hpp"
-#include "../BridgeBot/telegram_handler.hpp"
+#include "../dependency/bridge_bot/config.hpp"
+#include "../dependency/bridge_bot/database_manager.hpp"
+#include "../dependency/bridge_bot/retry_queue_manager.hpp"
+#include "../dependency/bridge_bot/telegram_handler.hpp"
 
 namespace plugins {
 TGToQQPlugin::TGToQQPlugin() { OBCX_DEBUG("TGToQQPlugin constructor called"); }
@@ -120,7 +120,7 @@ boost::asio::awaitable<void> TGToQQPlugin::handle_tg_message(
 
     try {
       // 获取所有bot实例的带锁访问
-      if (!qq_bot_) {
+      if (qq_bot_ == nullptr) {
         auto [lock, bots] = get_bots();
 
         // 找到QQ bot
@@ -132,7 +132,7 @@ boost::asio::awaitable<void> TGToQQPlugin::handle_tg_message(
         }
       }
 
-      if (qq_bot_ && telegram_handler_) {
+      if (qq_bot_ != nullptr && telegram_handler_) {
         OBCX_INFO("Found QQ bot, performing TG->QQ message forwarding using "
                   "TelegramHandler");
         co_await telegram_handler_->forward_to_qq(*tg_bot, *qq_bot_, event);
