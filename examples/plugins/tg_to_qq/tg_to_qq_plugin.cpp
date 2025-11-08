@@ -133,9 +133,20 @@ boost::asio::awaitable<void> TGToQQPlugin::handle_tg_message(
       }
 
       if (qq_bot_ != nullptr && telegram_handler_) {
-        OBCX_INFO("Found QQ bot, performing TG->QQ message forwarding using "
-                  "TelegramHandler");
-        co_await telegram_handler_->forward_to_qq(*tg_bot, *qq_bot_, event);
+        // Check if this is an edited message
+        bool is_edited = (event.sub_type == "edited") ||
+                         (event.data.contains("is_edited") &&
+                          event.data["is_edited"].get<bool>());
+
+        if (is_edited) {
+          OBCX_INFO("Detected edited message, handling as edit event");
+          co_await telegram_handler_->handle_message_edited(*tg_bot, *qq_bot_,
+                                                            event);
+        } else {
+          OBCX_INFO("Found QQ bot, performing TG->QQ message forwarding using "
+                    "TelegramHandler");
+          co_await telegram_handler_->forward_to_qq(*tg_bot, *qq_bot_, event);
+        }
       } else {
         OBCX_WARN("QQ bot or TelegramHandler not found for TG->QQ forwarding");
       }

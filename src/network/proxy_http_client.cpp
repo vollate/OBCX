@@ -261,8 +261,9 @@ HttpResponse ProxyHttpClient::send_http_request(
                   ec.message());
 
         if (retry < max_retries - 1) {
-          // 指数退避重试策略
-          auto wait_time = std::chrono::milliseconds(200 * (retry + 1));
+          // 指数退避重试策略：100ms, 200ms, 400ms (每次翻倍)
+          auto wait_time = std::chrono::milliseconds(250 << retry);
+          OBCX_DEBUG("等待 {}ms 后重试", wait_time.count());
           std::this_thread::sleep_for(wait_time);
 
           // 如果是stream truncated错误，可能需要重新创建连接
