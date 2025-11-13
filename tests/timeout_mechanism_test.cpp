@@ -19,12 +19,12 @@ using tcp = asio::ip::tcp;
 
 namespace obcx::test {
 
-constexpr size_t SERVER_STARTUP_DELAY{1000};
-constexpr size_t CONNECTION_ESTABLISH_DELAY{200};
-constexpr size_t NORMAL_RESPONSE_DELAY{100};
-constexpr size_t DELAYED_RESPONSE_TIME{5000};
+constexpr size_t SERVER_STARTUP_DELAY = 1000;
+constexpr size_t CONNECTION_ESTABLISH_DELAY = 200;
+constexpr size_t NORMAL_RESPONSE_DELAY = 100;
+constexpr size_t DELAYED_RESPONSE_TIME = 3000;
 // 客户端的默认超时时间，根据 TimeoutScenario 测试推断为30秒
-constexpr std::chrono::seconds CLIENT_DEFAULT_TIMEOUT{30};
+constexpr std::chrono::seconds CLIENT_DEFAULT_TIMEOUT{5};
 // 为测试用例设置一个比客户端默认超时更长的等待时间
 constexpr std::chrono::seconds EXTENDED_TIMEOUT{CLIENT_DEFAULT_TIMEOUT +
                                                 std::chrono::seconds(5)};
@@ -41,8 +41,8 @@ constexpr uint64_t TEST_ECHO_3 = 67890;
 class MockWebSocketServer {
 public:
   MockWebSocketServer(const std::string &host, uint16_t port)
-      : ioc_(), endpoint_(asio::ip::make_address(host), port),
-        acceptor_(ioc_, endpoint_), work_guard_(asio::make_work_guard(ioc_)) {
+    : ioc_(), endpoint_(asio::ip::make_address(host), port),
+      acceptor_(ioc_, endpoint_), work_guard_(asio::make_work_guard(ioc_)) {
     acceptor_.set_option(asio::socket_base::reuse_address(true));
   }
 
@@ -238,7 +238,7 @@ protected:
   std::unique_ptr<network::WebSocketConnectionManager> connection_manager_;
   std::thread client_thread_;
   std::optional<asio::executor_work_guard<asio::io_context::executor_type>>
-      work_guard_;
+  work_guard_;
 };
 
 /**
@@ -315,15 +315,16 @@ TEST_F(WsTimeoutMechanismTest, TimeoutScenario) {
 
   std::promise<void> result_promise;
   auto result_future = result_promise.get_future();
-  std::atomic<bool> timeout_occurred = false;
+  std::atomic timeout_occurred = false;
 
   asio::co_spawn(
       client_ioc_,
       [this, request, &result_promise,
-       &timeout_occurred]() -> asio::awaitable<void> {
+        &timeout_occurred]() -> asio::awaitable<void> {
         try {
-          (void)co_await connection_manager_->send_action_and_wait_async(
-              request.dump(), TEST_ECHO_2);
+          [[maybe_unused]] std::string _ = co_await connection_manager_->
+              send_action_and_wait_async(
+                  request.dump(), TEST_ECHO_2);
           result_promise.set_value(); // 不应执行到这里
         } catch (const std::runtime_error &e) {
           std::string error_msg = e.what();

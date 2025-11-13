@@ -16,6 +16,9 @@ class ProtocolAdapter;
 
 namespace obcx::network {
 
+// 配置：是否使用协程异步等待（true）还是轮询等待（false）
+inline constexpr bool USE_COROUTINE_ASYNC_WAIT = true;
+
 /**
  * @brief WebSocket连接管理器
  *
@@ -31,7 +34,7 @@ public:
   void disconnect() override;
   auto is_connected() const -> bool override;
   auto send_action_and_wait_async(std::string action_payload, uint64_t echo_id)
-      -> asio::awaitable<std::string> override;
+    -> asio::awaitable<std::string> override;
   void set_event_callback(EventCallback callback) override;
   auto get_connection_type() const -> std::string override;
 
@@ -67,6 +70,12 @@ private:
    */
   void schedule_reconnect();
 
+  /**
+   * @brief 处理请求超时（协程模式）
+   * @param echo_id 请求的echo ID
+   */
+  void handle_timeout(uint64_t echo_id);
+
   asio::io_context &ioc_;
   adapter::onebot11::ProtocolAdapter &adapter_;
   EventCallback event_callback_;
@@ -82,16 +91,24 @@ private:
   std::string access_token_;
   bool is_running_ = false;
 
-  // 用于存储等待响应的请求 - 使用事件驱动而不是轮询
+  // 用于存储等待响应的请求
   struct PendingRequest {
+    // 协程模式：使用 completion handler
+    std::function<void(boost::system::error_code, std::string)>
+    completion_handler;
+    // 轮询模式：使用 resolver/rejecter
     std::function<void(std::string)> resolver;
     std::function<void(std::exception_ptr)> rejecter;
     asio::steady_timer timeout_timer;
+    std::atomic<bool> need_wait = true;
 
-    PendingRequest(asio::io_context &ioc) : timeout_timer(ioc) {}
+    PendingRequest(asio::io_context &ioc)
+      : timeout_timer(ioc) {
+    }
   };
+
   std::unordered_map<uint64_t, std::shared_ptr<PendingRequest>>
-      pending_requests_;
+  pending_requests_;
   std::mutex pending_requests_mutex_;
 
   // 连接状态跟踪
