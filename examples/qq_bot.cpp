@@ -15,6 +15,7 @@
 #include <boost/asio.hpp>
 #include <iostream>
 #include <memory>
+#include <spdlog/common.h>
 
 using namespace obcx;
 using namespace std::chrono_literals;
@@ -288,7 +289,7 @@ auto group_message_handler(core::IBot &bot, common::MessageEvent event)
 } // namespace
 
 auto main() -> int {
-  common::Logger::initialize(spdlog::level::debug);
+  common::Logger::initialize(spdlog::level::err);
 
   try {
     // 创建OneBot11协议适配器

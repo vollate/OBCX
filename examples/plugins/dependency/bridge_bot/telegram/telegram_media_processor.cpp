@@ -133,10 +133,10 @@ auto TelegramMediaProcessor::process_media_file(
 
   } catch (const std::exception &e) {
     OBCX_ERROR("处理媒体文件失败: {}", e.what());
-    obcx::common::MessageSegment error_segment;
-    error_segment.type = "text";
-    error_segment.data["text"] = fmt::format("[{}处理失败]", file_type);
-    result.push_back(error_segment);
+    // obcx::common::MessageSegment error_segment;
+    // error_segment.type = "text";
+    // error_segment.data["text"] = fmt::format("[{}处理失败]", file_type);
+    // result.push_back(error_segment);
   }
 
   co_return result;

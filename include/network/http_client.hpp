@@ -24,7 +24,9 @@ struct HttpResponse {
   std::string body;
   http::response<http::string_body> raw_response;
 
-  bool is_success() const { return status_code >= 200 && status_code < 300; }
+  [[nodiscard]] auto is_success() -> bool const {
+    return status_code >= 200 && status_code < 300;
+  }
 };
 
 /**

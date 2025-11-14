@@ -41,8 +41,8 @@ constexpr uint64_t TEST_ECHO_3 = 67890;
 class MockWebSocketServer {
 public:
   MockWebSocketServer(const std::string &host, uint16_t port)
-    : ioc_(), endpoint_(asio::ip::make_address(host), port),
-      acceptor_(ioc_, endpoint_), work_guard_(asio::make_work_guard(ioc_)) {
+      : ioc_(), endpoint_(asio::ip::make_address(host), port),
+        acceptor_(ioc_, endpoint_), work_guard_(asio::make_work_guard(ioc_)) {
     acceptor_.set_option(asio::socket_base::reuse_address(true));
   }
 
@@ -238,7 +238,7 @@ protected:
   std::unique_ptr<network::WebSocketConnectionManager> connection_manager_;
   std::thread client_thread_;
   std::optional<asio::executor_work_guard<asio::io_context::executor_type>>
-  work_guard_;
+      work_guard_;
 };
 
 /**
@@ -320,10 +320,10 @@ TEST_F(WsTimeoutMechanismTest, TimeoutScenario) {
   asio::co_spawn(
       client_ioc_,
       [this, request, &result_promise,
-        &timeout_occurred]() -> asio::awaitable<void> {
+       &timeout_occurred]() -> asio::awaitable<void> {
         try {
-          [[maybe_unused]] std::string _ = co_await connection_manager_->
-              send_action_and_wait_async(
+          [[maybe_unused]] std::string _ =
+              co_await connection_manager_->send_action_and_wait_async(
                   request.dump(), TEST_ECHO_2);
           result_promise.set_value(); // 不应执行到这里
         } catch (const std::runtime_error &e) {

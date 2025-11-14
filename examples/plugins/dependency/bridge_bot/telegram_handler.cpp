@@ -64,8 +64,8 @@ auto TelegramHandler::forward_to_qq(obcx::core::IBot &telegram_bot,
 
     // 检查是否启用TG到QQ转发
     if (!bridge_config->enable_tg_to_qq) {
-      OBCX_DEBUG("Telegram群 {} 到QQ群 {} 的转发已禁用，跳过", telegram_group_id,
-                 qq_group_id);
+      OBCX_DEBUG("Telegram群 {} 到QQ群 {} 的转发已禁用，跳过",
+                 telegram_group_id, qq_group_id);
       co_return;
     }
   } else {
@@ -89,8 +89,8 @@ auto TelegramHandler::forward_to_qq(obcx::core::IBot &telegram_bot,
 
     // 检查是否启用TG到QQ转发（Topic级别）
     if (!topic_config->enable_tg_to_qq) {
-      OBCX_DEBUG("Telegram topic {} 到QQ群 {} 的转发已禁用，跳过", message_thread_id,
-                 qq_group_id);
+      OBCX_DEBUG("Telegram topic {} 到QQ群 {} 的转发已禁用，跳过",
+                 message_thread_id, qq_group_id);
       co_return;
     }
   }

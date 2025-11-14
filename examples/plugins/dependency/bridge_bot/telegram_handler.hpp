@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common/message_type.hpp"
-#include "core/tg_bot.hpp"
 #include "database_manager.hpp"
 #include "interfaces/bot.hpp"
 #include "telegram/telegram_command_handler.hpp"
@@ -10,9 +9,7 @@
 #include "telegram/telegram_message_formatter.hpp"
 
 #include <boost/asio.hpp>
-#include <chrono>
 #include <memory>
-#include <unordered_map>
 
 namespace bridge {
 
@@ -85,6 +82,11 @@ public:
       -> boost::asio::awaitable<void>;
 
 private:
+  auto download_sticker_with_cache(obcx::core::IBot &telegram_bot,
+                                   const obcx::core::MediaFileInfo &media_info,
+                                   const std::string &bridge_files_dir)
+      -> boost::asio::awaitable<std::optional<std::string>>;
+
   std::shared_ptr<obcx::storage::DatabaseManager> db_manager_;
   std::shared_ptr<RetryQueueManager> retry_manager_;
   std::unique_ptr<telegram::TelegramMediaProcessor> media_processor_;

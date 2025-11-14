@@ -34,7 +34,7 @@ auto TelegramHandler::forward_to_qq(obcx::core::IBot &telegram_bot,
   const GroupBridgeConfig *bridge_config = nullptr;
 
   // 查找对应的QQ群ID和桥接配置
-  auto it = GROUP_MAP.find(telegram_group_id);
+  const auto it = GROUP_MAP.find(telegram_group_id);
   if (it == GROUP_MAP.end()) {
     OBCX_DEBUG("Telegram群 {} 没有对应的QQ群配置", telegram_group_id);
     co_return;
@@ -253,15 +253,16 @@ auto TelegramHandler::forward_to_qq(obcx::core::IBot &telegram_bot,
           auto download_url_opt =
               co_await static_cast<obcx::core::TGBot &>(telegram_bot)
                   .get_media_download_url(media_info);
-          if (!download_url_opt.has_value()) {
+          if (!download_url_opt) {
             throw std::runtime_error("无法获取文件下载链接");
           }
 
-          std::string file_url = download_url_opt.value();
+          const std::string &file_url = download_url_opt.value();
           auto [final_url, filename] =
               MediaProcessor::get_qq_file_info(file_url, file_type);
 
           obcx::common::MessageSegment file_segment;
+          bool cancel_push = false;
           std::string local_file_path; // 用于记录下载的本地文件路径
 
           // 根据文件类型创建相应的消息段
@@ -488,17 +489,19 @@ auto TelegramHandler::forward_to_qq(obcx::core::IBot &telegram_bot,
                 throw std::runtime_error("缓存下载失败");
               }
             } catch (const std::exception &e) {
-              OBCX_WARN("缓存系统处理表情包失败: {}, 回退为文本提示", e.what());
+              OBCX_WARN("缓存系统处理表情包失败: {}", e.what());
 
               // 回退为文本提示
-              file_segment.type = "text";
-              std::string emoji_info = "";
-              if (media_data.contains("sticker") &&
-                  media_data["sticker"].contains("emoji")) {
-                emoji_info =
-                    " " + media_data["sticker"]["emoji"].get<std::string>();
-              }
-              file_segment.data["text"] = fmt::format("[贴纸{}]", emoji_info);
+              cancel_push = true;
+              // file_segment.type = "text";
+              // std::string emoji_info = "";
+              // if (media_data.contains("sticker") &&
+              // media_data["sticker"].contains("emoji")) {
+              // emoji_info =
+              //" " + media_data["sticker"]["emoji"].get<std::string>();
+              //}
+              // file_segment.data["text"] = fmt::format("[贴纸{}]",
+              // emoji_info);
             }
           } else if (file_type == "animation") {
             // 使用缓存系统下载动画到本地，并进行webm到gif的转换
@@ -624,8 +627,13 @@ auto TelegramHandler::forward_to_qq(obcx::core::IBot &telegram_bot,
             file_segment.data["caption"] = media_data["caption"];
           }
 
-          message_to_send.push_back(file_segment);
-          OBCX_INFO("成功处理Telegram {}文件: {}", file_type, filename);
+          if (cancel_push) {
+            OBCX_INFO("处理失败，取消推送Telegram {}文件: {}", file_type,
+                      filename);
+          } else {
+            message_to_send.push_back(file_segment);
+            OBCX_INFO("成功处理Telegram {}文件: {}", file_type, filename);
+          }
         } else {
           // 发送文件类型提示
           obcx::common::MessageSegment text_segment;

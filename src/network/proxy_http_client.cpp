@@ -262,7 +262,7 @@ HttpResponse ProxyHttpClient::send_http_request(
 
         if (retry < max_retries - 1) {
           // 指数退避重试策略：100ms, 200ms, 400ms (每次翻倍)
-          auto wait_time = std::chrono::milliseconds(250 << retry);
+          auto wait_time = std::chrono::milliseconds(1000 << retry);
           OBCX_DEBUG("等待 {}ms 后重试", wait_time.count());
           std::this_thread::sleep_for(wait_time);
 

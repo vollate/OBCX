@@ -131,7 +131,7 @@ void WebSocketConnectionManager::on_ws_message(const beast::error_code &ec,
         pending_requests_.erase(it); // 立即移除
 
         // 取消超时定时器
-        request->need_wait.store(false,std::memory_order_release);
+        request->need_wait.store(false, std::memory_order_release);
         request->timeout_timer.cancel();
 
         if constexpr (USE_COROUTINE_ASYNC_WAIT) {
@@ -212,17 +212,17 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
     auto request = std::make_shared<PendingRequest>(ioc_);
 
     // 设置 completion handler
-    request->completion_handler = [&result_mutex, &response_result, &response_error, request](
-                                      boost::system::error_code ec,
-                                      std::string response) {
-      std::lock_guard lock(result_mutex);
-      if (ec) {
-        response_error = ec;
-      } else {
-        response_result = std::move(response);
-      }
-      request->timeout_timer.cancel();
-    };
+    request->completion_handler =
+        [&result_mutex, &response_result, &response_error,
+         request](boost::system::error_code ec, std::string response) {
+          std::lock_guard lock(result_mutex);
+          if (ec) {
+            response_error = ec;
+          } else {
+            response_result = std::move(response);
+          }
+          request->timeout_timer.cancel();
+        };
 
     request->timeout_timer.expires_after(std::chrono::seconds(5));
 
@@ -236,14 +236,15 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
     try {
       co_await asio::co_spawn(
           send_strand_,
-          [this, action_payload=std::move(action_payload)]() -> asio::awaitable<void> {
+          [this, action_payload =
+                     std::move(action_payload)]() -> asio::awaitable<void> {
             co_await ws_client_->send(action_payload);
           },
           asio::use_awaitable);
 
       OBCX_DEBUG("WebSocket消息已发送（协程模式），echo: {}", echo_id);
 
-     if (request->need_wait.load(std::memory_order_acquire)) {
+      if (request->need_wait.load(std::memory_order_acquire)) {
         try {
           co_await request->timeout_timer.async_wait(asio::use_awaitable);
           // 如果走到这里，说明真的超时了
@@ -324,7 +325,7 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
       OBCX_DEBUG("响应已设置，echo: {}", echo_id);
     };
 
-    request->rejecter = [state](const std::exception_ptr& ex) {
+    request->rejecter = [state](const std::exception_ptr &ex) {
       std::lock_guard<std::mutex> lock(state->state_mutex);
       state->error_ptr = ex;
       state->response_received.store(true, std::memory_order_release);
@@ -412,8 +413,8 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
           throw std::runtime_error("API请求超时");
         }
 
-        OBCX_DEBUG("轮询API请求成功完成，echo: {}, result length: {}",
-                   echo_id, state->result.length());
+        OBCX_DEBUG("轮询API请求成功完成，echo: {}, result length: {}", echo_id,
+                   state->result.length());
         co_return state->result;
       }
 

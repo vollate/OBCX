@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <spdlog/common.h>
 #include <thread>
 #include <vector>
 
@@ -224,7 +225,7 @@ auto main(int argc, char *argv[]) -> int {
   signal(SIGTERM, signal_handler);
 
   common::Logger::initialize(
-      spdlog::level::debug,
+      spdlog::level::info,
       fmt::format("logs/obcx-bridge-{}.log",
                   boost::posix_time::to_iso_extended_string(
                       boost::posix_time::second_clock::local_time())));

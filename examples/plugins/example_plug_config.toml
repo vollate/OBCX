@@ -46,7 +46,7 @@ callbacks = ["on_message", "on_notice"]
 
 [plugins.qq_to_tg.config]
 database_file = "bridge_bot.db"
-enable_retry_queue = false      # Disabled to avoid scheduling conflicts
+enable_retry_queue = true
 
 # Telegram to QQ Plugin configuration
 [plugins.tg_to_qq]
@@ -55,7 +55,7 @@ callbacks = ["on_message", "on_notice"]
 
 [plugins.tg_to_qq.config]
 database_file = "bridge_bot.db"
-enable_retry_queue = false      # Disabled to avoid scheduling conflicts
+enable_retry_queue = true
 
 [group_mappings]
 

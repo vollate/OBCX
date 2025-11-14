@@ -36,17 +36,13 @@ void load_group_mappings() {
               item_table["show_qq_to_tg_sender"].value_or(true);
           bool show_tg_to_qq_sender =
               item_table["show_tg_to_qq_sender"].value_or(true);
-          bool enable_qq_to_tg =
-              item_table["enable_qq_to_tg"].value_or(true);
-          bool enable_tg_to_qq =
-              item_table["enable_tg_to_qq"].value_or(true);
+          bool enable_qq_to_tg = item_table["enable_qq_to_tg"].value_or(true);
+          bool enable_tg_to_qq = item_table["enable_tg_to_qq"].value_or(true);
 
           if (!telegram_group_id.empty() && !qq_group_id.empty()) {
             GroupBridgeConfig config(telegram_group_id, qq_group_id,
-                                     show_qq_to_tg_sender,
-                                     show_tg_to_qq_sender,
-                                     enable_qq_to_tg,
-                                     enable_tg_to_qq);
+                                     show_qq_to_tg_sender, show_tg_to_qq_sender,
+                                     enable_qq_to_tg, enable_tg_to_qq);
             GROUP_MAP[telegram_group_id] = config;
             OBCX_INFO("Loaded group mapping: {} -> {}", telegram_group_id,
                       qq_group_id);
@@ -71,10 +67,8 @@ void load_group_mappings() {
               item_table["show_qq_to_tg_sender"].value_or(true);
           bool show_tg_to_qq_sender =
               item_table["show_tg_to_qq_sender"].value_or(true);
-          bool enable_qq_to_tg =
-              item_table["enable_qq_to_tg"].value_or(true);
-          bool enable_tg_to_qq =
-              item_table["enable_tg_to_qq"].value_or(true);
+          bool enable_qq_to_tg = item_table["enable_qq_to_tg"].value_or(true);
+          bool enable_tg_to_qq = item_table["enable_tg_to_qq"].value_or(true);
 
           if (!telegram_group_id.empty()) {
             std::vector<TopicBridgeConfig> topics;
@@ -113,11 +107,10 @@ void load_group_mappings() {
                       topic_table["enable_tg_to_qq"].value_or(true);
 
                   if (telegram_topic_id != -1 && !qq_group_id.empty()) {
-                    topics.emplace_back(telegram_topic_id, qq_group_id,
-                                        topic_show_qq_to_tg,
-                                        topic_show_tg_to_qq,
-                                        topic_enable_qq_to_tg,
-                                        topic_enable_tg_to_qq);
+                    topics.emplace_back(
+                        telegram_topic_id, qq_group_id, topic_show_qq_to_tg,
+                        topic_show_tg_to_qq, topic_enable_qq_to_tg,
+                        topic_enable_tg_to_qq);
                     OBCX_INFO("Loaded topic mapping: {}:{} -> {}",
                               telegram_group_id, telegram_topic_id,
                               qq_group_id);
@@ -127,11 +120,9 @@ void load_group_mappings() {
             }
 
             if (!topics.empty()) {
-              GroupBridgeConfig config(telegram_group_id, topics,
-                                       show_qq_to_tg_sender,
-                                       show_tg_to_qq_sender,
-                                       enable_qq_to_tg,
-                                       enable_tg_to_qq);
+              GroupBridgeConfig config(
+                  telegram_group_id, topics, show_qq_to_tg_sender,
+                  show_tg_to_qq_sender, enable_qq_to_tg, enable_tg_to_qq);
               GROUP_MAP[telegram_group_id] = config;
               OBCX_INFO("Loaded topic group mapping for TG {} with {} topics",
                         telegram_group_id, topics.size());
@@ -220,6 +211,18 @@ void load_config() {
       REQUEST_TIMEOUT_MS = qq_bot->get("timeout")->value_or<int>(30000);
     }
 
+    // 设置默认值
+    ENABLE_MINIAPP_PARSING = true;
+    SHOW_RAW_JSON_ON_PARSE_FAIL = true;
+    MAX_JSON_DISPLAY_LENGTH = 2000;
+    ENABLE_RETRY_QUEUE = true;
+    MESSAGE_RETRY_MAX_ATTEMPTS = 5;
+    MEDIA_RETRY_MAX_ATTEMPTS = 3;
+    MESSAGE_RETRY_BASE_INTERVAL_SEC = 2;
+    MEDIA_RETRY_BASE_INTERVAL_SEC = 5;
+    RETRY_QUEUE_CHECK_INTERVAL_SEC = 10;
+    MAX_RETRY_INTERVAL_SEC = 300;
+
     // 从插件配置加载数据库配置
     DATABASE_FILE = "bridge_bot.db"; // 默认值
     if (auto plugin_config = loader.get_section("plugins.qq_to_tg.config")) {
@@ -228,18 +231,6 @@ void load_config() {
       ENABLE_RETRY_QUEUE =
           plugin_config->get("enable_retry_queue")->value_or<bool>(true);
     }
-
-    // 设置默认值
-    ENABLE_MINIAPP_PARSING = true;
-    SHOW_RAW_JSON_ON_PARSE_FAIL = true;
-    MAX_JSON_DISPLAY_LENGTH = 2000;
-
-    MESSAGE_RETRY_MAX_ATTEMPTS = 5;
-    MEDIA_RETRY_MAX_ATTEMPTS = 3;
-    MESSAGE_RETRY_BASE_INTERVAL_SEC = 2;
-    MEDIA_RETRY_BASE_INTERVAL_SEC = 5;
-    RETRY_QUEUE_CHECK_INTERVAL_SEC = 10;
-    MAX_RETRY_INTERVAL_SEC = 300;
 
     OBCX_INFO("Configuration loaded successfully");
     OBCX_INFO("Telegram Bot Token: {}...", TELEGRAM_BOT_TOKEN.substr(0, 20));
