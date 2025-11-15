@@ -1495,15 +1495,22 @@ auto QQHandler::handle_checkalive_command(obcx::core::IBot &telegram_bot,
 
     // 构造回复消息
     obcx::common::Message reply_message;
+
+    // 添加回复segment
+    obcx::common::MessageSegment reply_segment;
+    reply_segment.type = "reply";
+    reply_segment.data["id"] = event.message_id;
+    reply_message.push_back(reply_segment);
+
     obcx::common::MessageSegment text_segment;
     text_segment.type = "text";
     text_segment.data["text"] = response_text;
     reply_message.push_back(text_segment);
 
-    // 发送到Telegram
+    // 发送到QQ
     try {
-      co_await telegram_bot.send_group_message(telegram_group_id,
-                                               reply_message);
+      co_await qq_bot.send_group_message(qq_group_id,
+                                         reply_message);
       OBCX_INFO("/checkalive 命令处理完成");
     } catch (const std::exception &send_e) {
       OBCX_ERROR("/checkalive 命令：发送回复消息失败: {}", send_e.what());
