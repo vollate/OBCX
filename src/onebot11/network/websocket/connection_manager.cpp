@@ -13,7 +13,7 @@ namespace obcx::network {
 WebSocketConnectionManager::WebSocketConnectionManager(
     asio::io_context &ioc, adapter::onebot11::ProtocolAdapter &adapter)
     : ioc_(ioc), adapter_(adapter), reconnect_timer_(ioc),
-      send_strand_(asio::make_strand(ioc)), port_(0) {}
+      send_strand_(asio::make_strand(ioc)) {}
 
 void WebSocketConnectionManager::set_event_callback(EventCallback callback) {
   event_callback_ = std::move(callback);
@@ -31,7 +31,7 @@ void WebSocketConnectionManager::disconnect() {
 
   // 清理所有pending请求，避免析构时访问已销毁的对象
   {
-    std::lock_guard lock(pending_requests_mutex_);
+    std::scoped_lock lock(pending_requests_mutex_);
     for (auto &[echo_id, request] : pending_requests_) {
       if (request) {
         // 取消所有timer
@@ -82,7 +82,7 @@ void WebSocketConnectionManager::connect_ws(std::string host, uint16_t port,
 }
 
 void WebSocketConnectionManager::do_connect() {
-  asio::post(send_strand_, [this]() {
+  asio::post(send_strand_, [this]() -> void {
     ws_client_ = std::make_shared<WebsocketClient>(ioc_);
     OBCX_I18N_INFO(common::LogMessageKey::WEBSOCKET_ATTEMPTING_CONNECTION,
                    host_, port_);
@@ -90,7 +90,7 @@ void WebSocketConnectionManager::do_connect() {
     asio::co_spawn(send_strand_,
                    ws_client_->run(host_, std::to_string(port_), access_token_,
                                    [this](const beast::error_code &ec,
-                                          const std::string &message) {
+                                          const std::string &message) -> void {
                                      this->on_ws_message(ec, message);
                                    }),
                    asio::detached);
@@ -128,7 +128,7 @@ void WebSocketConnectionManager::on_ws_message(const beast::error_code &ec,
     if (j.contains("echo") && j.contains("retcode")) {
       uint64_t echo = j["echo"];
 
-      std::lock_guard lock(pending_requests_mutex_);
+      std::scoped_lock lock(pending_requests_mutex_);
       OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_FIND_PENDING, echo,
                       pending_requests_.size());
       auto it = pending_requests_.find(echo);
@@ -200,7 +200,7 @@ void WebSocketConnectionManager::on_ws_message(const beast::error_code &ec,
 void WebSocketConnectionManager::schedule_reconnect() {
   reconnect_timer_.expires_after(std::chrono::seconds(5));
   OBCX_I18N_INFO(common::LogMessageKey::ONEBOT11_WS_RECONNECT_SCHEDULED, 5000);
-  reconnect_timer_.async_wait([this](const beast::error_code &ec) {
+  reconnect_timer_.async_wait([this](const beast::error_code &ec) -> void {
     if (ec) {
       if (ec != asio::error::operation_aborted) {
         OBCX_I18N_ERROR(
@@ -233,20 +233,20 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
 
   request->completion_handler =
       [&result_mutex, &response_result, &response_error,
-       request](boost::system::error_code ec, std::string response) {
-        std::lock_guard lock(result_mutex);
-        if (ec) {
-          response_error = ec;
-        } else {
-          response_result = std::move(response);
-        }
-        request->timeout_timer.cancel();
-      };
+       request](boost::system::error_code ec, std::string response) -> void {
+    std::scoped_lock lock(result_mutex);
+    if (ec) {
+      response_error = ec;
+    } else {
+      response_result = std::move(response);
+    }
+    request->timeout_timer.cancel();
+  };
 
   request->timeout_timer.expires_after(action_timeout_);
 
   {
-    std::lock_guard lock(pending_requests_mutex_);
+    std::scoped_lock lock(pending_requests_mutex_);
     pending_requests_[echo_id] = request;
     OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_ADD_PENDING_COROUTINE,
                     echo_id, pending_requests_.size());
@@ -285,7 +285,7 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
 
     // 清理请求
     {
-      std::lock_guard lock(pending_requests_mutex_);
+      std::scoped_lock lock(pending_requests_mutex_);
       pending_requests_.erase(echo_id);
       OBCX_I18N_DEBUG(
           common::LogMessageKey::ONEBOT11_WS_CLEAN_PENDING_COROUTINE, echo_id,
@@ -294,7 +294,7 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
 
     // 检查结果
     {
-      std::lock_guard lock(result_mutex);
+      std::scoped_lock lock(result_mutex);
       if (response_error) {
         if (response_error == asio::error::timed_out) {
           OBCX_I18N_ERROR(
@@ -321,7 +321,7 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
     // 清理
     request->timeout_timer.cancel();
     {
-      std::lock_guard lock(pending_requests_mutex_);
+      std::scoped_lock lock(pending_requests_mutex_);
       pending_requests_.erase(echo_id);
     }
     throw;
@@ -474,7 +474,7 @@ auto WebSocketConnectionManager::is_connected() const -> bool {
 }
 
 void WebSocketConnectionManager::handle_timeout(uint64_t echo_id) {
-  std::lock_guard lock(pending_requests_mutex_);
+  std::scoped_lock lock(pending_requests_mutex_);
   auto it = pending_requests_.find(echo_id);
   if (it != pending_requests_.end()) {
     auto request = it->second;

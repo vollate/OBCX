@@ -378,7 +378,7 @@ public:
    * @brief 检查是否已连接到实现
    * @return 连接状态
    */
-  virtual auto is_connected() const -> bool = 0;
+  [[nodiscard]] virtual auto is_connected() const -> bool = 0;
 
   /**
    * @brief 获取任务调度器的引用，用于执行重负载任务

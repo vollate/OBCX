@@ -200,7 +200,7 @@ void HeartbeatEvent::to_json(json &j) const {
 void HeartbeatEvent::from_json(const json &j) {
   MetaEvent::from_json(j);
   status = JsonUtils::get_value(j, "status", json::object());
-  interval = JsonUtils::get_value(j, "interval", int64_t(0));
+  interval = JsonUtils::get_value(j, "interval", static_cast<int64_t>(0));
 }
 
 // ErrorEvent

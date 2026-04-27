@@ -23,9 +23,10 @@ void QQBot::connect(network::ConnectionManagerFactory::ConnectionType type,
   connection_manager_ =
       network::ConnectionManagerFactory::create(type, *io_context_, *adapter_);
 
-  connection_manager_->set_event_callback([this](const common::Event &event) {
-    dispatcher_->dispatch(this, event);
-  });
+  connection_manager_->set_event_callback(
+      [this](const common::Event &event) -> void {
+        dispatcher_->dispatch(this, event);
+      });
 
   connection_manager_->connect(config);
 
@@ -475,7 +476,7 @@ void QQBot::error_notify(std::string_view target_id, std::string_view message,
 }
 
 auto QQBot::get_onebot_adapter() const -> adapter::onebot11::ProtocolAdapter & {
-  return *static_cast<adapter::onebot11::ProtocolAdapter *>(&*adapter_);
+  return *dynamic_cast<adapter::onebot11::ProtocolAdapter *>(&*adapter_);
 }
 
 } // namespace obcx::core

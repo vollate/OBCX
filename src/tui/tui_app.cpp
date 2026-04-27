@@ -55,8 +55,8 @@ void TuiApp::run() {
   std::mutex console_mutex;
 
   // Set up output callback so CliHandler writes to our console pane
-  cli_ctx_.output_cb = [this, &console_mutex](const std::string &msg) {
-    std::lock_guard lock(console_mutex);
+  cli_ctx_.output_cb = [this, &console_mutex](const std::string &msg) -> void {
+    std::scoped_lock lock(console_mutex);
     console_lines_.push_back(msg);
   };
 
@@ -74,7 +74,7 @@ void TuiApp::run() {
 
           if (!cmd.empty()) {
             {
-              std::lock_guard lock(console_mutex);
+              std::scoped_lock lock(console_mutex);
               console_lines_.push_back("> " + cmd);
             }
             if (!cli_handler.process_command(cmd)) {
@@ -88,7 +88,7 @@ void TuiApp::run() {
         // Ctrl+C
         if (event == ftxui::Event::Character('\x03')) {
           {
-            std::lock_guard lock(console_mutex);
+            std::scoped_lock lock(console_mutex);
             console_lines_.emplace_back("Exiting...");
           }
           cli_handler.process_command("exit");
@@ -101,7 +101,7 @@ void TuiApp::run() {
 
   // Background thread to refresh the TUI periodically for new log lines
   // Also monitors should_stop and runs shutdown callback before exiting
-  std::thread refresh_thread([&screen, this]() {
+  std::thread refresh_thread([&screen, this]() -> void {
     while (running_.load()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -110,7 +110,7 @@ void TuiApp::run() {
         if (shutdown_started_.compare_exchange_strong(expected, true)) {
           // Run shutdown callback in a separate thread so TUI keeps refreshing
           if (cli_ctx_.shutdown_cb) {
-            std::thread shutdown_thread([this]() {
+            std::thread shutdown_thread([this]() -> void {
               cli_ctx_.shutdown_cb();
               shutdown_complete_.store(true, std::memory_order_release);
             });
@@ -138,7 +138,7 @@ void TuiApp::run() {
   int log_pane_size = 0; // Will be set by ResizableSplit
 
   // Log pane: virtualized renderer — only renders visible rows
-  auto log_pane = ftxui::Renderer([this] {
+  auto log_pane = ftxui::Renderer([this] -> ftxui::Element {
     auto total = static_cast<int>(tui_sink_->line_count());
 
     if (total == 0) {
@@ -183,10 +183,10 @@ void TuiApp::run() {
   });
 
   // Console pane: pure renderer, delegates to input_with_enter
-  auto console_pane = ftxui::Renderer(input_with_enter, [&] {
+  auto console_pane = ftxui::Renderer(input_with_enter, [&] -> ftxui::Element {
     ftxui::Elements console_elements;
     {
-      std::lock_guard lock(console_mutex);
+      std::scoped_lock lock(console_mutex);
       console_elements.reserve(console_lines_.size());
       for (const auto &line : console_lines_) {
         console_elements.push_back(ftxui::text(line));
@@ -210,14 +210,16 @@ void TuiApp::run() {
   });
 
   // Wrap panes with colored borders
-  auto log_bordered = ftxui::Renderer(log_pane, [&log_pane] {
+  auto log_bordered = ftxui::Renderer(log_pane, [&log_pane] -> ftxui::Element {
     return log_pane->Render() | ftxui::borderStyled(ftxui::Color::Blue) |
            ftxui::bold;
   });
 
-  auto console_bordered = ftxui::Renderer(console_pane, [&console_pane] {
-    return console_pane->Render() | ftxui::borderStyled(ftxui::Color::Green);
-  });
+  auto console_bordered =
+      ftxui::Renderer(console_pane, [&console_pane] -> ftxui::Element {
+        return console_pane->Render() |
+               ftxui::borderStyled(ftxui::Color::Green);
+      });
 
   auto container =
       ftxui::ResizableSplitTop(log_bordered, console_bordered, &log_pane_size);
@@ -225,7 +227,7 @@ void TuiApp::run() {
   // Set initial split ratio (70/30)
   bool size_initialized = false;
 
-  auto inner = ftxui::Renderer(container, [&] {
+  auto inner = ftxui::Renderer(container, [&] -> ftxui::Element {
     auto element = container->Render();
     if (!size_initialized) {
       log_pane_size = ftxui::Terminal::Size().dimy * 7 / 10;

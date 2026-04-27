@@ -100,7 +100,8 @@ auto PluginManager::get_plugin(const std::string &plugin_name) const
   return nullptr;
 }
 
-std::vector<std::string> PluginManager::get_loaded_plugin_names() const {
+auto PluginManager::get_loaded_plugin_names() const
+    -> std::vector<std::string> {
   std::vector<std::string> names;
   names.reserve(loaded_plugins_.size());
 
@@ -286,8 +287,7 @@ auto PluginManager::sort_plugins_by_priority_and_dependencies(
   for (const auto &[name, config] : plugin_configs) {
     for (const auto &required : config.required) {
       // Check if required plugin is in the list
-      if (std::find(plugin_names.begin(), plugin_names.end(), required) ==
-          plugin_names.end()) {
+      if (std::ranges::find(plugin_names, required) == plugin_names.end()) {
         OBCX_I18N_ERROR(common::LogMessageKey::PLUGIN_DEPENDENCY_MISSING, name,
                         required);
         throw std::runtime_error("Plugin '" + name + "' requires '" + required +
@@ -301,7 +301,8 @@ auto PluginManager::sort_plugins_by_priority_and_dependencies(
 
   // Kahn's algorithm with priority queue
   // Use max heap: higher priority comes first
-  auto cmp = [&plugin_configs](const std::string &a, const std::string &b) {
+  auto cmp = [&plugin_configs](const std::string &a,
+                               const std::string &b) -> bool {
     return plugin_configs[a].priority < plugin_configs[b].priority;
   };
   std::priority_queue<std::string, std::vector<std::string>, decltype(cmp)> pq(

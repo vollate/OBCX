@@ -381,9 +381,10 @@ auto ProxyHttpClient::connect_through_proxy() -> tcp::socket {
   }
 }
 
-tcp::socket ProxyHttpClient::establish_http_tunnel(
-    tcp::socket &proxy_socket, const std::string &target_host,
-    uint16_t target_port) {
+auto ProxyHttpClient::establish_http_tunnel(tcp::socket &proxy_socket,
+                                            const std::string &target_host,
+                                            uint16_t target_port)
+    -> tcp::socket {
   std::string connect_target = target_host + ":" + std::to_string(target_port);
   std::ostringstream connect_request;
   connect_request << "CONNECT " << connect_target << " HTTP/1.1\r\n";

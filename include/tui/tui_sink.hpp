@@ -49,12 +49,12 @@ public:
   explicit tui_sink(std::size_t max_lines = 5000) : max_lines_(max_lines) {}
 
   auto get_lines() -> std::vector<LogLine> {
-    std::lock_guard lock(lines_mutex_);
+    std::scoped_lock lock(lines_mutex_);
     return {lines_.begin(), lines_.end()};
   }
 
   auto get_lines_from(std::size_t offset) -> std::vector<LogLine> {
-    std::lock_guard lock(lines_mutex_);
+    std::scoped_lock lock(lines_mutex_);
     if (offset >= lines_.size()) {
       return {};
     }
@@ -64,7 +64,7 @@ public:
   /// 获取指定范围的行 [offset, offset+count)
   auto get_lines_range(std::size_t offset, std::size_t count)
       -> std::vector<LogLine> {
-    std::lock_guard lock(lines_mutex_);
+    std::scoped_lock lock(lines_mutex_);
     auto begin = std::min(offset, lines_.size());
     auto end = std::min(begin + count, lines_.size());
     return {lines_.begin() + static_cast<std::ptrdiff_t>(begin),
@@ -72,12 +72,12 @@ public:
   }
 
   auto line_count() -> std::size_t {
-    std::lock_guard lock(lines_mutex_);
+    std::scoped_lock lock(lines_mutex_);
     return lines_.size();
   }
 
   /// 版本号，每次写入递增
-  auto version() const -> uint64_t {
+  [[nodiscard]] auto version() const -> uint64_t {
     return version_.load(std::memory_order_relaxed);
   }
 
@@ -95,8 +95,10 @@ protected:
     // 预计算 stripped 文本
     std::string stripped = strip_ansi(line);
 
-    std::lock_guard lock(lines_mutex_);
-    lines_.push_back(LogLine{std::move(line), std::move(stripped), msg.level});
+    std::scoped_lock lock(lines_mutex_);
+    lines_.push_back(LogLine{.text = std::move(line),
+                             .stripped_text = std::move(stripped),
+                             .level = msg.level});
     while (lines_.size() > max_lines_) {
       lines_.pop_front();
     }

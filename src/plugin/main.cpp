@@ -195,7 +195,7 @@ public:
 
       // Start bot component in separate thread, capturing the specific bot
       // index
-      bot_threads.emplace_back([&bots, bot_index]() {
+      bot_threads.emplace_back([&bots, bot_index]() -> void {
         try {
           bots[bot_index]->run();
         } catch (const std::exception &e) {
@@ -224,7 +224,7 @@ public:
       };
 
       // Shutdown callback: runs while TUI is still alive so logs are visible
-      ctx.shutdown_cb = [&]() {
+      ctx.shutdown_cb = [&]() -> void {
         OBCX_I18N_INFO(common::LogMessageKey::FRAMEWORK_SHUTDOWN);
 
         // Stop all bot components
@@ -237,7 +237,8 @@ public:
           if (bot_threads[i].joinable()) {
             OBCX_I18N_INFO(common::LogMessageKey::WAITING_BOT_THREAD, i);
             std::atomic_bool thread_finished{false};
-            std::thread timeout_thread([&thread_finished, &bot_threads, i]() {
+            std::thread timeout_thread([&thread_finished, &bot_threads,
+                                        i]() -> void {
               std::this_thread::sleep_for(
                   std::chrono::seconds(BOT_SHUTDOWN_TIMEOUT_SECONDS));
               if (!thread_finished.load()) {
@@ -277,7 +278,7 @@ public:
         // Wait for signal if stdin closed before SIGINT
         {
           std::unique_lock lock(g_stop_mtx);
-          g_stop_cv.wait(lock, [] { return g_should_stop.load(); });
+          g_stop_cv.wait(lock, [] -> bool { return g_should_stop.load(); });
         }
         if (ctx.shutdown_cb) {
           ctx.shutdown_cb();

@@ -74,7 +74,7 @@ auto MediaConverter::convert_webm_to_gif_async(const std::string &webm_url,
                                                const std::string &output_path,
                                                int max_duration, int max_width)
     -> std::future<bool> {
-  return std::async(std::launch::async, [=]() {
+  return std::async(std::launch::async, [=]() -> bool {
     return convert_webm_to_gif(webm_url, output_path, max_duration, max_width);
   });
 }

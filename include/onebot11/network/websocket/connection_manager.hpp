@@ -89,7 +89,7 @@ private:
   asio::strand<asio::io_context::executor_type> send_strand_;
 
   std::string host_;
-  uint16_t port_;
+  uint16_t port_{0};
   std::string access_token_;
   std::chrono::milliseconds action_timeout_{5000};
   bool is_running_ = false;

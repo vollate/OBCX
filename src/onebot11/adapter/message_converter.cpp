@@ -25,7 +25,7 @@ auto MessageConverter::cq_escape(std::string s) -> std::string {
   }
 
   auto replace_all = [](std::string &str, const std::string &from,
-                        const std::string &to) {
+                        const std::string &to) -> void {
     if (from.empty()) {
       return;
     }
@@ -50,7 +50,7 @@ auto MessageConverter::cq_unescape(std::string s) -> std::string {
   }
 
   auto replace_all = [](std::string &str, const std::string &from,
-                        const std::string &to) {
+                        const std::string &to) -> void {
     if (from.empty()) {
       return;
     }
@@ -119,7 +119,7 @@ auto MessageConverter::from_v11_string(const std::string &raw_message)
       std::string text =
           unescaped_message.substr(last_pos, current_pos - last_pos);
       if (!text.empty()) {
-        message.push_back({"text", {{"text", text}}});
+        message.push_back({.type = "text", .data = {{"text", text}}});
       }
     }
 
@@ -138,7 +138,7 @@ auto MessageConverter::from_v11_string(const std::string &raw_message)
     }
 
     if (!type_match.empty()) {
-      message.push_back({type_match, data});
+      message.push_back({.type = type_match, .data = data});
     }
 
     last_pos = match_end;
@@ -155,7 +155,7 @@ auto MessageConverter::from_v11_string(const std::string &raw_message)
   if (last_pos < unescaped_message.length()) {
     std::string remaining_text = unescaped_message.substr(last_pos);
     if (!remaining_text.empty()) {
-      message.push_back({"text", {{"text", remaining_text}}});
+      message.push_back({.type = "text", .data = {{"text", remaining_text}}});
     }
   }
 

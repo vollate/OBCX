@@ -33,11 +33,11 @@ public:
   // 实现IConnectionManager接口
   void connect(const common::ConnectionConfig &config) override;
   void disconnect() override;
-  bool is_connected() const override;
-  asio::awaitable<std::string> send_action_and_wait_async(
-      std::string action_payload, uint64_t echo_id) override;
+  [[nodiscard]] auto is_connected() const -> bool override;
+  auto send_action_and_wait_async(std::string action_payload, uint64_t echo_id)
+      -> asio::awaitable<std::string> override;
   void set_event_callback(EventCallback callback) override;
-  std::string get_connection_type() const override;
+  [[nodiscard]] auto get_connection_type() const -> std::string override;
 
 private:
   /**
@@ -53,7 +53,7 @@ private:
   /**
    * @brief 轮询事件的协程
    */
-  asio::awaitable<void> poll_events();
+  auto poll_events() -> asio::awaitable<void>;
 
   /**
    * @brief 处理轮询到的事件

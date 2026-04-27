@@ -33,9 +33,10 @@ void TGBot::connect(network::ConnectionManagerFactory::ConnectionType type,
         common::LogMessageKey::TELEGRAMBOT_ONLY_SUPPORT_HTTP));
   }
 
-  connection_manager_->set_event_callback([this](const common::Event &event) {
-    dispatcher_->dispatch(this, event);
-  });
+  connection_manager_->set_event_callback(
+      [this](const common::Event &event) -> void {
+        dispatcher_->dispatch(this, event);
+      });
 
   connection_manager_->connect(config);
 
@@ -542,7 +543,7 @@ void TGBot::ensure_connection_manager() const {
 
 auto TGBot::get_telegram_adapter() const
     -> adapter::telegram::ProtocolAdapter & {
-  return *static_cast<adapter::telegram::ProtocolAdapter *>(&*adapter_);
+  return *dynamic_cast<adapter::telegram::ProtocolAdapter *>(&*adapter_);
 }
 
 // --- 媒体文件处理 API 实现 ---

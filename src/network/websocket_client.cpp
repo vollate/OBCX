@@ -70,8 +70,8 @@ auto WebsocketClient::run(std::string host, std::string port,
      * \endif
      */
     lowest_layer.expires_never();
-    ws_.set_option(
-        websocket::stream_base::decorator([this](websocket::request_type &req) {
+    ws_.set_option(websocket::stream_base::decorator(
+        [this](websocket::request_type &req) -> void {
           if (!access_token_.empty()) {
             req.set(beast::http::field::authorization,
                     "Bearer " + access_token_);

@@ -7,9 +7,10 @@ namespace obcx::common {
 
 auto JsonUtils::validate_required_fields(
     const json &j, const std::vector<std::string> &required_fields) -> bool {
-  return std::ranges::all_of(required_fields, [&j](const std::string &field) {
-    return j.contains(field) && !j[field].is_null();
-  });
+  return std::ranges::all_of(required_fields,
+                             [&j](const std::string &field) -> bool {
+                               return j.contains(field) && !j[field].is_null();
+                             });
 }
 
 void JsonUtils::merge(json &target, const json &source, bool overwrite) {

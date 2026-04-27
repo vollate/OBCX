@@ -42,7 +42,7 @@ public:
    * @brief 获取线程池的IO上下文
    * @return asio::thread_pool& 线程池引用
    */
-  asio::thread_pool &get_io_context() { return thread_pool_; }
+  auto get_io_context() -> asio::thread_pool & { return thread_pool_; }
 
   /**
    * @brief 析构函数，确保线程池正确关闭
@@ -99,31 +99,33 @@ public:
     auto future = promise->get_future();
 
     // 提交任务到线程池
-    asio::post(thread_pool_, [task = std::move(task), promise]() mutable {
-      try {
-        std::stringstream worker_ss;
-        worker_ss << std::this_thread::get_id();
-        OBCX_I18N_DEBUG(common::LogMessageKey::TASK_SCHEDULER_HEAVY_TASK_START,
-                        worker_ss.str());
+    asio::post(
+        thread_pool_, [task = std::move(task), promise]() mutable -> auto {
+          try {
+            std::stringstream worker_ss;
+            worker_ss << std::this_thread::get_id();
+            OBCX_I18N_DEBUG(
+                common::LogMessageKey::TASK_SCHEDULER_HEAVY_TASK_START,
+                worker_ss.str());
 
-        // 在线程池中执行实际的重负载任务
-        if constexpr (std::is_void_v<ReturnType>) {
-          task();
-          OBCX_I18N_DEBUG(
-              common::LogMessageKey::TASK_SCHEDULER_HEAVY_TASK_COMPLETE_VOID);
-          promise->set_value();
-        } else {
-          auto result = task();
-          OBCX_I18N_DEBUG(
-              common::LogMessageKey::TASK_SCHEDULER_HEAVY_TASK_COMPLETE_RESULT);
-          promise->set_value(std::move(result));
-        }
-      } catch (...) {
-        OBCX_I18N_ERROR(
-            common::LogMessageKey::TASK_SCHEDULER_HEAVY_TASK_EXCEPTION);
-        promise->set_exception(std::current_exception());
-      }
-    });
+            // 在线程池中执行实际的重负载任务
+            if constexpr (std::is_void_v<ReturnType>) {
+              task();
+              OBCX_I18N_DEBUG(common::LogMessageKey::
+                                  TASK_SCHEDULER_HEAVY_TASK_COMPLETE_VOID);
+              promise->set_value();
+            } else {
+              auto result = task();
+              OBCX_I18N_DEBUG(common::LogMessageKey::
+                                  TASK_SCHEDULER_HEAVY_TASK_COMPLETE_RESULT);
+              promise->set_value(std::move(result));
+            }
+          } catch (...) {
+            OBCX_I18N_ERROR(
+                common::LogMessageKey::TASK_SCHEDULER_HEAVY_TASK_EXCEPTION);
+            promise->set_exception(std::current_exception());
+          }
+        });
 
     // 使用协程等待结果
     while (future.wait_for(std::chrono::milliseconds(1)) !=

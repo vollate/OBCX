@@ -68,11 +68,13 @@ public:
   // 提供两个版本：异步(fire-and-forget)和同步(等待响应)
 
   // 标准版本 - 等待响应
-  asio::awaitable<std::string> send_private_message(
-      std::string_view user_id, const common::Message &message) override;
+  auto send_private_message(std::string_view user_id,
+                            const common::Message &message)
+      -> asio::awaitable<std::string> override;
 
-  asio::awaitable<std::string> send_group_message(
-      std::string_view group_id, const common::Message &message) override;
+  auto send_group_message(std::string_view group_id,
+                          const common::Message &message)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 发送消息到特定的forum topic
@@ -81,9 +83,9 @@ public:
    * @param message 消息内容
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> send_topic_message(
-      std::string_view group_id, int64_t topic_id,
-      const common::Message &message);
+  auto send_topic_message(std::string_view group_id, int64_t topic_id,
+                          const common::Message &message)
+      -> asio::awaitable<std::string>;
 
   /**
    * @brief 发送照片到群组
@@ -92,9 +94,9 @@ public:
    * @param caption 照片描述（可选）
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> send_group_photo(std::string_view group_id,
-                                                std::string_view photo_data,
-                                                std::string_view caption = "");
+  auto send_group_photo(std::string_view group_id, std::string_view photo_data,
+                        std::string_view caption = "")
+      -> asio::awaitable<std::string>;
 
   /**
    * @brief 通过multipart上传原始图片字节到Telegram
@@ -106,10 +108,11 @@ public:
    * @param topic_id 可选的话题ID
    * @return API响应JSON字符串
    */
-  asio::awaitable<std::string> send_photo_bytes(
-      std::string_view chat_id, const std::string &image_data,
-      std::string_view filename, std::string_view mime_type,
-      std::string_view caption, std::optional<int64_t> topic_id = std::nullopt);
+  auto send_photo_bytes(std::string_view chat_id, const std::string &image_data,
+                        std::string_view filename, std::string_view mime_type,
+                        std::string_view caption,
+                        std::optional<int64_t> topic_id = std::nullopt)
+      -> asio::awaitable<std::string>;
 
   /**
    * @brief 发送媒体组（多张图片/视频）到群组或topic
@@ -120,12 +123,13 @@ public:
    * @param reply_to_message_id 可选的回复消息ID
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> send_media_group(
+  auto send_media_group(
       std::string_view chat_id,
       const std::vector<std::pair<std::string, std::string>> &media,
       std::string_view caption = "",
       std::optional<int64_t> topic_id = std::nullopt,
-      std::optional<std::string> reply_to_message_id = std::nullopt);
+      std::optional<std::string> reply_to_message_id = std::nullopt)
+      -> asio::awaitable<std::string>;
 
   // --- 消息管理 API ---
 
@@ -134,8 +138,8 @@ public:
    * @param message_id 要撤回的消息ID
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> delete_message(
-      std::string_view message_id) override;
+  auto delete_message(std::string_view message_id)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 编辑消息文本
@@ -145,17 +149,18 @@ public:
    * @param parse_mode 解析模式（MarkdownV2, HTML, Markdown）
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> edit_message_text(
-      std::string_view chat_id, std::string_view message_id,
-      std::string_view text, std::string_view parse_mode = "");
+  auto edit_message_text(std::string_view chat_id, std::string_view message_id,
+                         std::string_view text,
+                         std::string_view parse_mode = "")
+      -> asio::awaitable<std::string>;
 
   /**
    * @brief 获取消息详情
    * @param message_id 要获取的消息ID
    * @return 消息详情的JSON响应
    */
-  asio::awaitable<std::string> get_message(
-      std::string_view message_id) override;
+  auto get_message(std::string_view message_id)
+      -> asio::awaitable<std::string> override;
 
   // --- 好友管理 API ---
 
@@ -163,7 +168,7 @@ public:
    * @brief 获取好友列表
    * @return 好友列表的JSON响应
    */
-  asio::awaitable<std::string> get_friend_list() override;
+  auto get_friend_list() -> asio::awaitable<std::string> override;
 
   /**
    * @brief 获取陌生人信息
@@ -171,8 +176,8 @@ public:
    * @param no_cache 是否不使用缓存
    * @return 用户信息的JSON响应
    */
-  asio::awaitable<std::string> get_stranger_info(
-      std::string_view user_id, bool no_cache = false) override;
+  auto get_stranger_info(std::string_view user_id, bool no_cache = false)
+      -> asio::awaitable<std::string> override;
 
   // --- 群组管理 API ---
 
@@ -180,7 +185,7 @@ public:
    * @brief 获取群列表
    * @return 群列表的JSON响应
    */
-  asio::awaitable<std::string> get_group_list() override;
+  auto get_group_list() -> asio::awaitable<std::string> override;
 
   /**
    * @brief 获取群信息
@@ -188,16 +193,16 @@ public:
    * @param no_cache 是否不使用缓存
    * @return 群信息的JSON响应
    */
-  asio::awaitable<std::string> get_group_info(std::string_view group_id,
-                                              bool no_cache = false) override;
+  auto get_group_info(std::string_view group_id, bool no_cache = false)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 获取群成员列表
    * @param group_id 目标群ID
    * @return 群成员列表的JSON响应
    */
-  asio::awaitable<std::string> get_group_member_list(
-      std::string_view group_id) override;
+  auto get_group_member_list(std::string_view group_id)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 获取群成员信息
@@ -206,9 +211,9 @@ public:
    * @param no_cache 是否不使用缓存
    * @return 群成员信息的JSON响应
    */
-  asio::awaitable<std::string> get_group_member_info(
-      std::string_view group_id, std::string_view user_id,
-      bool no_cache = false) override;
+  auto get_group_member_info(std::string_view group_id,
+                             std::string_view user_id, bool no_cache = false)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 群组踢人
@@ -217,9 +222,9 @@ public:
    * @param reject_add_request 是否拒绝此人的加群请求
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> set_group_kick(
-      std::string_view group_id, std::string_view user_id,
-      bool reject_add_request = false) override;
+  auto set_group_kick(std::string_view group_id, std::string_view user_id,
+                      bool reject_add_request = false)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 群组单人禁言
@@ -228,9 +233,9 @@ public:
    * @param duration 禁言时长，单位秒，0表示取消禁言
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> set_group_ban(std::string_view group_id,
-                                             std::string_view user_id,
-                                             int32_t duration = 1800) override;
+  auto set_group_ban(std::string_view group_id, std::string_view user_id,
+                     int32_t duration = 1800)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 群组全员禁言
@@ -238,8 +243,8 @@ public:
    * @param enable 是否开启全员禁言
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> set_group_whole_ban(std::string_view group_id,
-                                                   bool enable = true) override;
+  auto set_group_whole_ban(std::string_view group_id, bool enable = true)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 设置群名片（群备注）
@@ -248,9 +253,9 @@ public:
    * @param card 新的群名片
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> set_group_card(std::string_view group_id,
-                                              std::string_view user_id,
-                                              std::string_view card) override;
+  auto set_group_card(std::string_view group_id, std::string_view user_id,
+                      std::string_view card)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 退出群组
@@ -258,8 +263,8 @@ public:
    * @param is_dismiss 是否解散群组（仅群主可用）
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> set_group_leave(
-      std::string_view group_id, bool is_dismiss = false) override;
+  auto set_group_leave(std::string_view group_id, bool is_dismiss = false)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 设置群名
@@ -267,8 +272,8 @@ public:
    * @param group_name 新群名
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> set_group_name(
-      std::string_view group_id, std::string_view group_name) override;
+  auto set_group_name(std::string_view group_id, std::string_view group_name)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 设置群管理员
@@ -277,9 +282,9 @@ public:
    * @param enable 是否设置为管理员
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> set_group_admin(std::string_view group_id,
-                                               std::string_view user_id,
-                                               bool enable = true) override;
+  auto set_group_admin(std::string_view group_id, std::string_view user_id,
+                       bool enable = true)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 群组匿名用户禁言
@@ -288,9 +293,10 @@ public:
    * @param duration 禁言时长，单位秒，0表示取消禁言
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> set_group_anonymous_ban(
-      std::string_view group_id, const std::string &anonymous,
-      int32_t duration = 1800) override;
+  auto set_group_anonymous_ban(std::string_view group_id,
+                               const std::string &anonymous,
+                               int32_t duration = 1800)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 群组设置匿名
@@ -298,8 +304,8 @@ public:
    * @param enable 是否允许匿名聊天
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> set_group_anonymous(std::string_view group_id,
-                                                   bool enable = true) override;
+  auto set_group_anonymous(std::string_view group_id, bool enable = true)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 设置群头像
@@ -308,9 +314,9 @@ public:
    * @param cache 是否使用缓存
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> set_group_portrait(std::string_view group_id,
-                                                  std::string_view file,
-                                                  bool cache = true) override;
+  auto set_group_portrait(std::string_view group_id, std::string_view file,
+                          bool cache = true)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 获取群荣誉信息
@@ -318,8 +324,8 @@ public:
    * @param type 要获取的群荣誉类型
    * @return 群荣誉信息的JSON响应
    */
-  asio::awaitable<std::string> get_group_honor_info(
-      std::string_view group_id, std::string_view type) override;
+  auto get_group_honor_info(std::string_view group_id, std::string_view type)
+      -> asio::awaitable<std::string> override;
 
   // --- 状态获取 API ---
 
@@ -327,19 +333,19 @@ public:
    * @brief 获取登录号信息
    * @return 登录信息的JSON响应
    */
-  asio::awaitable<std::string> get_login_info() override;
+  auto get_login_info() -> asio::awaitable<std::string> override;
 
   /**
    * @brief 获取插件运行状态
    * @return 状态信息的JSON响应
    */
-  asio::awaitable<std::string> get_status() override;
+  auto get_status() -> asio::awaitable<std::string> override;
 
   /**
    * @brief 获取版本信息
    * @return 版本信息的JSON响应
    */
-  asio::awaitable<std::string> get_version_info() override;
+  auto get_version_info() -> asio::awaitable<std::string> override;
 
   // --- 资源管理 API ---
 
@@ -348,7 +354,8 @@ public:
    * @param file 图片文件名
    * @return 图片信息的JSON响应
    */
-  asio::awaitable<std::string> get_image(std::string_view file) override;
+  auto get_image(std::string_view file)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 获取语音信息
@@ -356,8 +363,8 @@ public:
    * @param out_format 输出格式
    * @return 语音信息的JSON响应
    */
-  asio::awaitable<std::string> get_record(
-      std::string_view file, std::string_view out_format = "mp3") override;
+  auto get_record(std::string_view file, std::string_view out_format = "mp3")
+      -> asio::awaitable<std::string> override;
 
   // --- 能力检查 API ---
 
@@ -365,13 +372,13 @@ public:
    * @brief 检查是否可以发送图片
    * @return 检查结果的JSON响应
    */
-  asio::awaitable<std::string> can_send_image() override;
+  auto can_send_image() -> asio::awaitable<std::string> override;
 
   /**
    * @brief 检查是否可以发送语音
    * @return 检查结果的JSON响应
    */
-  asio::awaitable<std::string> can_send_record() override;
+  auto can_send_record() -> asio::awaitable<std::string> override;
 
   // --- Telegram相关接口凭证 API ---
 
@@ -380,22 +387,22 @@ public:
    * @param domain 目标域名（可选）
    * @return Cookies的JSON响应
    */
-  asio::awaitable<std::string> get_cookies(
-      std::string_view domain = "") override;
+  auto get_cookies(std::string_view domain = "")
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 获取CSRF Token
    * @return CSRF Token的JSON响应
    */
-  asio::awaitable<std::string> get_csrf_token() override;
+  auto get_csrf_token() -> asio::awaitable<std::string> override;
 
   /**
    * @brief 获取Telegram相关接口凭证
    * @param domain 目标域名（可选）
    * @return 凭证信息的JSON响应
    */
-  asio::awaitable<std::string> get_credentials(
-      std::string_view domain = "") override;
+  auto get_credentials(std::string_view domain = "")
+      -> asio::awaitable<std::string> override;
 
   // --- 请求处理 API ---
 
@@ -406,9 +413,9 @@ public:
    * @param remark 添加后的好友备注（仅同意时有效）
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> set_friend_add_request(
-      std::string_view flag, bool approve = true,
-      std::string_view remark = "") override;
+  auto set_friend_add_request(std::string_view flag, bool approve = true,
+                              std::string_view remark = "")
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 处理加群请求/邀请
@@ -418,9 +425,9 @@ public:
    * @param reason 拒绝理由（仅拒绝时有效）
    * @return 操作结果的JSON响应
    */
-  asio::awaitable<std::string> set_group_add_request(
-      std::string_view flag, std::string_view sub_type, bool approve = true,
-      std::string_view reason = "") override;
+  auto set_group_add_request(std::string_view flag, std::string_view sub_type,
+                             bool approve = true, std::string_view reason = "")
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 检查是否已连接到Telegram Bot API
@@ -460,14 +467,15 @@ public:
    * @brief 获取连接管理器实例（用于媒体下载）
    * @return 连接管理器指针，可能为nullptr
    */
-  auto get_connection_manager() const -> network::IConnectionManager *;
+  [[nodiscard]] auto get_connection_manager() const
+      -> network::IConnectionManager *;
 
 private:
   /**
    * @brief 轮询 Telegram 更新
    * @return 可等待的协程对象
    */
-  asio::awaitable<void> poll_updates();
+  auto poll_updates() -> asio::awaitable<void>;
 
   /**
    * @brief 获取 Telegram 更新
@@ -475,13 +483,14 @@ private:
    * @param limit 更新数量限制
    * @return 更新的JSON响应
    */
-  asio::awaitable<std::string> get_updates(int offset = 0, int limit = 100);
+  auto get_updates(int offset = 0, int limit = 100)
+      -> asio::awaitable<std::string>;
 
   /**
    * @brief 生成唯一的echo ID
    * @return 唯一ID字符串
    */
-  uint64_t generate_echo_id();
+  auto generate_echo_id() -> uint64_t;
 
   /**
    * @brief 检查连接管理器是否已初始化
@@ -489,7 +498,8 @@ private:
    */
   void ensure_connection_manager() const;
 
-  auto get_telegram_adapter() const -> adapter::telegram::ProtocolAdapter &;
+  [[nodiscard]] auto get_telegram_adapter() const
+      -> adapter::telegram::ProtocolAdapter &;
 };
 
 } // namespace obcx::core

@@ -27,9 +27,9 @@ public:
 
   // 禁止拷贝和赋值
   BaseProtocolAdapter(const BaseProtocolAdapter &) = delete;
-  BaseProtocolAdapter &operator=(const BaseProtocolAdapter &) = delete;
+  auto operator=(const BaseProtocolAdapter &) -> BaseProtocolAdapter & = delete;
   BaseProtocolAdapter(BaseProtocolAdapter &&) = default;
-  BaseProtocolAdapter &operator=(BaseProtocolAdapter &&) = default;
+  auto operator=(BaseProtocolAdapter &&) -> BaseProtocolAdapter & = default;
 
   // --- 事件解析 ---
 

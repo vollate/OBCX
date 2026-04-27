@@ -11,14 +11,14 @@ namespace obcx::common {
 
 struct BotConfig {
   std::string type;
-  bool enabled;
+  bool enabled{};
   toml::table connection;
   std::vector<std::string> plugins;
 };
 
 struct PluginConfig {
   std::string name;
-  bool enabled;
+  bool enabled{};
   toml::table config;
   std::vector<std::string> callbacks;
   uint8_t priority = 0; // 0 = lowest, 255 = highest
@@ -55,7 +55,7 @@ public:
 
   template <typename T>
   auto get_value(const std::string &key) const -> std::optional<T> {
-    std::lock_guard lock(mutex_);
+    std::scoped_lock lock(mutex_);
     if (!config_data_) {
       return std::nullopt;
     }
@@ -67,7 +67,7 @@ public:
 
     if constexpr (std::is_same_v<T, std::string>) {
       if (auto val = node.value<std::string>()) {
-        return *val;
+        return val;
       }
     } else if constexpr (std::is_same_v<T, int64_t>) {
       if (auto val = node.value<int64_t>()) {
@@ -79,7 +79,7 @@ public:
       }
     } else if constexpr (std::is_same_v<T, bool>) {
       if (auto val = node.value<bool>()) {
-        return *val;
+        return val;
       }
     }
 
@@ -92,12 +92,12 @@ public:
   void reload_config();
 
   auto is_loaded() const -> bool {
-    std::lock_guard lock(mutex_);
+    std::scoped_lock lock(mutex_);
     return config_data_ != nullptr;
   }
 
   auto get_config_path() const -> const std::string & {
-    std::lock_guard lock(mutex_);
+    std::scoped_lock lock(mutex_);
     return config_path_;
   }
 };

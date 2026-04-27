@@ -35,7 +35,8 @@ public:
    * 的协程函数
    */
   template <typename EventType>
-  void on(std::function<asio::awaitable<void>(IBot &, EventType)> handler) {
+  void on(
+      const std::function<asio::awaitable<void>(IBot &, EventType)> &handler) {
     const auto type_idx = std::type_index(typeid(EventType));
 
     auto wrapper = [handler](IBot *bot,
@@ -70,7 +71,7 @@ public:
    */
   void dispatch(IBot *bot, const common::Event &event) {
     std::visit(
-        [this, bot](const auto &concrete_event) {
+        [this, bot](const auto &concrete_event) -> auto {
           using ConcreteEventType = std::decay_t<decltype(concrete_event)>;
           const auto type_idx = std::type_index(typeid(ConcreteEventType));
 

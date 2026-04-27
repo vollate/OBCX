@@ -72,7 +72,7 @@ auto CliHandler::handle_reload(Context &ctx,
   // Step 1: Clear all event handlers from bots to prevent dangling
   // function pointers after plugin unload
   {
-    std::lock_guard lock(ctx.bots_mutex);
+    std::scoped_lock lock(ctx.bots_mutex);
     for (auto &bot : ctx.bots) {
       bot->clear_event_handlers();
     }

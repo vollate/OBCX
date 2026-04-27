@@ -159,7 +159,7 @@ struct MessageEvent : public BaseEvent {
   std::string user_id;
   Message message;
   std::string raw_message;
-  int32_t font;
+  int32_t font{};
 
   /*
    * \if CHINESE
@@ -297,7 +297,7 @@ struct HeartbeatEvent : public MetaEvent {
    * Interval since last heartbeat (milliseconds)
    * \endif
    */
-  int64_t interval;
+  int64_t interval{};
 
   /*
    * \if CHINESE

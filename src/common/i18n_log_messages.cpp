@@ -88,8 +88,8 @@ void I18nLogMessages::initialize_from_embedded() {
     info.language = language;
     info.country = country;
     info.encoding = "UTF-8";
-    info.paths.push_back(""); // 需要一个路径（即使为空）
-    info.domains.push_back(blg::messages_info::domain("messages"));
+    info.paths.emplace_back(""); // 需要一个路径（即使为空）
+    info.domains.emplace_back("messages");
     info.callback = embedded_mo_loader;
 
     // 创建基础 locale
@@ -187,8 +187,8 @@ void I18nLogMessages::set_locale(const std::string &locale) {
       info.language = language;
       info.country = country;
       info.encoding = "UTF-8";
-      info.paths.push_back("");
-      info.domains.push_back(blg::messages_info::domain("messages"));
+      info.paths.emplace_back("");
+      info.domains.emplace_back("messages");
       info.callback = embedded_mo_loader;
 
       // 创建基础 locale
@@ -230,7 +230,7 @@ void I18nLogMessages::set_locale(const std::string &locale) {
   }
 }
 
-std::string I18nLogMessages::get_message(LogMessageKey key) {
+auto I18nLogMessages::get_message(LogMessageKey key) -> std::string {
   if (!initialized_) {
     initialize();
   }

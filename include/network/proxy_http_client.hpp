@@ -135,28 +135,28 @@ private:
   // ============================================================
 
   // 建立代理隧道（同步版本）
-  tcp::socket connect_through_proxy();
+  auto connect_through_proxy() -> tcp::socket;
 
   // HTTP代理方法（同步版本）
-  tcp::socket establish_http_tunnel(tcp::socket &proxy_socket,
-                                    const std::string &target_host,
-                                    uint16_t target_port);
+  auto establish_http_tunnel(tcp::socket &proxy_socket,
+                             const std::string &target_host,
+                             uint16_t target_port) -> tcp::socket;
 
   // HTTPS代理方法（同步版本）
-  tcp::socket establish_https_tunnel(ssl::stream<tcp::socket> &ssl_socket,
-                                     const std::string &target_host,
-                                     uint16_t target_port);
+  auto establish_https_tunnel(ssl::stream<tcp::socket> &ssl_socket,
+                              const std::string &target_host,
+                              uint16_t target_port) -> tcp::socket;
 
   // SOCKS5代理方法（同步版本）
-  tcp::socket establish_socks5_tunnel(tcp::socket &proxy_socket,
-                                      const std::string &target_host,
-                                      uint16_t target_port);
+  auto establish_socks5_tunnel(tcp::socket &proxy_socket,
+                               const std::string &target_host,
+                               uint16_t target_port) -> tcp::socket;
 
   // 通过隧道发送HTTP请求（同步版本）
-  HttpResponse send_http_request(
-      tcp::socket &tunnel_socket, const std::string &method,
-      const std::string &path, const std::string &body,
-      const std::map<std::string, std::string> &headers);
+  auto send_http_request(tcp::socket &tunnel_socket, const std::string &method,
+                         const std::string &path, const std::string &body,
+                         const std::map<std::string, std::string> &headers)
+      -> HttpResponse;
 };
 
 } // namespace obcx::network

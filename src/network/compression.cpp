@@ -112,10 +112,11 @@ void decompress_inplace(http::response<http::string_body> &res) {
         if (!dctx) {
           return;
         }
-        ZSTD_inBuffer input = {body.data(), body.size(), 0};
+        ZSTD_inBuffer input = {
+            .src = body.data(), .size = body.size(), .pos = 0};
         while (input.pos < input.size) {
           char buf[32768];
-          ZSTD_outBuffer output = {buf, sizeof(buf), 0};
+          ZSTD_outBuffer output = {.dst = buf, .size = sizeof(buf), .pos = 0};
           size_t const ret = ZSTD_decompressStream(dctx, &output, &input);
           if (ZSTD_isError(ret)) {
             ZSTD_freeDCtx(dctx);

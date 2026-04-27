@@ -154,12 +154,13 @@ void Logger::set_level(spdlog::level::level_enum level) {
   spdlog::set_level(level);
 
   // Apply to all registered loggers and their sinks
-  spdlog::apply_all([level](const std::shared_ptr<spdlog::logger> &logger) {
-    logger->set_level(level);
-    for (auto &sink : logger->sinks()) {
-      sink->set_level(level);
-    }
-  });
+  spdlog::apply_all(
+      [level](const std::shared_ptr<spdlog::logger> &logger) -> void {
+        logger->set_level(level);
+        for (auto &sink : logger->sinks()) {
+          sink->set_level(level);
+        }
+      });
 }
 
 void Logger::flush() {
@@ -167,15 +168,16 @@ void Logger::flush() {
     default_logger_->flush();
   }
   spdlog::apply_all(
-      [](const std::shared_ptr<spdlog::logger> &l) { l->flush(); });
+      [](const std::shared_ptr<spdlog::logger> &l) -> void { l->flush(); });
 }
 
 auto Logger::parse_level(const std::string &level_str)
     -> std::optional<spdlog::level::level_enum> {
   // Convert to lowercase for case-insensitive comparison
   std::string lower_str = level_str;
-  std::transform(lower_str.begin(), lower_str.end(), lower_str.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
+  std::ranges::transform(
+      lower_str, lower_str.begin(),
+      [](unsigned char c) -> int { return std::tolower(c); });
 
   static const std::unordered_map<std::string, spdlog::level::level_enum>
       level_map = {

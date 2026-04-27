@@ -50,7 +50,8 @@ public:
                        std::mutex *mutex);
 
   template <typename T>
-  auto get_config_value(const std::string &key) const -> std::optional<T> {
+  [[nodiscard]] [[nodiscard]] auto get_config_value(
+      const std::string &key) const -> std::optional<T> {
     auto config =
         common::ConfigLoader::instance().get_plugin_config(get_name());
     if (!config)
@@ -62,7 +63,7 @@ public:
 
     if constexpr (std::is_same_v<T, std::string>) {
       if (auto val = node.value<std::string>()) {
-        return *val;
+        return val;
       }
     } else if constexpr (std::is_same_v<T, int64_t>) {
       if (auto val = node.value<int64_t>()) {
@@ -74,7 +75,7 @@ public:
       }
     } else if constexpr (std::is_same_v<T, bool>) {
       if (auto val = node.value<bool>()) {
-        return *val;
+        return val;
       }
     } else if constexpr (std::is_same_v<T, std::vector<std::string>>) {
       if (node.is_array()) {

@@ -61,8 +61,9 @@ auto HttpClient::post_sync(std::string_view path, std::string_view body,
       beast::get_lowest_layer(stream).expires_after(
           pimpl_->config.connect_timeout);
       beast::get_lowest_layer(stream).async_connect(
-          results, [&](boost::system::error_code ec,
-                       tcp::resolver::results_type::endpoint_type) {
+          results,
+          [&](boost::system::error_code ec,
+              const tcp::resolver::results_type::endpoint_type &) -> void {
             if (ec) {
               final_ec = ec;
               return;
@@ -72,7 +73,8 @@ auto HttpClient::post_sync(std::string_view path, std::string_view body,
             beast::get_lowest_layer(stream).expires_after(
                 pimpl_->config.connect_timeout);
             stream.async_handshake(
-                ssl::stream_base::client, [&](boost::system::error_code ec) {
+                ssl::stream_base::client,
+                [&](boost::system::error_code ec) -> void {
                   if (ec) {
                     final_ec = ec;
                     return;
@@ -82,7 +84,7 @@ auto HttpClient::post_sync(std::string_view path, std::string_view body,
                       pimpl_->config.connect_timeout);
                   http::async_write(
                       stream, req,
-                      [&](boost::system::error_code ec, std::size_t) {
+                      [&](boost::system::error_code ec, std::size_t) -> void {
                         if (ec) {
                           final_ec = ec;
                           return;
@@ -96,7 +98,7 @@ auto HttpClient::post_sync(std::string_view path, std::string_view body,
                         http::async_read(
                             stream, *buffer, *res,
                             [&, buffer, res](boost::system::error_code ec,
-                                             std::size_t) {
+                                             std::size_t) -> void {
                               if (ec) {
                                 final_ec = ec;
                               } else {
@@ -121,8 +123,9 @@ auto HttpClient::post_sync(std::string_view path, std::string_view body,
 
       stream.expires_after(pimpl_->config.connect_timeout);
       stream.async_connect(
-          results, [&](boost::system::error_code ec,
-                       tcp::resolver::results_type::endpoint_type) {
+          results,
+          [&](boost::system::error_code ec,
+              const tcp::resolver::results_type::endpoint_type &) -> void {
             if (ec) {
               final_ec = ec;
               return;
@@ -131,7 +134,8 @@ auto HttpClient::post_sync(std::string_view path, std::string_view body,
 
             stream.expires_after(pimpl_->config.connect_timeout);
             http::async_write(
-                stream, req, [&](boost::system::error_code ec, std::size_t) {
+                stream, req,
+                [&](boost::system::error_code ec, std::size_t) -> void {
                   if (ec) {
                     final_ec = ec;
                     return;
@@ -144,7 +148,7 @@ auto HttpClient::post_sync(std::string_view path, std::string_view body,
                   http::async_read(
                       stream, *buffer, *res,
                       [&, buffer, res](boost::system::error_code ec,
-                                       std::size_t) {
+                                       std::size_t) -> void {
                         if (ec) {
                           final_ec = ec;
                         } else {
@@ -208,8 +212,9 @@ auto HttpClient::get_sync(std::string_view path,
       beast::get_lowest_layer(stream).expires_after(
           pimpl_->config.connect_timeout);
       beast::get_lowest_layer(stream).async_connect(
-          results, [&](boost::system::error_code ec,
-                       tcp::resolver::results_type::endpoint_type) {
+          results,
+          [&](boost::system::error_code ec,
+              const tcp::resolver::results_type::endpoint_type &) -> void {
             if (ec) {
               final_ec = ec;
               return;
@@ -219,7 +224,8 @@ auto HttpClient::get_sync(std::string_view path,
             beast::get_lowest_layer(stream).expires_after(
                 pimpl_->config.connect_timeout);
             stream.async_handshake(
-                ssl::stream_base::client, [&](boost::system::error_code ec) {
+                ssl::stream_base::client,
+                [&](boost::system::error_code ec) -> void {
                   if (ec) {
                     final_ec = ec;
                     return;
@@ -229,7 +235,7 @@ auto HttpClient::get_sync(std::string_view path,
                       pimpl_->config.connect_timeout);
                   http::async_write(
                       stream, req,
-                      [&](boost::system::error_code ec, std::size_t) {
+                      [&](boost::system::error_code ec, std::size_t) -> void {
                         if (ec) {
                           final_ec = ec;
                           return;
@@ -243,7 +249,7 @@ auto HttpClient::get_sync(std::string_view path,
                         http::async_read(
                             stream, *buffer, *res,
                             [&, buffer, res](boost::system::error_code ec,
-                                             std::size_t) {
+                                             std::size_t) -> void {
                               if (ec) {
                                 final_ec = ec;
                               } else {
@@ -268,8 +274,9 @@ auto HttpClient::get_sync(std::string_view path,
 
       stream.expires_after(pimpl_->config.connect_timeout);
       stream.async_connect(
-          results, [&](boost::system::error_code ec,
-                       tcp::resolver::results_type::endpoint_type) {
+          results,
+          [&](boost::system::error_code ec,
+              const tcp::resolver::results_type::endpoint_type &) -> void {
             if (ec) {
               final_ec = ec;
               return;
@@ -278,7 +285,8 @@ auto HttpClient::get_sync(std::string_view path,
 
             stream.expires_after(pimpl_->config.connect_timeout);
             http::async_write(
-                stream, req, [&](boost::system::error_code ec, std::size_t) {
+                stream, req,
+                [&](boost::system::error_code ec, std::size_t) -> void {
                   if (ec) {
                     final_ec = ec;
                     return;
@@ -291,7 +299,7 @@ auto HttpClient::get_sync(std::string_view path,
                   http::async_read(
                       stream, *buffer, *res,
                       [&, buffer, res](boost::system::error_code ec,
-                                       std::size_t) {
+                                       std::size_t) -> void {
                         if (ec) {
                           final_ec = ec;
                         } else {
@@ -353,8 +361,9 @@ auto HttpClient::head_sync(std::string_view path,
       beast::get_lowest_layer(stream).expires_after(
           pimpl_->config.connect_timeout);
       beast::get_lowest_layer(stream).async_connect(
-          results, [&](boost::system::error_code ec,
-                       tcp::resolver::results_type::endpoint_type) {
+          results,
+          [&](boost::system::error_code ec,
+              const tcp::resolver::results_type::endpoint_type &) -> void {
             if (ec) {
               final_ec = ec;
               return;
@@ -364,7 +373,8 @@ auto HttpClient::head_sync(std::string_view path,
             beast::get_lowest_layer(stream).expires_after(
                 pimpl_->config.connect_timeout);
             stream.async_handshake(
-                ssl::stream_base::client, [&](boost::system::error_code ec) {
+                ssl::stream_base::client,
+                [&](boost::system::error_code ec) -> void {
                   if (ec) {
                     final_ec = ec;
                     return;
@@ -374,7 +384,7 @@ auto HttpClient::head_sync(std::string_view path,
                       pimpl_->config.connect_timeout);
                   http::async_write(
                       stream, req,
-                      [&](boost::system::error_code ec, std::size_t) {
+                      [&](boost::system::error_code ec, std::size_t) -> void {
                         if (ec) {
                           final_ec = ec;
                           return;
@@ -388,7 +398,7 @@ auto HttpClient::head_sync(std::string_view path,
                         http::async_read(
                             stream, *buffer, *res,
                             [&, buffer, res](boost::system::error_code ec,
-                                             std::size_t) {
+                                             std::size_t) -> void {
                               if (ec && ec != http::error::end_of_stream &&
                                   ec != http::error::partial_message) {
                                 final_ec = ec;
@@ -414,8 +424,9 @@ auto HttpClient::head_sync(std::string_view path,
 
       stream.expires_after(pimpl_->config.connect_timeout);
       stream.async_connect(
-          results, [&](boost::system::error_code ec,
-                       tcp::resolver::results_type::endpoint_type) {
+          results,
+          [&](boost::system::error_code ec,
+              const tcp::resolver::results_type::endpoint_type &) -> void {
             if (ec) {
               final_ec = ec;
               return;
@@ -424,7 +435,8 @@ auto HttpClient::head_sync(std::string_view path,
 
             stream.expires_after(pimpl_->config.connect_timeout);
             http::async_write(
-                stream, req, [&](boost::system::error_code ec, std::size_t) {
+                stream, req,
+                [&](boost::system::error_code ec, std::size_t) -> void {
                   if (ec) {
                     final_ec = ec;
                     return;
@@ -437,7 +449,7 @@ auto HttpClient::head_sync(std::string_view path,
                   http::async_read(
                       stream, *buffer, *res,
                       [&, buffer, res](boost::system::error_code ec,
-                                       std::size_t) {
+                                       std::size_t) -> void {
                         if (ec && ec != http::error::end_of_stream &&
                             ec != http::error::partial_message) {
                           final_ec = ec;

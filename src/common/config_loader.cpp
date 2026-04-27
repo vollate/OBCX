@@ -4,7 +4,7 @@
 namespace obcx::common {
 
 auto ConfigLoader::load_config(const std::string &config_path) -> bool {
-  std::lock_guard lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   try {
     config_path_ = config_path;
@@ -25,7 +25,7 @@ auto ConfigLoader::load_config(const std::string &config_path) -> bool {
 }
 
 auto ConfigLoader::get_bot_configs() const -> std::vector<BotConfig> {
-  std::lock_guard lock(mutex_);
+  std::scoped_lock lock(mutex_);
   std::vector<BotConfig> bot_configs;
 
   if (!config_data_) {
@@ -67,7 +67,7 @@ auto ConfigLoader::get_bot_configs() const -> std::vector<BotConfig> {
 
 auto ConfigLoader::get_plugin_config(const std::string &plugin_name) const
     -> std::optional<PluginConfig> {
-  std::lock_guard lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   if (!config_data_) {
     return std::nullopt;
@@ -128,7 +128,7 @@ auto ConfigLoader::get_plugin_config(const std::string &plugin_name) const
 }
 
 auto ConfigLoader::get_all_plugin_configs() const -> std::vector<PluginConfig> {
-  std::lock_guard lock(mutex_);
+  std::scoped_lock lock(mutex_);
   std::vector<PluginConfig> plugin_configs;
 
   if (!config_data_) {
@@ -195,7 +195,7 @@ auto ConfigLoader::get_all_plugin_configs() const -> std::vector<PluginConfig> {
 
 auto ConfigLoader::get_section(const std::string &section_name) const
     -> std::optional<toml::table> {
-  std::lock_guard lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   if (!config_data_) {
     return std::nullopt;

@@ -50,12 +50,14 @@ static constexpr bool has_en_US = false;
 // Static array of embedded locales (constructed at runtime due to
 // reinterpret_cast)
 static const std::array embedded_locale_list = {
-    EmbeddedLocaleData{"zh_CN", std::span{reinterpret_cast<const std::byte *>(
-                                              zh_CN_mo_data_raw),
-                                          zh_CN_mo_size}},
-    EmbeddedLocaleData{"en_US", std::span{reinterpret_cast<const std::byte *>(
-                                              en_US_mo_data_raw),
-                                          en_US_mo_size}},
+    EmbeddedLocaleData{.locale_name = "zh_CN",
+                       .data = std::span{reinterpret_cast<const std::byte *>(
+                                             zh_CN_mo_data_raw),
+                                         zh_CN_mo_size}},
+    EmbeddedLocaleData{.locale_name = "en_US",
+                       .data = std::span{reinterpret_cast<const std::byte *>(
+                                             en_US_mo_data_raw),
+                                         en_US_mo_size}},
 };
 
 auto get_embedded_locales() -> std::span<const EmbeddedLocaleData> {
