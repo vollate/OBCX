@@ -25,12 +25,6 @@ constexpr size_t CONNECTION_ESTABLISH_DELAY = 200;
 constexpr size_t NORMAL_RESPONSE_DELAY = 100;
 constexpr size_t DELAYED_RESPONSE_TIME = 3000;
 
-inline uint16_t get_random_port() {
-  static std::mt19937 gen(static_cast<unsigned>(
-      std::chrono::steady_clock::now().time_since_epoch().count()));
-  static std::uniform_int_distribution<uint16_t> dist(40000, 65535);
-  return dist(gen);
-}
 // 客户端的默认超时时间，根据 TimeoutScenario 测试推断为30秒
 constexpr std::chrono::seconds CLIENT_DEFAULT_TIMEOUT{5};
 // 为测试用例设置一个比客户端默认超时更长的等待时间
@@ -48,10 +42,14 @@ constexpr uint64_t TEST_ECHO_3 = 67890;
  */
 class MockWebSocketServer {
 public:
-  MockWebSocketServer(const std::string &host, uint16_t port)
-      : ioc_(), endpoint_(asio::ip::make_address(host), port),
-        acceptor_(ioc_, endpoint_), work_guard_(asio::make_work_guard(ioc_)) {
+  explicit MockWebSocketServer(const std::string &host)
+      : ioc_(), endpoint_(asio::ip::make_address(host), 0), acceptor_(ioc_),
+        work_guard_(asio::make_work_guard(ioc_)) {
+    acceptor_.open(endpoint_.protocol());
     acceptor_.set_option(asio::socket_base::reuse_address(true));
+    acceptor_.bind(endpoint_);
+    acceptor_.listen();
+    endpoint_ = acceptor_.local_endpoint();
   }
 
   ~MockWebSocketServer() {
@@ -201,8 +199,7 @@ class WsTimeoutTest : public testing::Test {
 protected:
   void SetUp() override {
     common::Logger::initialize(spdlog::level::trace);
-    test_port_ = get_random_port();
-    server_ = std::make_unique<MockWebSocketServer>("127.0.0.1", test_port_);
+    server_ = std::make_unique<MockWebSocketServer>("127.0.0.1");
     server_->start();
 
     std::this_thread::sleep_for(
@@ -251,7 +248,6 @@ protected:
   std::thread client_thread_;
   std::optional<asio::executor_work_guard<asio::io_context::executor_type>>
       work_guard_;
-  uint16_t test_port_{0};
 };
 
 /**

@@ -5,7 +5,6 @@
 #include <future>
 #include <gtest/gtest.h>
 #include <memory>
-#include <random>
 #include <thread>
 
 #include "common/logger.hpp"
@@ -56,14 +55,6 @@ auto run_awaitable(asio::io_context &ioc, asio::awaitable<T> awaitable) -> T {
   return std::move(*result);
 }
 
-// Generate random port in high range (40000-65535)
-inline uint16_t get_random_port() {
-  static std::mt19937 gen(static_cast<unsigned>(
-      std::chrono::steady_clock::now().time_since_epoch().count()));
-  static std::uniform_int_distribution<uint16_t> dist(40000, 65535);
-  return dist(gen);
-}
-
 /**
  * Mock HTTP server for timeout testing
  * Can be configured to:
@@ -73,10 +64,14 @@ inline uint16_t get_random_port() {
  */
 class MockHttpServer {
 public:
-  MockHttpServer(const std::string &host, uint16_t port)
-      : ioc_(), endpoint_(asio::ip::make_address(host), port),
-        acceptor_(ioc_, endpoint_), work_guard_(asio::make_work_guard(ioc_)) {
+  explicit MockHttpServer(const std::string &host)
+      : ioc_(), endpoint_(asio::ip::make_address(host), 0), acceptor_(ioc_),
+        work_guard_(asio::make_work_guard(ioc_)) {
+    acceptor_.open(endpoint_.protocol());
     acceptor_.set_option(asio::socket_base::reuse_address(true));
+    acceptor_.bind(endpoint_);
+    acceptor_.listen();
+    endpoint_ = acceptor_.local_endpoint();
   }
 
   ~MockHttpServer() {
@@ -214,15 +209,12 @@ class HttpClientTimeoutTest : public testing::Test {
 protected:
   void SetUp() override {
     common::Logger::initialize(spdlog::level::trace);
-    test_port_ = get_random_port();
-    server_ = std::make_unique<MockHttpServer>("127.0.0.1", test_port_);
+    server_ = std::make_unique<MockHttpServer>("127.0.0.1");
     server_->start();
 
     std::this_thread::sleep_for(
         std::chrono::milliseconds(SERVER_STARTUP_DELAY_MS));
   }
-
-  uint16_t test_port_{0};
 
   void TearDown() override {
     if (server_) {
