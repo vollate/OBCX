@@ -8,7 +8,6 @@ add_library(
         common/embedded_locales.cpp
         common/json_utils.cpp
         common/message_type.cpp
-        common/media_converter.cpp
         common/config_loader.cpp
         common/plugin_manager.cpp
         interfaces/plugin.cpp
