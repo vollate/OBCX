@@ -30,7 +30,7 @@ public:
   TelegramConnectionManager(TelegramConnectionManager &&) = delete;
   auto operator=(TelegramConnectionManager &&)
       -> TelegramConnectionManager & = delete;
-  ~TelegramConnectionManager() override = default;
+  ~TelegramConnectionManager() override;
 
   // 实现IConnectionManager接口
   void connect(const common::ConnectionConfig &config) override;

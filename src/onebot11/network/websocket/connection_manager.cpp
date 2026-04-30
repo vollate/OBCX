@@ -15,6 +15,19 @@ WebSocketConnectionManager::WebSocketConnectionManager(
     : ioc_(ioc), adapter_(adapter), reconnect_timer_(ioc),
       send_strand_(asio::make_strand(ioc)) {}
 
+WebSocketConnectionManager::~WebSocketConnectionManager() {
+  // Release our own resources while the referenced io_context is still alive
+  // (IBot::~IBot guarantees this destruction order). Without this explicit
+  // cleanup, send_strand_ — which holds a shared_ptr into the io_context's
+  // strand_executor_service — would be destroyed after the service was gone,
+  // crashing inside _Sp_counted_ptr_inplace::_M_destroy.
+  disconnect();
+  // disconnect() posts a detached close() but doesn't drop the client.
+  // Reset it here so its socket/stream destructors run against a live
+  // executor service.
+  ws_client_.reset();
+}
+
 void WebSocketConnectionManager::set_event_callback(EventCallback callback) {
   event_callback_ = std::move(callback);
 }
@@ -36,15 +49,12 @@ void WebSocketConnectionManager::disconnect() {
       if (request) {
         // 取消所有timer
         request->timeout_timer.cancel();
-        // 如果有rejecter，调用它来清理
-        if (request->rejecter) {
+        // 唤醒协程等待者
+        if (request->completion_handler) {
           try {
-            request->rejecter(std::make_exception_ptr(
-                std::runtime_error(common::I18nLogMessages::get_message(
-                    common::LogMessageKey::
-                        ONEBOT11_WS_CONNECTION_DISCONNECTED_EXCEPTION))));
+            request->completion_handler(asio::error::operation_aborted, "");
           } catch (...) {
-            // 忽略rejecter中的异常
+            // 忽略 completion handler 中的异常
             // FIXME: Log the exception
           }
         }
@@ -140,26 +150,14 @@ void WebSocketConnectionManager::on_ws_message(const beast::error_code &ec,
         request->need_wait.store(false, std::memory_order_release);
         request->timeout_timer.cancel();
 
-        if constexpr (USE_COROUTINE_ASYNC_WAIT) {
-          // 协程模式：调用 completion handler
-          if (request->completion_handler) {
-            OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_CALL_COMPLETION,
-                            echo);
-            request->completion_handler(boost::system::error_code{}, message);
-          } else {
-            OBCX_I18N_ERROR(common::LogMessageKey::ONEBOT11_WS_COMPLETION_NULL,
-                            echo);
-          }
+        // 调用 completion handler
+        if (request->completion_handler) {
+          OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_CALL_COMPLETION,
+                          echo);
+          request->completion_handler(boost::system::error_code{}, message);
         } else {
-          // 轮询模式：调用 resolver
-          if (request->resolver) {
-            OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_CALL_RESOLVER,
-                            echo);
-            request->resolver(message);
-          } else {
-            OBCX_I18N_ERROR(common::LogMessageKey::ONEBOT11_WS_RESOLVER_NULL,
-                            echo);
-          }
+          OBCX_I18N_ERROR(common::LogMessageKey::ONEBOT11_WS_COMPLETION_NULL,
+                          echo);
         }
         OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_API_RESPONSE_HANDLED,
                         echo);
@@ -220,8 +218,6 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
     throw std::runtime_error(common::I18nLogMessages::get_message(
         common::LogMessageKey::ONEBOT11_WS_NO_CLIENT));
   }
-
-  // if constexpr (USE_COROUTINE_ASYNC_WAIT) {
 
   OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_USE_COROUTINE);
 
@@ -326,147 +322,6 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
     }
     throw;
   }
-
-  //} else {
-  //// ============ 轮询等待模式（原有逻辑）============
-  // OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_USE_POLLING);
-
-  //// 使用shared_ptr来管理状态，确保生命周期正确
-  // struct RequestState {
-  // std::string result;
-  // std::atomic<bool> response_received{false};
-  // std::exception_ptr error_ptr = nullptr;
-  // std::mutex state_mutex;
-  //};
-
-  // auto state = std::make_shared<RequestState>();
-  // auto request = std::make_shared<PendingRequest>(ioc_);
-
-  //// 设置30秒超时
-  // request->timeout_timer.expires_after(std::chrono::seconds(30));
-
-  //// 设置resolver - 使用shared_ptr确保安全访问
-  // request->resolver = [state, echo_id](std::string response) {
-  // OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_RESOLVER_CALLED,
-  // echo_id);
-  // std::lock_guard<std::mutex> lock(state->state_mutex);
-  // state->result = std::move(response);
-  // state->response_received.store(true, std::memory_order_release);
-  // OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_RESPONSE_SET,
-  // echo_id);
-  //};
-
-  // request->rejecter = [state](const std::exception_ptr &ex) {
-  // std::lock_guard<std::mutex> lock(state->state_mutex);
-  // state->error_ptr = ex;
-  // state->response_received.store(true, std::memory_order_release);
-  //};
-
-  // OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_POLLING_RESOLVER_SET,
-  // echo_id);
-
-  //// 添加到pending requests
-  //{
-  // std::lock_guard lock(pending_requests_mutex_);
-  // pending_requests_[echo_id] = request;
-  // OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_ADD_PENDING_POLLING,
-  // echo_id, pending_requests_.size());
-  //}
-
-  // try {
-  //// 发送WebSocket消息
-  // co_await asio::co_spawn(
-  // send_strand_,
-  //[this, action_payload]() -> asio::awaitable<void> {
-  // co_await ws_client_->send(action_payload);
-  //},
-  // asio::use_awaitable);
-
-  // OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_MSG_SENT_POLLING,
-  // echo_id);
-
-  //// 启动超时检查
-  // asio::co_spawn(
-  // ioc_,
-  //[request, state, echo_id]() -> asio::awaitable<void> {
-  // try {
-  // co_await request->timeout_timer.async_wait(asio::use_awaitable);
-  //// 超时发生
-  // OBCX_I18N_DEBUG(
-  // common::LogMessageKey::ONEBOT11_WS_TIMEOUT_DETECTED, echo_id);
-  // std::lock_guard<std::mutex> lock(state->state_mutex);
-  // if (!state->response_received.load(std::memory_order_acquire)) {
-  // state->response_received.store(true, std::memory_order_release);
-  //}
-  //} catch (const boost::system::system_error &e) {
-  // if (e.code() != asio::error::operation_aborted) {
-  // OBCX_I18N_ERROR(
-  // common::LogMessageKey::ONEBOT11_WS_TIMEOUT_EXCEPTION,
-  // echo_id, e.what());
-  //}
-  //}
-  //},
-  // asio::detached);
-
-  //// 轮询等待响应或超时
-  // OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_START_POLLING_WAIT,
-  // echo_id);
-
-  // while (!state->response_received.load(std::memory_order_acquire)) {
-  //// 使用短暂的sleep避免busy waiting
-  // asio::steady_timer wait_timer(ioc_);
-  // wait_timer.expires_after(std::chrono::milliseconds(10));
-
-  // try {
-  // co_await wait_timer.async_wait(asio::use_awaitable);
-  //} catch (const boost::system::system_error &e) {
-  // if (e.code() != asio::error::operation_aborted) {
-  // throw;
-  //}
-  //}
-  //}
-
-  //// 取消超时timer
-  // request->timeout_timer.cancel();
-
-  //// 清理请求
-  //{
-  // std::lock_guard lock(pending_requests_mutex_);
-  // pending_requests_.erase(echo_id);
-  // OBCX_I18N_DEBUG(
-  // common::LogMessageKey::ONEBOT11_WS_CLEAN_PENDING_POLLING, echo_id,
-  // pending_requests_.size());
-  //}
-
-  //// 检查结果
-  //{
-  // std::lock_guard<std::mutex> lock(state->state_mutex);
-  // if (state->error_ptr) {
-  // std::rethrow_exception(state->error_ptr);
-  //}
-
-  // if (state->result.empty()) {
-  // OBCX_I18N_ERROR(
-  // common::LogMessageKey::ONEBOT11_WS_API_TIMEOUT_POLLING, echo_id);
-  // throw std::runtime_error(common::I18nLogMessages::get_message(
-  // common::LogMessageKey::ONEBOT11_WS_API_TIMEOUT_MSG));
-  //}
-
-  // OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_API_SUCCESS_POLLING,
-  // echo_id, state->result.length());
-  // co_return state->result;
-  //}
-
-  //} catch (...) {
-  //// 清理
-  // request->timeout_timer.cancel();
-  //{
-  // std::lock_guard lock(pending_requests_mutex_);
-  // pending_requests_.erase(echo_id);
-  //}
-  // throw;
-  //}
-  //}
 }
 
 auto WebSocketConnectionManager::is_connected() const -> bool {
@@ -480,13 +335,9 @@ void WebSocketConnectionManager::handle_timeout(uint64_t echo_id) {
     auto request = it->second;
     pending_requests_.erase(it);
 
-    if constexpr (USE_COROUTINE_ASYNC_WAIT) {
-      // 协程模式：调用 completion handler 并传递超时错误
-      if (request->completion_handler) {
-        request->completion_handler(asio::error::timed_out, "");
-      }
+    if (request->completion_handler) {
+      request->completion_handler(asio::error::timed_out, "");
     }
-    // 轮询模式不需要处理，因为已经通过 response_received 标志处理了
   }
 }
 

@@ -20,6 +20,14 @@ TelegramConnectionManager::TelegramConnectionManager(
                  "TelegramConnectionManager", "initialized");
 }
 
+TelegramConnectionManager::~TelegramConnectionManager() {
+  // Release our own resources (poll_timer_, http_client_) while the
+  // referenced io_context is still alive. IBot::~IBot guarantees this
+  // destruction order.
+  disconnect();
+  http_client_.reset();
+}
+
 void TelegramConnectionManager::connect(
     const common::ConnectionConfig &config) {
   config_ = config;

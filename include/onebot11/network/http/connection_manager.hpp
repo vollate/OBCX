@@ -28,7 +28,13 @@ class HttpConnectionManager : public IConnectionManager {
 public:
   HttpConnectionManager(asio::io_context &ioc,
                         adapter::onebot11::ProtocolAdapter &adapter);
-  ~HttpConnectionManager() override = default;
+  ~HttpConnectionManager() override;
+
+  HttpConnectionManager(const HttpConnectionManager &) = delete;
+  auto operator=(const HttpConnectionManager &)
+      -> HttpConnectionManager & = delete;
+  HttpConnectionManager(HttpConnectionManager &&) = delete;
+  auto operator=(HttpConnectionManager &&) -> HttpConnectionManager & = delete;
 
   // 实现IConnectionManager接口
   void connect(const common::ConnectionConfig &config) override;

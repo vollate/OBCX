@@ -18,9 +18,6 @@ class ProtocolAdapter;
 
 namespace obcx::network {
 
-// 配置：是否使用协程异步等待（true）还是轮询等待（false）
-inline constexpr bool USE_COROUTINE_ASYNC_WAIT = true;
-
 /**
  * @brief WebSocket连接管理器
  *
@@ -31,6 +28,14 @@ class WebSocketConnectionManager : public IConnectionManager {
 public:
   WebSocketConnectionManager(asio::io_context &ioc,
                              adapter::onebot11::ProtocolAdapter &adapter);
+  ~WebSocketConnectionManager() override;
+
+  WebSocketConnectionManager(const WebSocketConnectionManager &) = delete;
+  auto operator=(const WebSocketConnectionManager &)
+      -> WebSocketConnectionManager & = delete;
+  WebSocketConnectionManager(WebSocketConnectionManager &&) = delete;
+  auto operator=(WebSocketConnectionManager &&)
+      -> WebSocketConnectionManager & = delete;
 
   void connect(const common::ConnectionConfig &config) override;
   void disconnect() override;
@@ -99,9 +104,6 @@ private:
     // 协程模式：使用 completion handler
     std::function<void(boost::system::error_code, std::string)>
         completion_handler;
-    // 轮询模式：使用 resolver/rejecter
-    std::function<void(std::string)> resolver;
-    std::function<void(std::exception_ptr)> rejecter;
     asio::steady_timer timeout_timer;
     std::atomic<bool> need_wait = true;
 

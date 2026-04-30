@@ -57,6 +57,21 @@ target_link_libraries(
 
 target_compile_features(obcx_core PUBLIC cxx_std_20)
 
+# ============================================================================
+# Boost.Asio io_uring backend
+# ----------------------------------------------------------------------------
+# When OBCX_ENABLE_IO_URING is ON and liburing was found (see top-level
+# CMakeLists.txt), tell Boost.Asio to use io_uring instead of epoll and link
+# liburing. These macros are PUBLIC because Asio is header-only and every
+# translation unit that includes <boost/asio.hpp> must see the same config.
+# ============================================================================
+if(OBCX_ENABLE_IO_URING AND OBCX_IO_URING_TARGET)
+  target_compile_definitions(obcx_core PUBLIC
+    BOOST_ASIO_HAS_IO_URING=1
+    BOOST_ASIO_DISABLE_EPOLL=1)
+  target_link_libraries(obcx_core PUBLIC ${OBCX_IO_URING_TARGET})
+endif()
+
 # Make obcx_core depend on i18n target to ensure .mo files are built first
 if (TARGET i18n)
     add_dependencies(obcx_core i18n)

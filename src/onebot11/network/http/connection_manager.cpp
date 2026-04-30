@@ -16,6 +16,13 @@ HttpConnectionManager::HttpConnectionManager(
   OBCX_I18N_INFO(common::LogMessageKey::ONEBOT11_HTTP_MANAGER_INIT);
 }
 
+HttpConnectionManager::~HttpConnectionManager() {
+  // Release our own resources (poll_timer_, http_client_) while the
+  // referenced io_context is still alive. IBot::~IBot guarantees this
+  // destruction order.
+  disconnect();
+}
+
 void HttpConnectionManager::connect(const common::ConnectionConfig &config) {
   config_ = config;
 

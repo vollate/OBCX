@@ -40,6 +40,7 @@
             libxml2
             re2
             zstd
+            liburing
             stdenv.cc.cc.lib
           ];
         in

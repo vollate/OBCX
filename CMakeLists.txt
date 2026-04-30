@@ -164,6 +164,45 @@ find_package(tomlplusplus CONFIG REQUIRED)
 find_package(ftxui CONFIG REQUIRED)
 find_package(re2 CONFIG REQUIRED)
 
+# ============================================================================
+# io_uring support (Linux only)
+# ----------------------------------------------------------------------------
+# Boost.Asio can use io_uring as its reactor backend (kernel >= 5.10, liburing
+# available). This replaces the epoll-based implementation for socket I/O and
+# is significantly faster for high-concurrency async workloads.
+#
+# We enable it automatically on Linux when liburing is found. Set
+# OBCX_ENABLE_IO_URING=OFF to opt out, or OBCX_ENABLE_IO_URING=ON to require
+# it (fails the configure step if liburing is missing).
+# ============================================================================
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  option(OBCX_ENABLE_IO_URING
+         "Use io_uring as Boost.Asio's reactor backend (requires liburing)"
+         ON)
+else()
+  set(OBCX_ENABLE_IO_URING OFF CACHE BOOL
+      "io_uring is Linux-only" FORCE)
+endif()
+
+set(OBCX_IO_URING_TARGET "")
+if(OBCX_ENABLE_IO_URING)
+  if(NOT PkgConfig_FOUND)
+    find_package(PkgConfig REQUIRED)
+  endif()
+  pkg_check_modules(LIBURING IMPORTED_TARGET liburing)
+  if(LIBURING_FOUND)
+    set(OBCX_IO_URING_TARGET PkgConfig::LIBURING)
+    message(STATUS "io_uring backend enabled for Boost.Asio "
+                   "(liburing ${LIBURING_VERSION})")
+  else()
+    message(WARNING
+      "OBCX_ENABLE_IO_URING=ON but liburing was not found via pkg-config; "
+      "falling back to the default epoll reactor. Install liburing-dev "
+      "(Debian/Ubuntu) or liburing (Arch/Fedora) to enable io_uring.")
+    set(OBCX_ENABLE_IO_URING OFF)
+  endif()
+endif()
+
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_BINARY_DIR}/generated)
 
