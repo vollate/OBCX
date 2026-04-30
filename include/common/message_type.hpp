@@ -364,6 +364,7 @@ struct ConnectionConfig {
   std::string access_token;
   std::string secret;
   std::chrono::milliseconds connect_timeout{5000};
+  std::chrono::milliseconds action_timeout{30000};
   std::chrono::milliseconds poll_timeout{
       25000}; // Long-poll timeout sent to server (e.g., Telegram getUpdates)
   std::chrono::milliseconds poll_force_close{30000};

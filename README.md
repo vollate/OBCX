@@ -136,7 +136,8 @@ host = "127.0.0.1"
 port = 3001
 access_token = ""
 use_ssl = false
-timeout = 30000
+connect_timeout = 5000      # TCP 连接超时
+action_timeout = 30000      # OneBot11 action 响应超时（详见"超时参数"章节）
 heartbeat_interval = 5000
 
 # Telegram Bot 配置
@@ -151,7 +152,10 @@ host = "api.telegram.org"
 port = 443
 access_token = "YOUR_BOT_TOKEN"
 use_ssl = true
-timeout = 30000
+connect_timeout = 5000      # HTTP 连接/单次请求超时
+poll_timeout = 25000        # Telegram 长轮询服务器侧超时
+poll_force_close = 30000    # 长轮询客户端强制关闭超时（必须 > poll_timeout）
+poll_retry_interval = 3000  # 轮询失败后的重试间隔
 
 # 代理配置（可选）
 proxy_host = "127.0.0.1"
@@ -177,6 +181,41 @@ mode = "group_to_group"
 show_qq_to_tg_sender = true
 show_tg_to_qq_sender = true
 ```
+
+### 超时参数
+
+框架里存在多个粒度的超时，容易混淆。下表列出目前在配置层暴露的全部字段（键名与 `[bots.*.connection]` 块中使用的一致），按用途归类：
+
+#### 网络层（所有 bot 通用）
+
+| 字段              | 默认值    | 作用                                                                                                                          | 对应代码                                                                                                                                 |
+| ----------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `connect_timeout` | `5000` ms | TCP/SOCKS 建连超时；也用作 HTTP 客户端每次读写的超时（Telegram HTTP、`proxy_http_client`、`http_client_sync` 等都读这个字段） | `ConnectionConfig::connect_timeout`（`include/common/message_type.hpp`）；`src/network/http_client*.cpp`, `src/network/proxy_tunnel.cpp` |
+
+#### QQ Bot（OneBot 11 WebSocket）
+
+| 字段                 | 默认值     | 作用                                                                                                                                                                                               | 对应代码                                                                                                                                     |
+| -------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `action_timeout`     | `30000` ms | 单次 OneBot action 请求（如 `send_group_msg`）等待服务端 echo 响应的超时。**必须大于真实上游处理耗时**，否则会触发 retry queue 重发，导致重复投递。首次发送媒体消息时 llonebot 响应可能接近 8–10 s | `ConnectionConfig::action_timeout`；`WebSocketConnectionManager::action_timeout_`（`src/onebot11/network/websocket/connection_manager.cpp`） |
+| `heartbeat_interval` | `30000` ms | 心跳间隔（配置已接线，具体心跳检查逻辑由各 bot/插件实现）                                                                                                                                          | `ConnectionConfig::heartbeat_interval`                                                                                                       |
+
+#### Telegram Bot（HTTP 长轮询）
+
+| 字段                  | 默认值     | 作用                                                                                        | 对应代码                                                 |
+| --------------------- | ---------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `poll_timeout`        | `25000` ms | `getUpdates` 发给 Telegram 服务器的长轮询超时（单位会转换为秒作为 `timeout` 参数）          | `src/telegram/network/http/connection_manager.cpp` ≈L354 |
+| `poll_force_close`    | `30000` ms | 客户端侧强制关闭长轮询连接的超时；**必须严格大于 `poll_timeout`**，否则未等服务器返回就断开 | 同上 L370 `http_client_->set_timeout(...)`               |
+| `poll_retry_interval` | `3000` ms  | 轮询失败或连接断开后，再次尝试下一次轮询的退避间隔                                          | 同上 L390 `poll_timer_.expires_after(...)`               |
+
+#### 插件侧（bridge 插件的重试队列）
+
+这些常量位于 `local_plugin/obcx-plugin-bridge/include/retry_queue_manager.hpp`，目前未透出到 TOML：
+
+| 常量                                     | 值      | 作用                                                     |
+| ---------------------------------------- | ------- | -------------------------------------------------------- |
+| `DEFAULT_MESSAGE_RETRY_INTERVAL_SECONDS` | `2` s   | 文本/普通消息重试的起始间隔（指数退避：`2^retry_count * base`） |
+| `DEFAULT_MEDIA_RETRY_INTERVAL_SECONDS`   | `5` s   | 媒体消息重试的起始间隔（同样指数退避）                   |
+| `MAX_RETRY_INTERVAL_SECONDS`             | `300` s | 退避上限（5 分钟）                                        |
 
 ### 运行
 

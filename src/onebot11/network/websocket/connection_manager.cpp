@@ -34,7 +34,12 @@ void WebSocketConnectionManager::set_event_callback(EventCallback callback) {
 
 void WebSocketConnectionManager::connect(
     const common::ConnectionConfig &config) {
-  action_timeout_ = config.connect_timeout;
+  // Per-API-request timeout (for action echo responses) is distinct from the
+  // TCP connect timeout. Using connect_timeout (5s default) here previously
+  // caused duplicate QQ deliveries: first-time media sends can take ~8s for
+  // llonebot to ack, which tripped the timeout, fired a retry, and then the
+  // original response also arrived successfully on the server.
+  action_timeout_ = config.action_timeout;
   connect_ws(config.host, config.port, config.access_token);
 }
 

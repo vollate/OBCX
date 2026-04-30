@@ -107,6 +107,12 @@ auto ComponentManager::create_connection_config(const toml::table &conn_table)
     }
   }
 
+  if (const auto *action_timeout = conn_table.get("action_timeout")) {
+    if (auto action_timeout_ms = action_timeout->value<int64_t>()) {
+      config.action_timeout = std::chrono::milliseconds(*action_timeout_ms);
+    }
+  }
+
   if (const auto *poll_timeout = conn_table.get("poll_timeout")) {
     if (auto poll_timeout_ms = poll_timeout->value<int64_t>()) {
       config.poll_timeout = std::chrono::milliseconds(*poll_timeout_ms);

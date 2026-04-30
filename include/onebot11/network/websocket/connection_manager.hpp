@@ -96,7 +96,7 @@ private:
   std::string host_;
   uint16_t port_{0};
   std::string access_token_;
-  std::chrono::milliseconds action_timeout_{5000};
+  std::chrono::milliseconds action_timeout_{30000};
   bool is_running_ = false;
 
   // 用于存储等待响应的请求
