@@ -49,8 +49,6 @@ void TGBot::run() {
     io_context_->restart();
   }
 
-  // Polling is handled by TelegramConnectionManager::poll_updates() which is
-  // started in connect(). No separate polling loop needed here.
   OBCX_I18N_INFO(common::LogMessageKey::TELEGRAMBOT_STARTING_EVENT_LOOP);
   io_context_->run();
   OBCX_I18N_INFO(common::LogMessageKey::TELEGRAMBOT_EVENT_LOOP_ENDED);
@@ -59,7 +57,6 @@ void TGBot::run() {
 void TGBot::stop() {
   OBCX_I18N_INFO(common::LogMessageKey::TELEGRAMBOT_REQUESTING_STOP);
 
-  // 首先断开连接
   if (connection_manager_) {
     connection_manager_->disconnect();
   }
@@ -76,17 +73,11 @@ auto TGBot::poll_updates() -> asio::awaitable<void> {
   while (is_connected()) {
     bool success = false;
     try {
-      // Get updates from Telegram
       auto updates = co_await get_updates(offset, 100);
 
-      // Parse and dispatch events
-      // In a real implementation, we would parse the updates and dispatch
-      // events For now, we'll just log that we received updates
       OBCX_I18N_DEBUG(common::LogMessageKey::TELEGRAMBOT_RECEIVED_UPDATES,
                       updates.length());
 
-      // Update offset for next poll
-      // In a real implementation, we would parse the actual update IDs
       offset += 1;
 
       success = true;
@@ -95,7 +86,6 @@ auto TGBot::poll_updates() -> asio::awaitable<void> {
                       e.what());
     }
 
-    // Wait before next poll or retry
     asio::steady_timer timer(*io_context_,
                              std::chrono::seconds(success ? 1 : 5));
     co_await timer.async_wait(asio::use_awaitable);
@@ -157,7 +147,6 @@ auto TGBot::send_group_photo(std::string_view group_id,
     -> asio::awaitable<std::string> {
   auto echo_id = generate_echo_id();
 
-  // 构造sendPhoto请求的JSON
   nlohmann::json request;
   request["method"] = "sendPhoto";
   request["chat_id"] = group_id;
@@ -204,13 +193,8 @@ auto TGBot::send_media_group(
                                                                      echo_id);
 }
 
-// --- 消息管理 API ---
-
 auto TGBot::delete_message(std::string_view message_id)
     -> asio::awaitable<std::string> {
-  // In Telegram, we need both chat_id and message_id
-  // For simplicity, we'll assume message_id contains both in format
-  // "chat_id:message_id"
   std::string msg_id(message_id);
   size_t pos = msg_id.find(':');
   if (pos == std::string::npos) {
@@ -242,18 +226,12 @@ auto TGBot::edit_message_text(std::string_view chat_id,
 
 auto TGBot::get_message(std::string_view message_id)
     -> asio::awaitable<std::string> {
-  // Telegram doesn't have a direct get message API
-  // We would need to store messages locally or use other mechanisms
   OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
                  "get_message");
   co_return "{}";
 }
 
-// --- 好友管理 API ---
-
 auto TGBot::get_friend_list() -> asio::awaitable<std::string> {
-  // Telegram doesn't have a direct friend list API
-  // We could return the list of users we've interacted with
   OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
                  "get_friend_list");
   co_return "{}";
@@ -262,20 +240,13 @@ auto TGBot::get_friend_list() -> asio::awaitable<std::string> {
 auto TGBot::get_stranger_info(std::string_view user_id, bool no_cache)
     -> asio::awaitable<std::string> {
   auto echo_id = generate_echo_id();
-  // For Telegram, we need both chat_id and user_id, but for this API we only
-  // have user_id We'll use a dummy chat_id, but in a real implementation you
-  // might need to track the chat context
   auto payload = get_telegram_adapter().serialize_get_user_info_request(
       "", user_id, no_cache, echo_id);
   co_return co_await connection_manager_->send_action_and_wait_async(payload,
                                                                      echo_id);
 }
 
-// --- 群组管理 API ---
-
 auto TGBot::get_group_list() -> asio::awaitable<std::string> {
-  // Telegram doesn't have a direct group list API
-  // We could return the list of chats we're in
   OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
                  "get_group_list");
   co_return "{}";
@@ -340,8 +311,6 @@ auto TGBot::set_group_whole_ban(std::string_view group_id, bool enable)
 auto TGBot::set_group_card(std::string_view group_id, std::string_view user_id,
                            std::string_view card)
     -> asio::awaitable<std::string> {
-  // Telegram doesn't have a direct group card API
-  // This would need to be implemented differently
   OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
                  "set_group_card");
   co_return "{}";
@@ -379,7 +348,6 @@ auto TGBot::set_group_anonymous_ban(std::string_view group_id,
                                     const std::string &anonymous,
                                     int32_t duration)
     -> asio::awaitable<std::string> {
-  // Telegram doesn't have anonymous ban functionality in the same way
   OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
                  "set_group_anonymous_ban");
   co_return "{}";
@@ -387,7 +355,6 @@ auto TGBot::set_group_anonymous_ban(std::string_view group_id,
 
 auto TGBot::set_group_anonymous(std::string_view group_id, bool enable)
     -> asio::awaitable<std::string> {
-  // Telegram doesn't have anonymous chat functionality in the same way
   OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
                  "set_group_anonymous");
   co_return "{}";
@@ -405,13 +372,10 @@ auto TGBot::set_group_portrait(std::string_view group_id, std::string_view file,
 auto TGBot::get_group_honor_info(std::string_view group_id,
                                  std::string_view type)
     -> asio::awaitable<std::string> {
-  // Telegram doesn't have honor info functionality
   OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
                  "get_group_honor_info");
   co_return "{}";
 }
-
-// --- 状态获取 API ---
 
 auto TGBot::get_login_info() -> asio::awaitable<std::string> {
   auto echo_id = generate_echo_id();
@@ -422,20 +386,16 @@ auto TGBot::get_login_info() -> asio::awaitable<std::string> {
 }
 
 auto TGBot::get_status() -> asio::awaitable<std::string> {
-  // Telegram doesn't have a direct status API
   OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
                  "get_status");
   co_return R"({"retcode": 0, "status": "ok", "data": {"online": true}})";
 }
 
 auto TGBot::get_version_info() -> asio::awaitable<std::string> {
-  // Return version info for Telegram bot
   OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
                  "get_version_info");
   co_return R"({"retcode": 0, "data": {"version": "TelegramBot/1.0.0"}})";
 }
-
-// --- 资源管理 API ---
 
 auto TGBot::get_image(std::string_view file) -> asio::awaitable<std::string> {
   auto echo_id = generate_echo_id();
@@ -454,30 +414,22 @@ auto TGBot::get_record(std::string_view file, std::string_view out_format)
                                                                      echo_id);
 }
 
-// --- 能力检查 API ---
-
 auto TGBot::can_send_image() -> asio::awaitable<std::string> {
-  // Telegram bots can send images
   co_return R"({"retcode": 0, "data": {"yes": true}})";
 }
 
 auto TGBot::can_send_record() -> asio::awaitable<std::string> {
-  // Telegram bots can send voice messages
   co_return R"({"retcode": 0, "data": {"yes": true}})";
 }
 
-// --- Telegram相关接口凭证 API ---
-
 auto TGBot::get_cookies(std::string_view domain)
     -> asio::awaitable<std::string> {
-  // Telegram bots don't use cookies in the same way
   OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
                  "get_cookies");
   co_return "{}";
 }
 
 auto TGBot::get_csrf_token() -> asio::awaitable<std::string> {
-  // Telegram bots don't use CSRF tokens
   OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
                  "get_csrf_token");
   co_return "{}";
@@ -485,18 +437,14 @@ auto TGBot::get_csrf_token() -> asio::awaitable<std::string> {
 
 auto TGBot::get_credentials(std::string_view domain)
     -> asio::awaitable<std::string> {
-  // Telegram bots use bot tokens instead
   OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
                  "get_credentials");
   co_return "{}";
 }
 
-// --- 请求处理 API ---
-
 auto TGBot::set_friend_add_request(std::string_view flag, bool approve,
                                    std::string_view remark)
     -> asio::awaitable<std::string> {
-  // Telegram doesn't have friend requests in the same way
   OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
                  "set_friend_add_request");
   co_return "{}";
@@ -506,7 +454,6 @@ auto TGBot::set_group_add_request(std::string_view flag,
                                   std::string_view sub_type, bool approve,
                                   std::string_view reason)
     -> asio::awaitable<std::string> {
-  // Telegram doesn't have group add requests in the same way
   OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
                  "set_group_add_request");
   co_return "{}";
@@ -525,7 +472,7 @@ auto TGBot::get_updates(int offset, int limit) -> asio::awaitable<std::string> {
 }
 
 auto TGBot::get_task_scheduler() -> TaskScheduler & {
-  ensure_connection_manager(); // 确保task_scheduler_已初始化
+  ensure_connection_manager();
   return *task_scheduler_;
 }
 
@@ -546,14 +493,11 @@ auto TGBot::get_telegram_adapter() const
   return *dynamic_cast<adapter::telegram::ProtocolAdapter *>(&*adapter_);
 }
 
-// --- 媒体文件处理 API 实现 ---
-
 auto TGBot::extract_media_files(const nlohmann::json &message_data)
     -> std::vector<MediaFileInfo> {
   std::vector<MediaFileInfo> media_files;
 
   try {
-    // 处理photo数组 - 选择最大尺寸的图片
     if (message_data.contains("photo") && message_data["photo"].is_array() &&
         !message_data["photo"].empty()) {
       auto photos = message_data["photo"];
@@ -576,7 +520,6 @@ auto TGBot::extract_media_files(const nlohmann::json &message_data)
         MediaFileInfo info;
         info.file_id = largest_photo["file_id"].get<std::string>();
 
-        // 调试：打印photo对象结构
         OBCX_I18N_DEBUG(common::LogMessageKey::TELEGRAMBOT_PHOTO_CONTENT,
                         largest_photo.dump());
 
@@ -597,7 +540,6 @@ auto TGBot::extract_media_files(const nlohmann::json &message_data)
       }
     }
 
-    // 处理其他单个媒体文件类型
     std::vector<std::string> media_types = {"video",     "audio",   "voice",
                                             "document",  "sticker", "animation",
                                             "video_note"};
@@ -610,7 +552,6 @@ auto TGBot::extract_media_files(const nlohmann::json &message_data)
           MediaFileInfo info;
           info.file_id = media_obj["file_id"].get<std::string>();
 
-          // 调试：打印媒体对象结构
           OBCX_I18N_DEBUG(common::LogMessageKey::TELEGRAMBOT_MEDIA_CONTENT,
                           media_type, media_obj.dump());
 
@@ -633,7 +574,6 @@ auto TGBot::extract_media_files(const nlohmann::json &message_data)
             info.mime_type = media_obj["mime_type"].get<std::string>();
           }
 
-          // document类型特殊处理文件名
           if (media_type == "document" && media_obj.contains("file_name")) {
             info.file_name = media_obj["file_name"].get<std::string>();
           }
@@ -656,7 +596,6 @@ auto TGBot::get_media_download_url(const MediaFileInfo &media_info)
   try {
     ensure_connection_manager();
 
-    // 使用现有的ConnectionManager的download_file方法
     auto *tg_conn_mgr =
         dynamic_cast<obcx::network::TelegramConnectionManager *>(
             connection_manager_.get());
@@ -683,7 +622,6 @@ auto TGBot::get_media_download_urls(
   std::vector<std::optional<std::string>> results;
   results.reserve(media_list.size());
 
-  // 并发获取所有下载链接
   std::vector<asio::awaitable<std::optional<std::string>>> tasks;
   tasks.reserve(media_list.size());
 
@@ -691,7 +629,6 @@ auto TGBot::get_media_download_urls(
     tasks.push_back(get_media_download_url(media_info));
   }
 
-  // 等待所有任务完成
   for (auto &task : tasks) {
     results.push_back(co_await std::move(task));
   }

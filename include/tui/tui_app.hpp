@@ -4,6 +4,7 @@
 #include "tui/tui_sink.hpp"
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -52,6 +53,16 @@ private:
   std::atomic_bool shutdown_started_{false};
   std::atomic_bool shutdown_complete_{false};
   int log_scroll_offset_{0};
+  int log_visible_rows_{1};
+  int log_scrollbar_track_height_{1};
+  int log_scrollbar_thumb_top_{0};
+  int log_scrollbar_thumb_height_{1};
+  int log_scrollbar_x_{0};
+  bool log_follow_tail_{true};
+  bool log_scrollbar_dragging_{false};
+  int log_scrollbar_drag_start_y_{0};
+  int log_scrollbar_drag_start_thumb_top_{0};
+  uint64_t last_log_version_{0};
   int console_scroll_offset_{0};
 };
 

@@ -142,7 +142,6 @@ public:
     auto &component_manager = ComponentManager::instance();
 
     // Plugin search directories (all plugins are built to build/plugins/)
-    plugin_manager.add_plugin_directory("./plugins");
     plugin_manager.add_plugin_directory("./build/plugins");
 
     // Load bot configurations

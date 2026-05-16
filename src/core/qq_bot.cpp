@@ -46,7 +46,6 @@ void QQBot::run() {
 void QQBot::stop() {
   OBCX_I18N_INFO(common::LogMessageKey::QQBOT_REQUESTING_STOP);
 
-  // 首先断开连接
   if (connection_manager_) {
     connection_manager_->disconnect();
   }
@@ -81,8 +80,6 @@ auto QQBot::send_group_message(std::string_view group_id,
                                                                      echo_id);
 }
 
-// --- 消息管理 API ---
-
 auto QQBot::delete_message(std::string_view message_id)
     -> asio::awaitable<std::string> {
   auto echo_id = generate_echo_id();
@@ -110,8 +107,6 @@ auto QQBot::get_forward_msg(std::string_view forward_id)
                                                                      echo_id);
 }
 
-// --- 好友管理 API ---
-
 auto QQBot::get_friend_list() -> asio::awaitable<std::string> {
   auto echo_id = generate_echo_id();
   auto payload =
@@ -128,8 +123,6 @@ auto QQBot::get_stranger_info(std::string_view user_id, bool no_cache)
   co_return co_await connection_manager_->send_action_and_wait_async(payload,
                                                                      echo_id);
 }
-
-// --- 群组管理 API ---
 
 auto QQBot::get_group_list() -> asio::awaitable<std::string> {
   auto echo_id = generate_echo_id();
@@ -212,8 +205,6 @@ auto QQBot::set_group_leave(std::string_view group_id, bool is_dismiss)
                                                                      echo_id);
 }
 
-// --- 状态获取 API ---
-
 auto QQBot::get_login_info() -> asio::awaitable<std::string> {
   auto echo_id = generate_echo_id();
   auto payload = adapter_->serialize_get_self_info_request(echo_id);
@@ -237,8 +228,6 @@ auto QQBot::get_version_info() -> asio::awaitable<std::string> {
   co_return co_await connection_manager_->send_action_and_wait_async(payload,
                                                                      echo_id);
 }
-
-// --- 请求处理 API ---
 
 auto QQBot::set_friend_add_request(std::string_view flag, bool approve,
                                    std::string_view remark)
@@ -265,8 +254,6 @@ auto QQBot::generate_echo_id() -> uint64_t {
   static std::atomic<uint64_t> counter{0};
   return counter.fetch_add(1);
 }
-
-// --- 群组管理扩展 API ---
 
 auto QQBot::set_group_name(std::string_view group_id,
                            std::string_view group_name)
@@ -332,8 +319,6 @@ auto QQBot::get_group_honor_info(std::string_view group_id,
                                                                      echo_id);
 }
 
-// --- 资源管理 API ---
-
 auto QQBot::get_image(std::string_view file) -> asio::awaitable<std::string> {
   ensure_connection_manager();
   auto echo_id = generate_echo_id();
@@ -375,8 +360,6 @@ auto QQBot::get_private_file_url(std::string_view user_id,
                                                                      echo_id);
 }
 
-// --- 扩展 API (go-cqhttp/NapCat) ---
-
 auto QQBot::group_poke(std::string_view group_id, std::string_view user_id)
     -> asio::awaitable<std::string> {
   ensure_connection_manager();
@@ -398,8 +381,6 @@ auto QQBot::send_group_forward_msg(std::string_view group_id,
                                                                      echo_id);
 }
 
-// --- 能力检查 API ---
-
 auto QQBot::can_send_image() -> asio::awaitable<std::string> {
   ensure_connection_manager();
   auto echo_id = generate_echo_id();
@@ -416,8 +397,6 @@ auto QQBot::can_send_record() -> asio::awaitable<std::string> {
   co_return co_await connection_manager_->send_action_and_wait_async(payload,
                                                                      echo_id);
 }
-
-// --- QQ相关接口凭证 API ---
 
 auto QQBot::get_cookies(std::string_view domain)
     -> asio::awaitable<std::string> {
