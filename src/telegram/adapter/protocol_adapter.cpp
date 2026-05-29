@@ -518,8 +518,9 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
   std::optional<std::string> reply_to_message_id;
   for (const auto &segment : message) {
     if (segment.type == "reply") {
-      if (segment.data.contains("id")) {
-        reply_to_message_id = segment.data.at("id");
+      reply_to_message_id =
+          common::JsonUtils::get_optional_id_as_string(segment.data, "id");
+      if (reply_to_message_id.has_value()) {
         break;
       }
     }
