@@ -64,10 +64,6 @@ public:
   void error_notify(std::string_view target_id, std::string_view message,
                     bool is_group = false) override;
 
-  // --- 用户 API ---
-  // 提供两个版本：异步(fire-and-forget)和同步(等待响应)
-
-  // 标准版本 - 等待响应
   auto send_private_message(std::string_view user_id,
                             const common::Message &message)
       -> asio::awaitable<std::string> override;
@@ -131,8 +127,6 @@ public:
       std::optional<std::string> reply_to_message_id = std::nullopt)
       -> asio::awaitable<std::string>;
 
-  // --- 消息管理 API ---
-
   /**
    * @brief 撤回消息
    * @param message_id 要撤回的消息ID
@@ -162,8 +156,6 @@ public:
   auto get_message(std::string_view message_id)
       -> asio::awaitable<std::string> override;
 
-  // --- 好友管理 API ---
-
   /**
    * @brief 获取好友列表
    * @return 好友列表的JSON响应
@@ -178,8 +170,6 @@ public:
    */
   auto get_stranger_info(std::string_view user_id, bool no_cache = false)
       -> asio::awaitable<std::string> override;
-
-  // --- 群组管理 API ---
 
   /**
    * @brief 获取群列表
@@ -327,8 +317,6 @@ public:
   auto get_group_honor_info(std::string_view group_id, std::string_view type)
       -> asio::awaitable<std::string> override;
 
-  // --- 状态获取 API ---
-
   /**
    * @brief 获取登录号信息
    * @return 登录信息的JSON响应
@@ -347,8 +335,6 @@ public:
    */
   auto get_version_info() -> asio::awaitable<std::string> override;
 
-  // --- 资源管理 API ---
-
   /**
    * @brief 获取图片信息
    * @param file 图片文件名
@@ -366,8 +352,6 @@ public:
   auto get_record(std::string_view file, std::string_view out_format = "mp3")
       -> asio::awaitable<std::string> override;
 
-  // --- 能力检查 API ---
-
   /**
    * @brief 检查是否可以发送图片
    * @return 检查结果的JSON响应
@@ -379,8 +363,6 @@ public:
    * @return 检查结果的JSON响应
    */
   auto can_send_record() -> asio::awaitable<std::string> override;
-
-  // --- Telegram相关接口凭证 API ---
 
   /**
    * @brief 获取Cookies
@@ -403,8 +385,6 @@ public:
    */
   auto get_credentials(std::string_view domain = "")
       -> asio::awaitable<std::string> override;
-
-  // --- 请求处理 API ---
 
   /**
    * @brief 处理加好友请求
@@ -436,8 +416,6 @@ public:
   [[nodiscard]] auto is_connected() const -> bool override;
 
   auto get_task_scheduler() -> TaskScheduler & override;
-
-  // --- 媒体文件处理 API ---
 
   /**
    * @brief 从Telegram消息数据中提取所有媒体文件信息

@@ -48,10 +48,6 @@ auto base64_encode(const std::string &input) -> std::string {
 
 } // namespace
 
-// ============================================================
-// 协程版本的代理隧道建立方法
-// ============================================================
-
 auto ProxyHttpClient::connect_through_proxy_async()
     -> asio::awaitable<beast::tcp_stream> {
   auto executor = co_await asio::this_coro::executor;
@@ -316,10 +312,6 @@ auto ProxyHttpClient::establish_socks5_tunnel_async(beast::tcp_stream &stream)
 
   stream.expires_never();
 }
-
-// ============================================================
-// 已弃用的同步版本隧道方法
-// ============================================================
 
 #ifdef __clang__
 #pragma clang diagnostic push

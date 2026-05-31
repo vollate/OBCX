@@ -1,8 +1,5 @@
 #pragma once
 
-// Internal header: defines HttpClient::Impl and prepare_request template.
-// Included by http_client.cpp and http_client_sync.cpp only.
-
 #include "network/http_client.hpp"
 
 #include <atomic>

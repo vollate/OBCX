@@ -32,20 +32,17 @@ void TelegramConnectionManager::connect(
     const common::ConnectionConfig &config) {
   config_ = config;
 
-  // 检查是否需要使用代理
   if (!config_.proxy_host.empty() && config_.proxy_port > 0) {
-    // 使用代理HTTP客户端
     ProxyConfig proxy_config;
     proxy_config.host = config_.proxy_host;
     proxy_config.port = config_.proxy_port;
 
-    // 设置代理类型
     if (config_.proxy_type == "socks5") {
       proxy_config.type = ProxyType::SOCKS5;
     } else if (config_.proxy_type == "https") {
       proxy_config.type = ProxyType::HTTPS;
     } else {
-      proxy_config.type = ProxyType::HTTP; // 默认HTTP
+      proxy_config.type = ProxyType::HTTP;
     }
 
     if (!config_.proxy_username.empty()) {
@@ -61,7 +58,6 @@ void TelegramConnectionManager::connect(
                    config_.proxy_type, config_.proxy_host, config_.proxy_port,
                    config_.host, config_.port);
   } else {
-    // 使用普通HTTP客户端
     http_client_ = std::make_unique<HttpClient>(ioc_, config_);
     OBCX_I18N_INFO(common::LogMessageKey::CONNECTION_ESTABLISHED, config_.host,
                    config_.port);
@@ -92,12 +88,10 @@ auto TelegramConnectionManager::send_action_and_wait_async(
   }
 
   try {
-    // 解析action_payload以获取方法名和参数
     auto payload_json = json::parse(action_payload);
     OBCX_I18N_TRACE(common::LogMessageKey::SENDING_ACTION, action_payload);
     std::string method = payload_json.value("method", "");
 
-    // 设置请求头
     std::map<std::string, std::string> headers;
     headers["Content-Type"] = "application/json";
     headers["User-Agent"] = "OBCX/1.0";
@@ -106,15 +100,14 @@ auto TelegramConnectionManager::send_action_and_wait_async(
       headers["Authorization"] = "Bearer " + config_.access_token;
     }
 
-    // 构建Telegram API路径
     std::string api_path = "/bot" + config_.access_token + "/" + method;
 
-    // 获取请求体（去除method字段）
     payload_json.erase("method");
-    payload_json.erase("echo"); // Telegram API不支持echo字段
+    // Telegram Bot API does not understand the OneBot-style `echo` field; strip
+    // it before sending so the request is accepted.
+    payload_json.erase("echo");
     std::string body = payload_json.dump();
 
-    // 发送POST请求到Telegram API (使用协程)
     HttpResponse response =
         co_await http_client_->post(api_path, body, headers);
 
@@ -148,7 +141,6 @@ auto TelegramConnectionManager::download_file(std::string file_id)
   }
 
   try {
-    // 设置请求头
     std::map<std::string, std::string> headers;
     headers["User-Agent"] = "OBCX/1.0";
 
@@ -156,28 +148,24 @@ auto TelegramConnectionManager::download_file(std::string file_id)
       headers["Authorization"] = "Bearer " + config_.access_token;
     }
 
-    // 构建getFile请求参数
     json params = {{"file_id", file_id}};
 
-    // 构建getFile端点
     std::string get_file_path = "/bot" + config_.access_token + "/getFile";
     std::string body = params.dump();
 
-    // 设置Content-Type头
     headers["Content-Type"] = "application/json";
 
-    // 发送getFile请求 (使用协程)
     HttpResponse response =
         co_await http_client_->post(get_file_path, body, headers);
 
     if (response.is_success() && !response.body.empty()) {
-      // 解析响应以获取文件路径
       auto response_json = json::parse(response.body);
 
       if (response_json.contains("result") &&
           response_json["result"].contains("file_path")) {
         std::string file_path = response_json["result"]["file_path"];
-        // 构建文件下载URL
+        // Telegram returns a relative file_path; rebuild the absolute download
+        // URL using the bot token.
         std::string download_url = "https://api.telegram.org/file/bot" +
                                    config_.access_token + "/" + file_path;
         co_return download_url;
@@ -205,7 +193,6 @@ auto TelegramConnectionManager::download_file_content(
   }
 
   try {
-    // 解析下载URL以提取路径部分
     std::string url_str(download_url);
     size_t protocol_pos = url_str.find("://");
     if (protocol_pos == std::string::npos) {
@@ -222,10 +209,10 @@ auto TelegramConnectionManager::download_file_content(
 
     std::string path = url_str.substr(path_start);
 
-    // 使用空的头部映射，让HttpClient的prepare_request设置完整的浏览器头部
+    // Empty header map: HttpClient::prepare_request fills in the full
+    // browser-like header set we want for the file CDN.
     std::map<std::string, std::string> headers;
 
-    // 直接使用GET请求下载文件内容 (使用协程)
     HttpResponse response = co_await http_client_->get(path, headers);
 
     if (response.is_success()) {
@@ -258,14 +245,12 @@ auto TelegramConnectionManager::upload_photo_multipart(
   std::string body;
   body.reserve(image_data.size() + 512);
 
-  // chat_id field
   body += "--";
   body += kBoundary;
   body += "\r\nContent-Disposition: form-data; name=\"chat_id\"\r\n\r\n";
   body += chat_id;
   body += "\r\n";
 
-  // message_thread_id field (optional)
   if (message_thread_id.has_value()) {
     body += "--";
     body += kBoundary;
@@ -275,7 +260,6 @@ auto TelegramConnectionManager::upload_photo_multipart(
     body += "\r\n";
   }
 
-  // caption field
   if (!caption.empty()) {
     body += "--";
     body += kBoundary;
@@ -284,7 +268,6 @@ auto TelegramConnectionManager::upload_photo_multipart(
     body += "\r\n";
   }
 
-  // photo field (binary)
   body += "--";
   body += kBoundary;
   body += "\r\nContent-Disposition: form-data; name=\"photo\"; filename=\"";
@@ -295,7 +278,6 @@ auto TelegramConnectionManager::upload_photo_multipart(
   body += image_data;
   body += "\r\n";
 
-  // closing boundary
   body += "--";
   body += kBoundary;
   body += "--\r\n";
@@ -339,7 +321,6 @@ auto TelegramConnectionManager::poll_updates() -> asio::awaitable<void> {
         break;
       }
 
-      // 设置请求头
       std::map<std::string, std::string> headers;
       headers["User-Agent"] = "Mozilla/5.0 (X11; Linux x86_64; rv:147.0) "
                               "Gecko/20100101 Firefox/147.0";
@@ -348,9 +329,11 @@ auto TelegramConnectionManager::poll_updates() -> asio::awaitable<void> {
         headers["Authorization"] = "Bearer " + config_.access_token;
       }
 
-      // 构建getUpdates请求参数
-      // poll_timeout: Telegram服务端长轮询超时时间，无消息时服务器会等待这么久
-      // poll_force_close: 客户端HTTP安全超时，必须大于poll_timeout
+      // poll_timeout: server-side long-poll wait — Telegram blocks up to this
+      //   long when there are no new updates.
+      // poll_force_close: client-side hard timeout that MUST exceed
+      //   poll_timeout, otherwise the client tears down a healthy long-poll
+      //   that's just waiting on the server.
       auto poll_timeout_sec =
           std::chrono::duration_cast<std::chrono::seconds>(config_.poll_timeout)
               .count();
@@ -358,15 +341,13 @@ auto TelegramConnectionManager::poll_updates() -> asio::awaitable<void> {
                      {"limit", 100},
                      {"timeout", poll_timeout_sec}};
 
-      // 轮询更新端点
       std::string updates_path = "/bot" + config_.access_token + "/getUpdates";
       std::string body = params.dump();
 
-      // 设置Content-Type头
       headers["Content-Type"] = "application/json";
 
-      // 设置HTTP客户端超时为poll_force_close（客户端安全超时）
-      // 这确保如果连接意外挂起，客户端会在poll_force_close后强制关闭并重试
+      // Force-close acts as the client safety net: if the connection silently
+      // hangs we want to drop and retry rather than waiting forever.
       http_client_->set_timeout(config_.poll_force_close);
 
       HttpResponse response =
@@ -376,23 +357,22 @@ auto TelegramConnectionManager::poll_updates() -> asio::awaitable<void> {
         process_updates(response.body);
       }
 
-      // Long polling: 响应后立即开始下一次轮询，无需额外等待
-      // Telegram的timeout参数已经处理了"等待新消息"的逻辑
-      // 如果有新消息，Telegram立即返回；如果没有，等待poll_timeout后返回空
+      // Telegram long-poll already implements the wait inside `timeout`; on
+      // success we immediately reissue getUpdates with the advanced offset.
 
     } catch (const std::exception &e) {
       OBCX_I18N_WARN(common::LogMessageKey::POLLING_FAILED, e.what());
       should_delay = true;
     }
 
-    // 仅在出错时等待，正常情况下立即开始下一次轮询
+    // Only back off when an exception was thrown; happy path loops immediately.
     if (should_delay) {
       poll_timer_.expires_after(config_.poll_retry_interval);
       try {
         co_await poll_timer_.async_wait(asio::use_awaitable);
       } catch (const boost::system::system_error &e) {
         if (e.code() == asio::error::operation_aborted) {
-          break; // 轮询被取消
+          break;
         }
       }
     }
@@ -406,13 +386,13 @@ void TelegramConnectionManager::process_updates(std::string_view updates_json) {
     auto json_data = json::parse(updates_json);
     OBCX_I18N_DEBUG(common::LogMessageKey::RECEIVED_UPDATES, updates_json);
 
-    // 检查是否有result字段
     if (json_data.contains("result") && json_data["result"].is_array()) {
       auto result_array = json_data["result"];
       OBCX_I18N_DEBUG(common::LogMessageKey::PROCESSING_UPDATES,
                       result_array.size());
 
-      // 更新offset为最新的update_id + 1
+      // Advance offset past the last seen update_id; the next getUpdates call
+      // will then ack everything we just processed.
       if (!result_array.empty()) {
         auto last_update = result_array.back();
         if (last_update.contains("update_id")) {
@@ -420,7 +400,6 @@ void TelegramConnectionManager::process_updates(std::string_view updates_json) {
         }
       }
 
-      // 处理每个更新
       for (const auto &update_json : result_array) {
         std::string single_update = update_json.dump();
         OBCX_I18N_DEBUG(common::LogMessageKey::PROCESSING_UPDATE,

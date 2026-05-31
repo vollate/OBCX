@@ -67,7 +67,6 @@ void TuiApp::run() {
   std::string input_text;
   std::mutex console_mutex;
 
-  // Set up output callback so CliHandler writes to our console pane
   cli_ctx_.output_cb = [this, &console_mutex](const std::string &msg) -> void {
     std::scoped_lock lock(console_mutex);
     console_lines_.push_back(msg);
@@ -75,10 +74,8 @@ void TuiApp::run() {
 
   CliHandler cli_handler(cli_ctx_);
 
-  // Input component
   auto input_component = ftxui::Input(&input_text, "> ");
 
-  // Wrap input to handle Enter key
   auto input_with_enter = ftxui::CatchEvent(
       input_component, [&](const ftxui::Event &event) -> bool {
         if (event == ftxui::Event::Return) {
@@ -98,7 +95,6 @@ void TuiApp::run() {
           }
           return true;
         }
-        // Ctrl+C
         if (event == ftxui::Event::CtrlC) {
           {
             std::scoped_lock lock(console_mutex);
@@ -147,10 +143,9 @@ void TuiApp::run() {
     }
   });
 
-  // Renderer
-  int log_pane_size = 0; // Will be set by ResizableSplit
+  int log_pane_size = 0; // populated by ResizableSplit on first draw
 
-  // Log pane: virtualized renderer — only renders visible rows
+  // Virtualized log pane: only renders rows currently on-screen.
   auto log_pane = ftxui::Renderer([this, &log_pane_size] -> ftxui::Element {
     auto total = static_cast<int>(tui_sink_->line_count());
     auto version = tui_sink_->version();
@@ -190,12 +185,11 @@ void TuiApp::run() {
     log_scroll_offset_ = std::clamp(log_scroll_offset_, 0, max_offset);
     log_follow_tail_ = log_scroll_offset_ == 0;
 
-    // Calculate the window of lines to render
-    // offset=0 means viewing the latest (bottom), higher = scrolled up
+    // Compute the visible window. offset=0 means viewing the latest line at
+    // the bottom; positive offsets scroll up into history.
     int end_idx = total - log_scroll_offset_;
     int start_idx = std::max(0, end_idx - visible_rows);
 
-    // Fetch only the visible range
     auto lines = tui_sink_->get_lines_range(
         static_cast<std::size_t>(start_idx),
         static_cast<std::size_t>(end_idx - start_idx));
@@ -271,7 +265,6 @@ void TuiApp::run() {
            ftxui::vscroll_indicator | ftxui::yframe | ftxui::yflex_grow;
   });
 
-  // Wrap panes with colored borders
   auto log_bordered = ftxui::Renderer(log_pane, [&log_pane] -> ftxui::Element {
     return log_pane->Render() | ftxui::borderStyled(ftxui::Color::Blue) |
            ftxui::bold;
@@ -368,7 +361,6 @@ void TuiApp::run() {
       }
     }
 
-    // Scroll wheel → route to the correct pane
     if (mouse.button == ftxui::Mouse::WheelUp) {
       if (in_log_pane) {
         scroll_log_by(3);
@@ -410,7 +402,6 @@ void TuiApp::run() {
       return true;
     }
 
-    // Click in console pane → focus the input
     if (!in_log_pane && mouse.button == ftxui::Mouse::Left &&
         mouse.motion == ftxui::Mouse::Pressed) {
       input_component->TakeFocus();
@@ -422,11 +413,9 @@ void TuiApp::run() {
 
   screen.Loop(root);
 
-  // Ensure should_stop is set after TUI exits
   cli_ctx_.should_stop.store(true, std::memory_order_release);
   cli_ctx_.stop_cv.notify_one();
 
-  // Cleanup
   running_ = false;
   if (refresh_thread.joinable()) {
     refresh_thread.join();

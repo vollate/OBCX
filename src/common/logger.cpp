@@ -20,22 +20,14 @@ void Logger::initialize(spdlog::level::level_enum level,
     return;
   }
 
-  // Initialize i18n messages
   I18nLogMessages::initialize();
 
   try {
     std::vector<spdlog::sink_ptr> sinks;
 
     if (use_tui) {
-      /*
-       * \if CHINESE
-       * TUI sink - 捕获日志到内存供TUI渲染（替代控制台输出）
-       * \endif
-       * \if ENGLISH
-       * TUI sink - captures logs to memory for TUI rendering (replaces console
-       * output)
-       * \endif
-       */
+      // TUI sink captures logs to memory for the TUI to render, replacing
+      // direct console output.
       tui_sink_ = std::make_shared<tui_sink_mt>();
       tui_sink_->set_level(level);
       tui_sink_->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%l] %v");
@@ -48,23 +40,8 @@ void Logger::initialize(spdlog::level::level_enum level,
       sinks.push_back(stdout_sink);
     }
 
-    /*
-     * \if CHINESE
-     * 文件输出 (如果指定了文件路径)
-     * \endif
-     * \if ENGLISH
-     * File output (if file path is specified)
-     * \endif
-     */
     if (!log_file.empty()) {
-      /*
-       * \if CHINESE
-       * 10MB, 5个文件
-       * \endif
-       * \if ENGLISH
-       * 10MB, 5 files
-       * \endif
-       */
+      // 10 MiB per file, keep up to 5 rotated files.
       auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
           log_file, 1024 * 1024 * 10, 5);
       file_sink->set_level(level);
@@ -72,27 +49,11 @@ void Logger::initialize(spdlog::level::level_enum level,
       sinks.push_back(file_sink);
     }
 
-    /*
-     * \if CHINESE
-     * 创建默认日志器
-     * \endif
-     * \if ENGLISH
-     * Create default logger
-     * \endif
-     */
     default_logger_ =
         std::make_shared<spdlog::logger>("obcx", sinks.begin(), sinks.end());
     default_logger_->set_level(level);
     default_logger_->flush_on(spdlog::level::warn);
 
-    /*
-     * \if CHINESE
-     * 注册为默认日志器
-     * \endif
-     * \if ENGLISH
-     * Register as default logger
-     * \endif
-     */
     spdlog::register_logger(default_logger_);
     spdlog::set_default_logger(default_logger_);
 
@@ -107,14 +68,6 @@ void Logger::initialize(spdlog::level::level_enum level,
 
 auto Logger::get() -> std::shared_ptr<spdlog::logger> {
   if (!initialized_) {
-    /*
-     * \if CHINESE
-     * 使用默认设置初始化
-     * \endif
-     * \if ENGLISH
-     * Initialize with default settings
-     * \endif
-     */
     initialize();
   }
   return default_logger_;
@@ -122,27 +75,12 @@ auto Logger::get() -> std::shared_ptr<spdlog::logger> {
 
 auto Logger::get(const std::string &name) -> std::shared_ptr<spdlog::logger> {
   if (!initialized_) {
-    /*
-     * \if CHINESE
-     * 使用默认设置初始化
-     * \endif
-     * \if ENGLISH
-     * Initialize with default settings
-     * \endif
-     */
     initialize();
   }
 
   auto logger = spdlog::get(name);
   if (!logger) {
-    /*
-     * \if CHINESE
-     * 创建新的日志器，使用与默认日志器相同的配置
-     * \endif
-     * \if ENGLISH
-     * Create a new logger with the same configuration as the default logger
-     * \endif
-     */
+    // Clone the default logger so the new named logger inherits sinks/format.
     logger = default_logger_->clone(name);
     spdlog::register_logger(logger);
   }
@@ -150,10 +88,8 @@ auto Logger::get(const std::string &name) -> std::shared_ptr<spdlog::logger> {
 }
 
 void Logger::set_level(spdlog::level::level_enum level) {
-  // Set global level
   spdlog::set_level(level);
 
-  // Apply to all registered loggers and their sinks
   spdlog::apply_all(
       [level](const std::shared_ptr<spdlog::logger> &logger) -> void {
         logger->set_level(level);
@@ -173,7 +109,6 @@ void Logger::flush() {
 
 auto Logger::parse_level(const std::string &level_str)
     -> std::optional<spdlog::level::level_enum> {
-  // Convert to lowercase for case-insensitive comparison
   std::string lower_str = level_str;
   std::ranges::transform(
       lower_str, lower_str.begin(),
@@ -212,7 +147,6 @@ auto Logger::get_level_from_env(const std::string &env_var,
     return *level;
   }
 
-  // Invalid level string, return default
   return default_level;
 }
 

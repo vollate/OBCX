@@ -36,14 +36,6 @@ struct BaseResponse {
   std::optional<std::string> wording;
   json data;
 
-  /*
-   * \if CHINESE
-   * 序列化支持
-   * \endif
-   * \if ENGLISH
-   * Serialization support
-   * \endif
-   */
   void to_json(json &j) const;
   void from_json(const json &j);
 };
@@ -61,14 +53,6 @@ struct BaseRequest {
   json params;
   std::optional<std::string> echo;
 
-  /*
-   * \if CHINESE
-   * 序列化支持
-   * \endif
-   * \if ENGLISH
-   * Serialization support
-   * \endif
-   */
   void to_json(json &j) const;
   void from_json(const json &j);
 };
@@ -98,14 +82,6 @@ struct BaseEvent {
   std::string post_type;
   json data;
 
-  /*
-   * \if CHINESE
-   * 序列化支持
-   * \endif
-   * \if ENGLISH
-   * Serialization support
-   * \endif
-   */
   void to_json(json &j) const;
   void from_json(const json &j);
 };
@@ -122,14 +98,6 @@ struct MessageSegment {
   std::string type;
   json data;
 
-  /*
-   * \if CHINESE
-   * 序列化支持
-   * \endif
-   * \if ENGLISH
-   * Serialization support
-   * \endif
-   */
   void to_json(json &j) const;
   void from_json(const json &j);
 };
@@ -161,36 +129,12 @@ struct MessageEvent : public BaseEvent {
   std::string raw_message;
   int32_t font{};
 
-  /*
-   * \if CHINESE
-   * 群消息特有字段
-   * \endif
-   * \if ENGLISH
-   * Group message specific fields
-   * \endif
-   */
   std::optional<std::string> group_id;
   std::optional<std::string> anonymous;
 
-  /*
-   * \if CHINESE
-   * 频道消息特有字段
-   * \endif
-   * \if ENGLISH
-   * Channel message specific fields
-   * \endif
-   */
   std::optional<std::string> guild_id;
   std::optional<std::string> channel_id;
 
-  /*
-   * \if CHINESE
-   * 序列化支持
-   * \endif
-   * \if ENGLISH
-   * Serialization support
-   * \endif
-   */
   void to_json(json &j) const;
   void from_json(const json &j);
 };
@@ -208,14 +152,6 @@ struct NoticeEvent : public BaseEvent {
   std::string user_id;
   std::optional<std::string> group_id;
 
-  /*
-   * \if CHINESE
-   * 序列化支持
-   * \endif
-   * \if ENGLISH
-   * Serialization support
-   * \endif
-   */
   void to_json(json &j) const;
   void from_json(const json &j);
 };
@@ -234,14 +170,6 @@ struct RequestEvent : public BaseEvent {
   std::string comment;
   std::string flag;
 
-  /*
-   * \if CHINESE
-   * 序列化支持
-   * \endif
-   * \if ENGLISH
-   * Serialization support
-   * \endif
-   */
   void to_json(json &j) const;
   void from_json(const json &j);
 };
@@ -258,14 +186,6 @@ struct MetaEvent : public BaseEvent {
   std::string meta_event_type;
   std::string sub_type;
 
-  /*
-   * \if CHINESE
-   * 序列化支持
-   * \endif
-   * \if ENGLISH
-   * Serialization support
-   * \endif
-   */
   void to_json(json &j) const;
   void from_json(const json &j);
 };
@@ -279,34 +199,11 @@ struct MetaEvent : public BaseEvent {
  * \endif
  */
 struct HeartbeatEvent : public MetaEvent {
-  /*
-   * \if CHINESE
-   * 状态信息
-   * \endif
-   * \if ENGLISH
-   * Status information
-   * \endif
-   */
   json status;
 
-  /*
-   * \if CHINESE
-   * 距离上次心跳的间隔时间（毫秒）
-   * \endif
-   * \if ENGLISH
-   * Interval since last heartbeat (milliseconds)
-   * \endif
-   */
+  /// Interval since last heartbeat in milliseconds.
   int64_t interval{};
 
-  /*
-   * \if CHINESE
-   * 序列化支持
-   * \endif
-   * \if ENGLISH
-   * Serialization support
-   * \endif
-   */
   void to_json(json &j) const;
   void from_json(const json &j);
 };
@@ -320,21 +217,13 @@ struct HeartbeatEvent : public MetaEvent {
  * \endif
  */
 struct ErrorEvent {
-  std::string error_type;                     // 异常类型
-  std::string error_message;                  // 异常消息
-  std::string target_id;                      // 目标ID（用户ID或群组ID）
-  bool is_group;                              // 是否为群组
-  std::chrono::system_clock::time_point time; // 异常发生时间
-  json context;                               // 异常上下文信息
+  std::string error_type;
+  std::string error_message;
+  std::string target_id; // user ID or group ID
+  bool is_group;
+  std::chrono::system_clock::time_point time;
+  json context;
 
-  /*
-   * \if CHINESE
-   * 序列化支持
-   * \endif
-   * \if ENGLISH
-   * Serialization support
-   * \endif
-   */
   void to_json(json &j) const;
   void from_json(const json &j);
 };

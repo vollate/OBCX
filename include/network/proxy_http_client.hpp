@@ -47,10 +47,6 @@ public:
                            const common::ConnectionConfig &config);
   ~ProxyHttpClient() override = default;
 
-  // ============================================================
-  // 新的协程异步API（覆盖父类虚方法）
-  // ============================================================
-
   /**
    * @brief 异步发送POST请求（协程版本）
    * 通过代理隧道发送请求
@@ -75,10 +71,6 @@ public:
             const std::map<std::string, std::string> &headers = {})
       -> asio::awaitable<HttpResponse> override;
 
-  // ============================================================
-  // 已弃用的同步API（覆盖父类虚方法，保留以便向后兼容）
-  // ============================================================
-
   [[deprecated("Use post() awaitable instead")]]
   auto post_sync(std::string_view path, std::string_view body,
                  const std::map<std::string, std::string> &headers = {})
@@ -96,10 +88,6 @@ private:
   ProxyConfig proxy_config_;
   std::string target_host_;
   uint16_t target_port_ = 443;
-
-  // ============================================================
-  // 协程版本的代理隧道建立方法
-  // ============================================================
 
   /**
    * @brief 异步建立代理隧道（协程版本）
@@ -129,10 +117,6 @@ private:
    */
   auto establish_socks5_tunnel_async(beast::tcp_stream &stream)
       -> asio::awaitable<void>;
-
-  // ============================================================
-  // 已弃用的同步版本方法（内部使用）
-  // ============================================================
 
   // 建立代理隧道（同步版本）
   auto connect_through_proxy() -> tcp::socket;

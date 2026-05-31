@@ -7,14 +7,6 @@ namespace obcx::adapter::onebot11 {
 
 auto ProtocolAdapter::parse_event(std::string_view json_str)
     -> std::optional<common::Event> {
-  /*
-   * \if CHINESE
-   * 直接将解析任务委托给 EventConverter
-   * \endif
-   * \if ENGLISH
-   * Directly delegate parsing task to EventConverter
-   * \endif
-   */
   return EventConverter::from_v11_json(json_str);
 }
 
@@ -277,29 +269,23 @@ auto ProtocolAdapter::serialize_handle_join_request(
     const common::RequestEvent &request_event, bool approve,
     std::string_view reason, std::string_view remark,
     const std::optional<uint64_t> &echo) -> std::string {
-  // For OneBot11, we need to determine if it's a friend request or group
-  // request
   if (request_event.request_type == "friend") {
     return serialize_set_friend_add_request(request_event.flag, approve, remark,
                                             echo);
   } else if (request_event.request_type == "group") {
-    // We need to determine sub_type from the event
-    std::string sub_type = "add"; // Default to add
-    // 在这里应该从其他地方获取sub_type，但目前RequestEvent中没有这个字段
+    // TODO: RequestEvent currently lacks a sub_type field; default to "add".
+    std::string sub_type = "add";
     return serialize_set_group_add_request(request_event.flag, sub_type,
                                            approve, reason, echo);
   }
 
-  // If we can't determine the request type, return empty string
   return "";
 }
 
 auto ProtocolAdapter::serialize_download_file_request(
     std::string_view file_id, const std::optional<uint64_t> &echo)
     -> std::string {
-  // For OneBot11, we need to determine if it's an image or record
-  // This is a simplified implementation - in reality, you might want to use a
-  // more robust method
+  // OneBot11 splits image vs voice retrieval; sniff by file extension.
   if (file_id.find(".image") != std::string::npos) {
     return serialize_get_image_request(file_id, echo);
   } else {
@@ -307,7 +293,6 @@ auto ProtocolAdapter::serialize_download_file_request(
   }
 }
 
-// --- OneBot11 特有接口 ---
 auto ProtocolAdapter::serialize_send_private_message_request(
     std::string_view user_id, const common::Message &message,
     const std::optional<uint64_t> &echo) -> std::string {
@@ -316,14 +301,6 @@ auto ProtocolAdapter::serialize_send_private_message_request(
 
   nlohmann::json params;
   params["user_id"] = user_id;
-  /*
-   * \if CHINESE
-   * 将内部 Message 对象转换回 v11 的字符串格式
-   * \endif
-   * \if ENGLISH
-   * Convert internal Message object back to v11 string format
-   * \endif
-   */
   params["message"] = MessageConverter::to_v11_string(message);
 
   j["params"] = params;
@@ -345,14 +322,6 @@ auto ProtocolAdapter::serialize_send_group_message_request(
   nlohmann::json params;
   params["group_id"] = group_id;
 
-  /*
-   * \if CHINESE
-   * 将内部 Message 对象转换回 v11 的字符串格式
-   * \endif
-   * \if ENGLISH
-   * Convert internal Message object back to v11 string format
-   * \endif
-   */
   params["message"] = MessageConverter::to_v11_string(message);
 
   j["params"] = params;
@@ -432,8 +401,6 @@ auto ProtocolAdapter::serialize_get_group_list_request(
   return j.dump();
 }
 
-// --- 状态获取扩展 API ---
-
 auto ProtocolAdapter::serialize_get_status_request(
     const std::optional<uint64_t> &echo) -> std::string {
   nlohmann::json j;
@@ -461,8 +428,6 @@ auto ProtocolAdapter::serialize_get_version_info_request(
   OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_SERIALIZED_ACTION, j.dump());
   return j.dump();
 }
-
-// --- 群组管理扩展 API ---
 
 auto ProtocolAdapter::serialize_set_group_name_request(
     std::string_view group_id, std::string_view group_name,
@@ -611,8 +576,6 @@ auto ProtocolAdapter::serialize_set_group_add_request(
   return j.dump();
 }
 
-// --- 资源管理 API ---
-
 auto ProtocolAdapter::serialize_get_image_request(
     std::string_view file, const std::optional<uint64_t> &echo) -> std::string {
   nlohmann::json j;
@@ -643,8 +606,6 @@ auto ProtocolAdapter::serialize_get_record_request(
   return j.dump();
 }
 
-// --- 能力检查 API ---
-
 auto ProtocolAdapter::serialize_can_send_image_request(
     const std::optional<uint64_t> &echo) -> std::string {
   nlohmann::json j;
@@ -672,8 +633,6 @@ auto ProtocolAdapter::serialize_can_send_record_request(
   OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_SERIALIZED_ACTION, j.dump());
   return j.dump();
 }
-
-// --- QQ相关接口凭证 API ---
 
 auto ProtocolAdapter::serialize_get_cookies_request(
     std::string_view domain, const std::optional<uint64_t> &echo)
@@ -758,8 +717,6 @@ auto ProtocolAdapter::serialize_get_private_file_url_request(
   OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_SERIALIZED_ACTION, j.dump());
   return j.dump();
 }
-
-// --- 扩展 API (go-cqhttp/NapCat) ---
 
 auto ProtocolAdapter::serialize_group_poke_request(
     std::string_view group_id, std::string_view user_id,

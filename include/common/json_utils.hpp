@@ -259,8 +259,6 @@ auto get_by_path(const json &j, const std::string &path,
     }
   } catch (const json::exception &) {
     // FIXME: add warning log
-    // \~chinese 忽略路径错误
-    // \~english Ignore path errors
   }
   return default_value;
 }

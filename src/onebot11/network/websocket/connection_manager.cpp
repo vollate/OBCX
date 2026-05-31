@@ -47,19 +47,17 @@ void WebSocketConnectionManager::disconnect() {
   is_running_ = false;
   is_connected_.store(false, std::memory_order_release);
 
-  // 清理所有pending请求，避免析构时访问已销毁的对象
+  // Drain pending requests so their completion handlers don't fire after we
+  // tear down strands/io_context.
   {
     std::scoped_lock lock(pending_requests_mutex_);
     for (auto &[echo_id, request] : pending_requests_) {
       if (request) {
-        // 取消所有timer
         request->timeout_timer.cancel();
-        // 唤醒协程等待者
         if (request->completion_handler) {
           try {
             request->completion_handler(asio::error::operation_aborted, "");
           } catch (...) {
-            // 忽略 completion handler 中的异常
             // FIXME: Log the exception
           }
         }
@@ -69,12 +67,10 @@ void WebSocketConnectionManager::disconnect() {
     OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_PENDING_CLEARED);
   }
 
-  // 关闭WebSocket连接
   if (ws_client_) {
     asio::co_spawn(ioc_, ws_client_->close(), asio::detached);
   }
 
-  // 取消重连timer
   reconnect_timer_.cancel();
 }
 
@@ -116,7 +112,6 @@ void WebSocketConnectionManager::on_ws_message(const beast::error_code &ec,
                                                const std::string &message) {
   OBCX_I18N_TRACE(common::LogMessageKey::ONEBOT11_WS_MSG_RECEIVED, message);
   if (ec) {
-    // 连接已断开或发生错误
     OBCX_I18N_ERROR(common::LogMessageKey::ONEBOT11_WS_DISCONNECTED_ERROR,
                     ec.message());
     {
@@ -149,13 +144,11 @@ void WebSocketConnectionManager::on_ws_message(const beast::error_code &ec,
       auto it = pending_requests_.find(echo);
       if (it != pending_requests_.end()) {
         auto request = it->second;
-        pending_requests_.erase(it); // 立即移除
+        pending_requests_.erase(it);
 
-        // 取消超时定时器
         request->need_wait.store(false, std::memory_order_release);
         request->timeout_timer.cancel();
 
-        // 调用 completion handler
         if (request->completion_handler) {
           OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_CALL_COMPLETION,
                           echo);
@@ -170,7 +163,7 @@ void WebSocketConnectionManager::on_ws_message(const beast::error_code &ec,
       }
       OBCX_I18N_WARN(common::LogMessageKey::ONEBOT11_WS_UNKNOWN_API_RESPONSE,
                      echo);
-      // 打印所有pending requests的echo IDs用于调试
+      // Dump all pending echo IDs to help diagnose unmatched-echo bugs.
 #ifdef __OBCX_DEBUG_COMPILATION
       std::stringstream pending_echos;
       bool first = true;
@@ -268,13 +261,15 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
     if (request->need_wait.load(std::memory_order_acquire)) {
       try {
         co_await request->timeout_timer.async_wait(asio::use_awaitable);
-        // 如果走到这里，说明真的超时了
+        // Reaching here means the timer expired without being cancelled by an
+        // incoming response, i.e. the API call genuinely timed out.
         OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_WS_REQUEST_TIMEOUT,
                         echo_id);
         response_error = asio::error::timed_out;
       } catch (const boost::system::system_error &e) {
         if (e.code() == asio::error::operation_aborted) {
-          // timer 被取消，说明收到了响应
+          // Timer cancellation is the normal path: the matching echo response
+          // arrived and on_ws_message cancelled the timer.
           OBCX_I18N_DEBUG(
               common::LogMessageKey::ONEBOT11_WS_RESPONSE_RECEIVED_TIMER,
               echo_id);
@@ -284,7 +279,6 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
       }
     }
 
-    // 清理请求
     {
       std::scoped_lock lock(pending_requests_mutex_);
       pending_requests_.erase(echo_id);
@@ -293,7 +287,6 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
           pending_requests_.size());
     }
 
-    // 检查结果
     {
       std::scoped_lock lock(result_mutex);
       if (response_error) {
@@ -319,7 +312,6 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
     }
 
   } catch (...) {
-    // 清理
     request->timeout_timer.cancel();
     {
       std::scoped_lock lock(pending_requests_mutex_);

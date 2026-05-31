@@ -18,7 +18,6 @@ void JsonUtils::merge(json &target, const json &source, bool overwrite) {
     if (!target.contains(key) || overwrite) {
       target[key] = value;
     } else if (target[key].is_object() && value.is_object()) {
-      // 递归合并对象
       merge(target[key], value, overwrite);
     }
   }

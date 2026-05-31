@@ -7,27 +7,11 @@
 
 #include "tui/tui_sink.hpp"
 
-/*
- * \if CHINESE
- * 如果启用调试追溯，则包含 fmt 相关的头文件
- * \endif
- * \if ENGLISH
- * Include fmt-related headers if debug tracing is enabled
- * \endif
- */
 #ifdef OBCX_DEBUG_TRACE
 #include <fmt/color.h>
 #include <fmt/format.h>
 #endif
 
-/*
- * \if CHINESE
- * 包含国际化日志消息头文件
- * \endif
- * \if ENGLISH
- * Include i18n log messages header
- * \endif
- */
 #include "common/i18n_log_messages.hpp" // NOLINT
 
 namespace obcx::common {
@@ -151,23 +135,7 @@ private:
   static bool initialized_;
 };
 
-/*
- * \if CHINESE
- * 便利宏定义
- * \endif
- * \if ENGLISH
- * Convenience macro definitions
- * \endif
- */
 #ifdef OBCX_DEBUG_TRACE
-/*
- * \if CHINESE
- * 辅助宏，用于实现带有位置信息的日志记录
- * \endif
- * \if ENGLISH
- * Helper macro for logging with location information
- * \endif
- */
 #define OBCX_LOG_IMPL(__level, __fmt_str, ...)                                 \
   do {                                                                         \
     if (obcx::common::Logger::get()->should_log(spdlog::level::__level)) {     \
@@ -187,14 +155,6 @@ private:
 #define OBCX_ERROR(__fmt, ...) OBCX_LOG_IMPL(err, __fmt, ##__VA_ARGS__)
 #define OBCX_CRITICAL(__fmt, ...) OBCX_LOG_IMPL(critical, __fmt, ##__VA_ARGS__)
 #else
-/*
- * \if CHINESE
- * 正常模式下的日志宏
- * \endif
- * \if ENGLISH
- * Logging macros for normal mode
- * \endif
- */
 #define OBCX_TRACE(...) obcx::common::Logger::get()->trace(__VA_ARGS__)
 
 #define OBCX_DEBUG(...) obcx::common::Logger::get()->debug(__VA_ARGS__)
@@ -204,14 +164,6 @@ private:
 #define OBCX_CRITICAL(...) obcx::common::Logger::get()->critical(__VA_ARGS__)
 #endif
 
-/*
- * \if CHINESE
- * 国际化日志宏定义
- * \endif
- * \if ENGLISH
- * Internationalized logging macro definitions
- * \endif
- */
 #define OBCX_I18N_LOG_IMPL(__level, __key, ...)                                \
   do {                                                                         \
     if (obcx::common::Logger::get()->should_log(spdlog::level::__level)) {     \
@@ -239,25 +191,15 @@ private:
 /*
  * \if CHINESE
  * Plugin专用日志宏定义
- * 这些宏允许plugin使用自己的logger名称，而不是默认的"obcx"
  * 使用方式：PLUGIN_INFO(get_name(), "message")
  * \endif
  * \if ENGLISH
- * Plugin-specific logging macro definitions
- * These macros allow plugins to use their own logger name instead of the
- * default "obcx" Usage: PLUGIN_INFO(get_name(), "message")
+ * Plugin-specific logging macros - allow plugins to use their own logger name
+ * Usage: PLUGIN_INFO(get_name(), "message")
  * \endif
  */
 
 #ifdef OBCX_DEBUG_TRACE
-/*
- * \if CHINESE
- * 带位置信息的Plugin日志宏
- * \endif
- * \if ENGLISH
- * Plugin logging macros with location information
- * \endif
- */
 #define PLUGIN_LOG_IMPL(__plugin_name, __level, __fmt_str, ...)                \
   do {                                                                         \
     auto __logger = obcx::common::Logger::get(__plugin_name);                  \
@@ -285,14 +227,6 @@ private:
   PLUGIN_LOG_IMPL(__plugin_name, critical, __fmt, ##__VA_ARGS__)
 
 #else
-/*
- * \if CHINESE
- * 正常模式下的Plugin日志宏
- * \endif
- * \if ENGLISH
- * Plugin logging macros for normal mode
- * \endif
- */
 #define PLUGIN_TRACE(__plugin_name, ...)                                       \
   do {                                                                         \
     auto __logger = obcx::common::Logger::get(__plugin_name);                  \

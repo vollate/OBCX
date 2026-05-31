@@ -25,9 +25,10 @@ auto EventConverter::from_v11_json(std::string_view json_str)
   try {
     if (post_type == "message") {
       common::MessageEvent event;
-      event.from_json(j); // 这里会自动从JSON中解析 message 数组和其他字段
+      event.from_json(j);
 
-      // 只需要对 raw_message 进行CQ码反转义处理
+      // raw_message is the only field needing CQ-code unescape; structured
+      // segments are already parsed by from_json.
       auto raw_message_escaped =
           common::JsonUtils::get_value<std::string>(j, "raw_message");
       event.raw_message = MessageConverter::cq_unescape(raw_message_escaped);

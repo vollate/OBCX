@@ -27,10 +27,6 @@ ProxyHttpClient::ProxyHttpClient(asio::io_context &ioc,
                  target_port_);
 }
 
-// ============================================================
-// 新的协程异步API实现
-// ============================================================
-
 auto ProxyHttpClient::post(std::string_view path, std::string_view body,
                            const std::map<std::string, std::string> &headers)
     -> asio::awaitable<HttpResponse> {
@@ -273,10 +269,6 @@ auto ProxyHttpClient::head(std::string_view path,
     throw HttpClientError(std::string("HTTP HEAD request failed: ") + e.what());
   }
 }
-
-// ============================================================
-// 已弃用的同步API实现（保留以便向后兼容）
-// ============================================================
 
 #ifdef __clang__
 #pragma clang diagnostic push

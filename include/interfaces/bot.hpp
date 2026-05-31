@@ -67,7 +67,6 @@ public:
                             std::string_view message,
                             bool is_group = false) = 0;
 
-  // --- 用户 API ---
   virtual auto send_private_message(std::string_view user_id,
                                     const common::Message &message)
       -> asio::awaitable<std::string> = 0;
@@ -75,8 +74,6 @@ public:
   virtual auto send_group_message(std::string_view group_id,
                                   const common::Message &message)
       -> asio::awaitable<std::string> = 0;
-
-  // --- 消息管理 API ---
 
   /**
    * @brief 撤回消息
@@ -94,8 +91,6 @@ public:
   virtual auto get_message(std::string_view message_id)
       -> asio::awaitable<std::string> = 0;
 
-  // --- 好友管理 API ---
-
   /**
    * @brief 获取好友列表
    * @return 好友列表的JSON响应
@@ -111,8 +106,6 @@ public:
   virtual auto get_stranger_info(std::string_view user_id,
                                  bool no_cache = false)
       -> asio::awaitable<std::string> = 0;
-
-  // --- 群组管理 API ---
 
   /**
    * @brief 获取群列表
@@ -268,8 +261,6 @@ public:
                                     std::string_view type)
       -> asio::awaitable<std::string> = 0;
 
-  // --- 状态获取 API ---
-
   /**
    * @brief 获取登录号信息
    * @return 登录信息的JSON响应
@@ -287,8 +278,6 @@ public:
    * @return 版本信息的JSON响应
    */
   virtual auto get_version_info() -> asio::awaitable<std::string> = 0;
-
-  // --- 资源管理 API ---
 
   /**
    * @brief 获取图片信息
@@ -308,8 +297,6 @@ public:
                           std::string_view out_format = "mp3")
       -> asio::awaitable<std::string> = 0;
 
-  // --- 能力检查 API ---
-
   /**
    * @brief 检查是否可以发送图片
    * @return 检查结果的JSON响应
@@ -321,8 +308,6 @@ public:
    * @return 检查结果的JSON响应
    */
   virtual auto can_send_record() -> asio::awaitable<std::string> = 0;
-
-  // --- QQ相关接口凭证 API ---
 
   /**
    * @brief 获取Cookies
@@ -345,8 +330,6 @@ public:
    */
   virtual auto get_credentials(std::string_view domain = "")
       -> asio::awaitable<std::string> = 0;
-
-  // --- 请求处理 API ---
 
   /**
    * @brief 处理加好友请求

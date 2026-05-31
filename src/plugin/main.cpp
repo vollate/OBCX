@@ -70,7 +70,6 @@ public:
     std::string config_path = "config.toml";
     bool use_tui = true;
 
-    // Parse command line arguments using boost-program-options
     try {
       po::options_description desc("Options");
       desc.add_options()("help,h", "Show this help message")(
@@ -109,7 +108,7 @@ public:
       return 1;
     }
 
-    // Get log level from OBCX_LOG_LEVEL environment variable, default to info
+    // Honors OBCX_LOG_LEVEL env var; defaults to info.
     auto log_level = common::Logger::get_level_from_env();
     common::Logger::initialize(
         log_level,
@@ -118,7 +117,6 @@ public:
                         boost::posix_time::second_clock::local_time())),
         use_tui);
 
-    // Initialize configuration
     auto &config_loader = common::ConfigLoader::instance();
     if (!config_loader.load_config(config_path)) {
       std::println(std::cerr, "Failed to load configuration from: {}",
@@ -126,39 +124,32 @@ public:
       return 1;
     }
 
-    // Set log locale from configuration (default: en_US)
     auto locale = config_loader.get_value<std::string>("global.locale");
     if (locale.has_value()) {
       common::I18nLogMessages::set_locale(*locale);
       OBCX_I18N_INFO(common::LogMessageKey::LOG_LOCALE_SET, *locale);
     }
-    // If not specified, keep default en_US (no need to explicitly set)
 
     OBCX_I18N_INFO(common::LogMessageKey::FRAMEWORK_STARTING);
     OBCX_I18N_INFO(common::LogMessageKey::CONFIG_LOADED_FROM, config_path);
 
-    // Initialize plugin manager
     common::PluginManager plugin_manager;
     auto &component_manager = ComponentManager::instance();
 
-    // Plugin search directories (all plugins are built to build/plugins/)
     plugin_manager.add_plugin_directory("./build/plugins");
 
-    // Load bot configurations
     auto bot_configs = config_loader.get_bot_configs();
     if (bot_configs.empty()) {
       OBCX_I18N_ERROR(common::LogMessageKey::NO_BOT_CONFIGS);
       return 1;
     }
 
-    // Create and setup bot components
     std::vector<std::unique_ptr<core::IBot>> bots;
     std::vector<std::thread> bot_threads;
     std::mutex bots_mutex;
 
     interface::IPlugin::set_bots(&bots, &bots_mutex);
 
-    // Create shared TaskScheduler for all bots
     auto shared_task_scheduler = std::make_shared<core::TaskScheduler>();
     OBCX_I18N_INFO(common::LogMessageKey::SHARED_TASK_SCHEDULER_CREATED,
                    std::thread::hardware_concurrency());
@@ -176,8 +167,7 @@ public:
         continue;
       }
 
-      // Move bot to bots vector first so plugins can access it during
-      // initialization
+      // Push to vector before setup so plugins can locate the bot during init.
       bots.push_back(std::move(bot));
       size_t bot_index = bots.size() - 1;
 
@@ -185,15 +175,12 @@ public:
                                        plugin_manager)) {
         OBCX_I18N_ERROR(common::LogMessageKey::BOT_SETUP_FAILED_TYPE,
                         config.type);
-        // Remove the bot from vector since setup failed
         bots.pop_back();
         continue;
       }
 
       OBCX_I18N_INFO(common::LogMessageKey::STARTING_BOT, config.type);
 
-      // Start bot component in separate thread, capturing the specific bot
-      // index
       bot_threads.emplace_back([&bots, bot_index]() -> void {
         try {
           bots[bot_index]->run();
@@ -210,7 +197,6 @@ public:
 
     OBCX_I18N_INFO(common::LogMessageKey::ALL_COMPONENTS_STARTED);
 
-    // Run TUI on main thread (blocks until exit)
     {
       common::CliHandler::Context ctx{
           .plugin_manager = plugin_manager,
@@ -222,16 +208,15 @@ public:
           .stop_cv = g_stop_cv,
       };
 
-      // Shutdown callback: runs while TUI is still alive so logs are visible
+      // Shutdown callback runs while the TUI is still alive so the user can
+      // see the shutdown log lines in the pane.
       ctx.shutdown_cb = [&]() -> void {
         OBCX_I18N_INFO(common::LogMessageKey::FRAMEWORK_SHUTDOWN);
 
-        // Stop all bot components
         for (auto &bot : bots) {
           bot->stop();
         }
 
-        // Wait for bot threads to finish with timeout
         for (size_t i = 0; i < bot_threads.size(); ++i) {
           if (bot_threads[i].joinable()) {
             OBCX_I18N_INFO(common::LogMessageKey::WAITING_BOT_THREAD, i);
@@ -255,13 +240,12 @@ public:
           }
         }
 
-        // Stop shared TaskScheduler (bots are already stopped)
+        // Bots already stopped above, so it's safe to drop the scheduler now.
         if (shared_task_scheduler) {
           shared_task_scheduler->stop();
           shared_task_scheduler.reset();
         }
 
-        // Shutdown all plugins
         plugin_manager.shutdown_all_plugins();
 
         OBCX_I18N_INFO(common::LogMessageKey::FRAMEWORK_SHUTDOWN_COMPLETE);
@@ -274,7 +258,7 @@ public:
       } else {
         common::CliHandler cli_handler(ctx);
         cli_handler.run();
-        // Wait for signal if stdin closed before SIGINT
+        // Block on signal in case stdin closed before SIGINT.
         {
           std::unique_lock lock(g_stop_mtx);
           g_stop_cv.wait(lock, [] -> bool { return g_should_stop.load(); });

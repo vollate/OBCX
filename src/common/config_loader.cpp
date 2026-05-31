@@ -96,7 +96,7 @@ auto ConfigLoader::get_plugin_config(const std::string &plugin_name) const
         }
       }
 
-      // Parse priority field (default: 0)
+      // priority is clamped to [0, 255]; out-of-range falls back to 0
       if (auto priority_section = plugin_table->get("priority")) {
         if (auto priority_val = priority_section->value<int64_t>()) {
           if (*priority_val < 0 || *priority_val > 255) {
@@ -109,7 +109,6 @@ auto ConfigLoader::get_plugin_config(const std::string &plugin_name) const
         }
       }
 
-      // Parse required field (default: empty array)
       if (auto required_section = plugin_table->get("required")) {
         if (auto required_array = required_section->as_array()) {
           for (const auto &req : *required_array) {
@@ -159,7 +158,7 @@ auto ConfigLoader::get_all_plugin_configs() const -> std::vector<PluginConfig> {
             }
           }
 
-          // Parse priority field (default: 0)
+          // priority is clamped to [0, 255]; out-of-range falls back to 0
           if (auto priority_section = plugin_table->get("priority")) {
             if (auto priority_val = priority_section->value<int64_t>()) {
               if (*priority_val < 0 || *priority_val > 255) {
@@ -173,7 +172,6 @@ auto ConfigLoader::get_all_plugin_configs() const -> std::vector<PluginConfig> {
             }
           }
 
-          // Parse required field (default: empty array)
           if (auto required_section = plugin_table->get("required")) {
             if (auto required_array = required_section->as_array()) {
               for (const auto &req : *required_array) {

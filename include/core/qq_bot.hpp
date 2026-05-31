@@ -50,8 +50,6 @@ public:
   void error_notify(std::string_view target_id, std::string_view message,
                     bool is_group = false) override;
 
-  // --- 用户 API ---
-
   auto send_private_message(std::string_view user_id,
                             const common::Message &message)
       -> asio::awaitable<std::string> override;
@@ -59,8 +57,6 @@ public:
   auto send_group_message(std::string_view group_id,
                           const common::Message &message)
       -> asio::awaitable<std::string> override;
-
-  // --- 消息管理 API ---
 
   /**
    * @brief 撤回消息
@@ -86,8 +82,6 @@ public:
   auto get_forward_msg(std::string_view forward_id)
       -> asio::awaitable<std::string>;
 
-  // --- 好友管理 API ---
-
   /**
    * @brief 获取好友列表
    * @return 好友列表的JSON响应
@@ -102,8 +96,6 @@ public:
    */
   auto get_stranger_info(std::string_view user_id, bool no_cache = false)
       -> asio::awaitable<std::string> override;
-
-  // --- 群组管理 API ---
 
   /**
    * @brief 获取群列表
@@ -251,8 +243,6 @@ public:
   auto get_group_honor_info(std::string_view group_id, std::string_view type)
       -> asio::awaitable<std::string> override;
 
-  // --- 状态获取 API ---
-
   /**
    * @brief 获取登录号信息
    * @return 登录信息的JSON响应
@@ -270,8 +260,6 @@ public:
    * @return 版本信息的JSON响应
    */
   auto get_version_info() -> asio::awaitable<std::string> override;
-
-  // --- 资源管理 API ---
 
   /**
    * @brief 获取图片信息
@@ -308,8 +296,6 @@ public:
   auto get_private_file_url(std::string_view user_id, std::string_view file_id)
       -> asio::awaitable<std::string>;
 
-  // --- 扩展 API (go-cqhttp/NapCat) ---
-
   /**
    * @brief 群组戳一戳
    * @param group_id 目标群ID
@@ -329,8 +315,6 @@ public:
                               const nlohmann::json &messages)
       -> asio::awaitable<std::string>;
 
-  // --- 能力检查 API ---
-
   /**
    * @brief 检查是否可以发送图片
    * @return 检查结果的JSON响应
@@ -342,8 +326,6 @@ public:
    * @return 检查结果的JSON响应
    */
   auto can_send_record() -> asio::awaitable<std::string> override;
-
-  // --- QQ相关接口凭证 API ---
 
   /**
    * @brief 获取Cookies
@@ -366,8 +348,6 @@ public:
    */
   auto get_credentials(std::string_view domain = "")
       -> asio::awaitable<std::string> override;
-
-  // --- 请求处理 API ---
 
   /**
    * @brief 处理加好友请求

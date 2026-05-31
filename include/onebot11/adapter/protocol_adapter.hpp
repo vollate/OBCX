@@ -699,10 +699,6 @@ public:
   auto serialize_send_group_forward_msg_request(
       std::string_view group_id, const nlohmann::json &messages,
       const std::optional<uint64_t> &echo = std::nullopt) -> std::string;
-
-  // \~chinese 其他动作的序列化方法可以按需在此处添加...
-  // \~english Serialization methods for other actions can be added here as
-  // needed...
 };
 
 } // namespace obcx::adapter::onebot11

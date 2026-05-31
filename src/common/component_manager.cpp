@@ -138,7 +138,6 @@ auto ComponentManager::create_connection_config(const toml::table &conn_table)
     }
   }
 
-  // Proxy configuration
   if (const auto *proxy_host = conn_table.get("proxy_host")) {
     config.proxy_host = proxy_host->value_or<std::string>("");
   } else {
@@ -157,7 +156,6 @@ auto ComponentManager::create_connection_config(const toml::table &conn_table)
     config.proxy_type = "http";
   }
 
-  // Debug logging for proxy configuration
   OBCX_I18N_INFO(common::LogMessageKey::PROXY_CONFIG_INFO, config.proxy_host,
                  config.proxy_port, config.proxy_type);
 
@@ -180,12 +178,10 @@ auto ComponentManager::setup_bot(::obcx::core::IBot &bot,
                                  const BotConfig &config,
                                  PluginManager &plugin_manager) -> bool {
   try {
-    // Sort plugins by priority and dependencies
     auto sorted_plugins =
         plugin_manager.sort_plugins_by_priority_and_dependencies(
             config.plugins);
 
-    // Log the sorted plugin order
     if (!sorted_plugins.empty()) {
       std::string order_info;
       for (size_t i = 0; i < sorted_plugins.size(); ++i) {
@@ -197,7 +193,6 @@ auto ComponentManager::setup_bot(::obcx::core::IBot &bot,
       OBCX_I18N_INFO(common::LogMessageKey::PLUGIN_LOAD_ORDER_INFO, order_info);
     }
 
-    // Load and initialize plugins in sorted order
     for (const auto &plugin_name : sorted_plugins) {
       if (!plugin_manager.load_plugin(plugin_name)) {
         OBCX_I18N_WARN(common::LogMessageKey::PLUGIN_LOAD_WARN, plugin_name);
@@ -210,7 +205,6 @@ auto ComponentManager::setup_bot(::obcx::core::IBot &bot,
       }
     }
 
-    // Setup connection
     auto connection_config = create_connection_config(config.connection);
     std::string conn_type =
         config.connection.get("type")->value_or<std::string>("http");

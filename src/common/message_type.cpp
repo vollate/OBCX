@@ -3,7 +3,8 @@
 
 namespace obcx::common {
 
-// C++20 compatible remove_optional_t
+// remove_optional<T> unwraps std::optional<T> for the (DE)SERIALIZE_OPTIONAL
+// macros below.
 template <typename T> struct remove_optional {
   using type = T;
 };
@@ -13,7 +14,6 @@ template <typename T> struct remove_optional<std::optional<T>> {
 template <typename T>
 using remove_optional_t = typename remove_optional<T>::type;
 
-// BaseResponse 序列化
 void BaseResponse::to_json(json &j) const {
   j["status"] = (status == MessageStatus::ok)       ? "ok"
                 : (status == MessageStatus::failed) ? "failed"
@@ -45,7 +45,7 @@ void BaseResponse::from_json(const json &j) {
   data = JsonUtils::get_value(j, "data", json::object());
 }
 
-// BaseRequest 序列化
+// BaseRequest
 void BaseRequest::to_json(json &j) const {
   j["action"] = action;
   j["params"] = params;
@@ -60,7 +60,6 @@ void BaseRequest::from_json(const json &j) {
   echo = JsonUtils::get_optional<std::string>(j, "echo");
 }
 
-// 序列化/反序列化辅助宏，减少重复代码
 #define SERIALIZE_FIELD(j, obj, field)                                         \
   JsonUtils::set_value(j, #field, (obj).field)
 #define DESERIALIZE_FIELD(j, obj, field)                                       \
@@ -83,7 +82,6 @@ void from_json(const json &j, MessageSegment &seg) {
   DESERIALIZE_FIELD(j, seg, data);
 }
 
-// BaseEvent
 void BaseEvent::to_json(json &j) const {
   // EventType to string conversion is handled by consumers
   JsonUtils::set_value(
@@ -105,7 +103,6 @@ void BaseEvent::from_json(const json &j) {
   DESERIALIZE_FIELD(j, *this, post_type);
 }
 
-// MessageEvent
 void MessageEvent::to_json(json &j) const {
   BaseEvent::to_json(j);
   SERIALIZE_FIELD(j, *this, message_type);
@@ -142,7 +139,6 @@ void MessageEvent::from_json(const json &j) {
   DESERIALIZE_OPTIONAL_FIELD(j, *this, channel_id);
 }
 
-// NoticeEvent
 void NoticeEvent::to_json(json &j) const {
   BaseEvent::to_json(j);
   SERIALIZE_FIELD(j, *this, notice_type);
@@ -155,11 +151,10 @@ void NoticeEvent::from_json(const json &j) {
   DESERIALIZE_FIELD(j, *this, notice_type);
   user_id = JsonUtils::get_id_as_string(j, "user_id");
   group_id = JsonUtils::get_optional_id_as_string(j, "group_id");
-  // 保存原始JSON数据，以便访问如message_id等额外字段
+  // Preserve raw JSON so consumers can access extra fields (e.g. message_id).
   data = j;
 }
 
-// RequestEvent
 void RequestEvent::to_json(json &j) const {
   BaseEvent::to_json(j);
   SERIALIZE_FIELD(j, *this, request_type);
@@ -177,7 +172,6 @@ void RequestEvent::from_json(const json &j) {
   DESERIALIZE_FIELD(j, *this, flag);
 }
 
-// MetaEvent
 void MetaEvent::to_json(json &j) const {
   BaseEvent::to_json(j);
   SERIALIZE_FIELD(j, *this, meta_event_type);
@@ -190,7 +184,6 @@ void MetaEvent::from_json(const json &j) {
   DESERIALIZE_FIELD(j, *this, sub_type);
 }
 
-// HeartbeatEvent
 void HeartbeatEvent::to_json(json &j) const {
   MetaEvent::to_json(j);
   SERIALIZE_FIELD(j, *this, status);
@@ -203,7 +196,6 @@ void HeartbeatEvent::from_json(const json &j) {
   interval = JsonUtils::get_value(j, "interval", static_cast<int64_t>(0));
 }
 
-// ErrorEvent
 void ErrorEvent::to_json(json &j) const {
   SERIALIZE_FIELD(j, *this, error_type);
   SERIALIZE_FIELD(j, *this, error_message);

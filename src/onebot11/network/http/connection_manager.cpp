@@ -26,10 +26,7 @@ HttpConnectionManager::~HttpConnectionManager() {
 void HttpConnectionManager::connect(const common::ConnectionConfig &config) {
   config_ = config;
 
-  // if (config.proxy_host=="")
   http_client_ = std::make_unique<HttpClient>(ioc_, config_);
-  // else
-  // http_client_ = std::make_unique<ProxyHttpClient>(ioc_, config_);
 
   is_connected_ = true;
   start_polling();
@@ -64,7 +61,6 @@ auto HttpConnectionManager::send_action_and_wait_async(
   }
 
   try {
-    // 设置请求头
     std::map<std::string, std::string> headers;
     headers["Content-Type"] = "application/json";
     headers["User-Agent"] = "OBCX/1.0";
@@ -73,8 +69,7 @@ auto HttpConnectionManager::send_action_and_wait_async(
       headers["Authorization"] = "Bearer " + config_.access_token;
     }
 
-    // 发送POST请求到API端点 (使用协程，不会阻塞io_context)
-    std::string api_path = "/api"; // OneBot11标准端点
+    std::string api_path = "/api"; // OneBot11 standard action endpoint
     auto response =
         co_await http_client_->post(api_path, action_payload, headers);
 
@@ -102,7 +97,6 @@ auto HttpConnectionManager::get_connection_type() const -> std::string {
 
 void HttpConnectionManager::start_polling() {
   if (is_polling_.exchange(true) == false) {
-    // 启动轮询协程
     asio::co_spawn(ioc_, poll_events(), asio::detached);
     OBCX_I18N_INFO(common::LogMessageKey::ONEBOT11_HTTP_POLLING_START,
                    poll_interval_.count());
@@ -122,7 +116,6 @@ auto HttpConnectionManager::poll_events() -> asio::awaitable<void> {
         break;
       }
 
-      // 设置请求头
       std::map<std::string, std::string> headers;
       headers["User-Agent"] = "OBCX/1.0";
 
@@ -130,8 +123,8 @@ auto HttpConnectionManager::poll_events() -> asio::awaitable<void> {
         headers["Authorization"] = "Bearer " + config_.access_token;
       }
 
-      // 轮询事件端点 (使用协程)
-      std::string events_path = "/get_latest_events"; // OneBot11事件端点
+      std::string events_path =
+          "/get_latest_events"; // OneBot11 events endpoint
       auto response = co_await http_client_->get(events_path, headers);
 
       if (response.is_success() && !response.body.empty()) {
@@ -143,13 +136,12 @@ auto HttpConnectionManager::poll_events() -> asio::awaitable<void> {
                      e.what());
     }
 
-    // 等待下次轮询
     poll_timer_.expires_after(poll_interval_);
     try {
       co_await poll_timer_.async_wait(asio::use_awaitable);
     } catch (const boost::system::system_error &e) {
       if (e.code() == asio::error::operation_aborted) {
-        break; // 轮询被取消
+        break;
       }
     }
   }
@@ -161,15 +153,12 @@ void HttpConnectionManager::process_events(std::string_view events_json) {
   try {
     auto json_data = json::parse(events_json);
 
-    // 处理单个事件
     if (json_data.is_object()) {
       auto event_opt = adapter_.parse_event(std::string(events_json));
       if (event_opt && event_callback_) {
         event_callback_(event_opt.value());
       }
-    }
-    // 处理事件数组
-    else if (json_data.is_array()) {
+    } else if (json_data.is_array()) {
       for (const auto &event_json : json_data) {
         std::string single_event = event_json.dump();
         auto event_opt = adapter_.parse_event(single_event);

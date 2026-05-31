@@ -11,7 +11,6 @@
 #include <boost/asio/steady_timer.hpp>
 #include <memory>
 
-// 前向声明
 namespace obcx::adapter {
 class ProtocolAdapter;
 }

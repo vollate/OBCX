@@ -12,27 +12,20 @@ auto ProtocolAdapter::parse_event(std::string_view json_str)
     auto json = nlohmann::json::parse(json_str);
     OBCX_I18N_DEBUG(common::LogMessageKey::PARSING_EVENT, json_str);
 
-    // Check if this is an update
     if (json.contains("update_id")) {
-      // Handle different types of updates
       if (json.contains("message")) {
-        // Message update
         return parse_message_event(json);
       }
       if (json.contains("edited_message")) {
-        // Edited message update
         return parse_edited_message_event(json);
       }
       if (json.contains("channel_post")) {
-        // Channel post update
         return parse_channel_post_event(json);
       }
       if (json.contains("edited_channel_post")) {
-        // Edited channel post update
         return parse_edited_channel_post_event(json);
       }
       if (json.contains("callback_query")) {
-        // Callback query update
         return parse_callback_query_event(json);
       }
       OBCX_I18N_DEBUG(common::LogMessageKey::UNHANDLED_UPDATE_TYPE);
@@ -52,30 +45,28 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
   try {
     auto message = update_json["message"];
 
-    // Create message event
     common::MessageEvent event{};
     event.time = std::chrono::system_clock::now();
     event.post_type = "message";
     event.type = common::EventType::message;
-    event.self_id =
-        "0"; // Bot ID should be set properly in a real implementation
+    // TODO: Bot ID should be set properly in a real implementation
+    event.self_id = "0";
 
-    // Store the original message data for access to additional fields
+    // Keep the raw payload around for handlers that need fields beyond the
+    // canonical extracted set (entities, reply chain, etc.).
     event.data = message;
 
-    // Extract update ID
     if (update_json.contains("update_id")) {
-      // We don't store update_id in the event, but we could if needed
+      // update_id is intentionally not stored on the event; if needed it can be
+      // recovered from event.data.
     }
 
-    // Extract message ID
     if (message.contains("message_id")) {
       event.message_id = std::to_string(message["message_id"].get<int64_t>());
       OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_MESSAGE_ID,
                       event.message_id);
     }
 
-    // Extract user information
     if (message.contains("from")) {
       auto from = message["from"];
       if (from.contains("id")) {
@@ -85,14 +76,12 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       }
     }
 
-    // Extract chat information
     if (message.contains("chat")) {
       auto chat = message["chat"];
       if (chat.contains("id")) {
         std::string chat_id = std::to_string(chat["id"].get<int64_t>());
         OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_CHAT_ID, chat_id);
 
-        // Check chat type to determine if it's a group or private chat
         if (chat.contains("type")) {
           std::string chat_type = chat["type"];
           OBCX_I18N_DEBUG(common::LogMessageKey::CHAT_TYPE, chat_type);
@@ -110,22 +99,20 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       }
     }
 
-    // Extract message content
     if (message.contains("text")) {
       event.raw_message = message["text"];
       OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_MESSAGE_TEXT,
                       event.raw_message);
 
-      // Create message segments
       common::MessageSegment segment;
       segment.type = "text";
       segment.data["text"] = message["text"];
       event.message.push_back(segment);
     } else if (message.contains("photo")) {
-      // Handle photo messages
       auto photos = message["photo"];
       if (!photos.empty()) {
-        // Get the largest photo (last in array)
+        // Telegram returns multiple sizes sorted ascending; the last entry is
+        // the largest (highest-resolution) variant.
         auto photo = photos.back();
         std::string file_id = photo["file_id"];
 
@@ -134,11 +121,9 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
         OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_PHOTO_FILE_ID,
                         file_id);
 
-        // Create message segments
         common::MessageSegment segment;
         segment.type = "image";
         segment.data["file_id"] = file_id;
-        // If the photo has a caption, include it in the message
         if (message.contains("caption")) {
           segment.data["caption"] = message["caption"];
           event.raw_message += message["caption"];
@@ -146,7 +131,6 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
         event.message.push_back(segment);
       }
     } else if (message.contains("sticker")) {
-      // Handle sticker messages
       auto sticker = message["sticker"];
       std::string file_id = sticker["file_id"];
 
@@ -164,7 +148,6 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
           sticker["file_unique_id"].get<std::string>();
       segment.data["is_animated"] = sticker["is_animated"].get<bool>();
       segment.data["is_video"] = sticker["is_video"].get<bool>();
-      // If the sticker has an emoji, include it in the message
       if (sticker.contains("emoji")) {
         segment.data["emoji"] = sticker["emoji"];
         event.raw_message = common::I18nLogMessages::format_message(
@@ -173,7 +156,6 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       }
       event.message.push_back(segment);
     } else if (message.contains("video")) {
-      // Handle video messages
       auto video = message["video"];
       std::string file_id = video["file_id"];
 
@@ -181,7 +163,6 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
           common::LogMessageKey::TELEGRAM_MSG_VIDEO);
       OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_VIDEO_FILE_ID, file_id);
 
-      // Create message segments
       common::MessageSegment segment;
       segment.type = "video";
       segment.data["file_id"] = file_id;
@@ -197,14 +178,12 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       if (video.contains("duration")) {
         segment.data["duration"] = video["duration"];
       }
-      // If the video has a caption, include it in the message
       if (message.contains("caption")) {
         segment.data["caption"] = message["caption"];
         event.raw_message += ": " + message["caption"].get<std::string>();
       }
       event.message.push_back(segment);
     } else if (message.contains("animation")) {
-      // Handle animation messages (GIFs)
       auto animation = message["animation"];
       std::string file_id = animation["file_id"];
 
@@ -213,7 +192,6 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_ANIMATION_FILE_ID,
                       file_id);
 
-      // Create message segments
       common::MessageSegment segment;
       segment.type = "animation";
       segment.data["file_id"] = file_id;
@@ -229,14 +207,12 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       if (animation.contains("duration")) {
         segment.data["duration"] = animation["duration"];
       }
-      // If the animation has a caption, include it in the message
       if (message.contains("caption")) {
         segment.data["caption"] = message["caption"];
         event.raw_message += ": " + message["caption"].get<std::string>();
       }
       event.message.push_back(segment);
     } else if (message.contains("document")) {
-      // Handle document messages
       auto document = message["document"];
       std::string file_id = document["file_id"];
 
@@ -245,7 +221,6 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_DOCUMENT_FILE_ID,
                       file_id);
 
-      // Create message segments
       common::MessageSegment segment;
       segment.type = "document";
       segment.data["file_id"] = file_id;
@@ -261,14 +236,12 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       if (document.contains("mime_type")) {
         segment.data["mime_type"] = document["mime_type"];
       }
-      // If the document has a caption, include it in the message
       if (message.contains("caption")) {
         segment.data["caption"] = message["caption"];
         event.raw_message += ": " + message["caption"].get<std::string>();
       }
       event.message.push_back(segment);
     } else if (message.contains("audio")) {
-      // Handle audio messages
       auto audio = message["audio"];
       std::string file_id = audio["file_id"];
 
@@ -276,7 +249,6 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
           common::LogMessageKey::TELEGRAM_MSG_AUDIO);
       OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_AUDIO_FILE_ID, file_id);
 
-      // Create message segments
       common::MessageSegment segment;
       segment.type = "audio";
       segment.data["file_id"] = file_id;
@@ -292,14 +264,12 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
             common::LogMessageKey::TELEGRAM_MSG_AUDIO_WITH_TITLE,
             audio["title"].get<std::string>());
       }
-      // If the audio has a caption, include it in the message
       if (message.contains("caption")) {
         segment.data["caption"] = message["caption"];
         event.raw_message += ": " + message["caption"].get<std::string>();
       }
       event.message.push_back(segment);
     } else if (message.contains("voice")) {
-      // Handle voice messages
       auto voice = message["voice"];
       std::string file_id = voice["file_id"];
 
@@ -307,7 +277,6 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
           common::LogMessageKey::TELEGRAM_MSG_VOICE);
       OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_VOICE_FILE_ID, file_id);
 
-      // Create message segments
       common::MessageSegment segment;
       segment.type = "voice";
       segment.data["file_id"] = file_id;
@@ -319,7 +288,6 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       }
       event.message.push_back(segment);
     } else if (message.contains("video_note")) {
-      // Handle video note messages (circular video messages)
       auto video_note = message["video_note"];
       std::string file_id = video_note["file_id"];
 
@@ -328,7 +296,6 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_VIDEO_NOTE_FILE_ID,
                       file_id);
 
-      // Create message segments
       common::MessageSegment segment;
       segment.type = "video_note";
       segment.data["file_id"] = file_id;
@@ -356,19 +323,15 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
 
 auto ProtocolAdapter::parse_edited_message_event(
     const nlohmann::json &update_json) -> std::optional<common::Event> {
-  // Handle edited messages with special identification
   if (update_json.contains("edited_message")) {
     auto update_copy = update_json;
     update_copy["message"] = update_copy["edited_message"];
     update_copy.erase("edited_message");
 
-    // Parse as regular message event but add edit flag
     auto event_opt = parse_message_event(update_copy);
     if (event_opt.has_value()) {
-      // Extract MessageEvent from variant
       if (auto *msg_event =
               std::get_if<common::MessageEvent>(&event_opt.value())) {
-        // Mark this as an edited message by adding edit flag to data
         msg_event->data["is_edited"] = true;
         msg_event->sub_type = "edited";
         OBCX_I18N_DEBUG(common::LogMessageKey::MARKED_EDIT_MESSAGE,
@@ -408,29 +371,26 @@ auto ProtocolAdapter::parse_edited_channel_post_event(
 
 auto ProtocolAdapter::parse_callback_query_event(
     const nlohmann::json &update_json) -> std::optional<common::Event> {
-  // Callback queries are a different type of event
-  // For now, we'll return a basic notice event
+  // TODO: callback_query is currently surfaced as a generic notice; a richer
+  // CallbackQueryEvent could be modelled later.
   try {
     if (update_json.contains("callback_query")) {
       auto callback_query = update_json["callback_query"];
 
-      // Create a notice event for callback queries
       common::NoticeEvent event{};
       event.time = std::chrono::system_clock::now();
       event.post_type = "notice";
       event.type = common::EventType::notice;
-      event.self_id =
-          "0"; // Bot ID should be set properly in a real implementation
+      // TODO: Bot ID should be set properly in a real implementation
+      event.self_id = "0";
       event.notice_type = "callback_query";
 
-      // Extract user ID if available
       if (callback_query.contains("from") &&
           callback_query["from"].contains("id")) {
         event.user_id =
             std::to_string(callback_query["from"]["id"].get<int64_t>());
       }
 
-      // Extract chat ID if available
       if (callback_query.contains("message") &&
           callback_query["message"].contains("chat") &&
           callback_query["message"]["chat"].contains("id")) {
@@ -449,15 +409,13 @@ auto ProtocolAdapter::parse_callback_query_event(
   return std::nullopt;
 }
 
-// Serialization methods
 auto ProtocolAdapter::serialize_send_message_request(
     std::string_view target_id, const common::Message &message,
     const std::optional<uint64_t> &echo,
     const std::optional<uint8_t> &message_type) -> std::string {
-  // For Telegram, message_type is not strictly necessary as sendMessage
-  // works for all chat types (private, group, supergroup, channel).
-  // The parameter is provided for interface consistency.
-  (void)message_type; // Suppress unused parameter warning
+  // Telegram sendMessage works for all chat types (private/group/supergroup/
+  // channel); message_type is kept only for cross-protocol interface parity.
+  (void)message_type;
   return serialize_send_topic_message_request(target_id, message, echo,
                                               std::nullopt);
 }
@@ -466,7 +424,6 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
     std::string_view target_id, const common::Message &message,
     const std::optional<uint64_t> &echo, const std::optional<int64_t> &topic_id)
     -> std::string {
-  // Check if the message contains different media types
   bool has_image = false;
   bool has_animation = false;
   bool has_video = false;
@@ -476,9 +433,11 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
   bool has_sticker = false;
   bool has_video_note = false;
 
-  // Check for media types in priority order
-  // Priority: sticker > animation > video > image > video_note > audio > voice
-  // > document
+  // Media-type priority (first match wins per outgoing message):
+  //   sticker > animation > video > image > video_note > audio > voice
+  //   > document
+  // Mixing media kinds in one Telegram send is not supported, so we pick a
+  // single bearer method below and fold any text segments in as the caption.
   for (const auto &segment : message) {
     if (segment.type == "sticker") {
       has_sticker = true;
@@ -514,7 +473,6 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
     }
   }
 
-  // Check if the message contains reply segments
   std::optional<std::string> reply_to_message_id;
   for (const auto &segment : message) {
     if (segment.type == "reply") {
@@ -526,13 +484,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
     }
   }
 
-  // Process media types in priority order
-  // Priority: sticker > animation > video > image > video_note > audio > voice
-  // > document
-
-  // If message contains stickers, use sendSticker method
   if (has_sticker) {
-    // Handle the first sticker in the message
     for (const auto &segment : message) {
       if (segment.type == "sticker") {
         nlohmann::json json;
@@ -542,19 +494,16 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["message_thread_id"] = topic_id.value();
         }
 
-        // Handle different sticker sources
         if (segment.data.contains("file_id")) {
-          // Forwarding existing Telegram sticker
           json["sticker"] = segment.data.at("file_id");
         } else if (segment.data.contains("url")) {
-          // Sending sticker from URL
           json["sticker"] = segment.data.at("url");
         } else if (segment.data.contains("file")) {
-          // Sending local file - would need multipart/form-data handling
+          // Local file path: caller is expected to upload via multipart/
+          // form-data; here we pass the path through verbatim.
           json["sticker"] = segment.data.at("file");
         }
 
-        // Add reply_to_message_id if present
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
           OBCX_I18N_DEBUG(common::LogMessageKey::SEND_STICKER_REPLY_ID,
@@ -570,9 +519,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
     }
   }
 
-  // If message contains animations, use sendAnimation method
   if (has_animation) {
-    // Handle the first animation in the message
     for (const auto &segment : message) {
       if (segment.type == "animation") {
         nlohmann::json json;
@@ -582,19 +529,14 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["message_thread_id"] = topic_id.value();
         }
 
-        // Handle different animation sources
         if (segment.data.contains("file_id")) {
-          // Forwarding existing Telegram animation
           json["animation"] = segment.data.at("file_id");
         } else if (segment.data.contains("url")) {
-          // Sending animation from URL
           json["animation"] = segment.data.at("url");
         } else if (segment.data.contains("file")) {
-          // Sending local file - would need multipart/form-data handling
           json["animation"] = segment.data.at("file");
         }
 
-        // Add caption if present
         std::string caption;
         for (const auto &caption_segment : message) {
           if (caption_segment.type == "text") {
@@ -606,7 +548,6 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["caption"] = caption;
         }
 
-        // Add reply_to_message_id if present
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
         }
@@ -620,9 +561,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
     }
   }
 
-  // If message contains videos, use sendVideo method
   if (has_video) {
-    // Handle the first video in the message
     for (const auto &segment : message) {
       if (segment.type == "video") {
         nlohmann::json json;
@@ -632,19 +571,14 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["message_thread_id"] = topic_id.value();
         }
 
-        // Handle different video sources
         if (segment.data.contains("file_id")) {
-          // Forwarding existing Telegram video
           json["video"] = segment.data.at("file_id");
         } else if (segment.data.contains("url")) {
-          // Sending video from URL
           json["video"] = segment.data.at("url");
         } else if (segment.data.contains("file")) {
-          // Sending local file - would need multipart/form-data handling
           json["video"] = segment.data.at("file");
         }
 
-        // Add caption if present
         std::string caption;
         for (const auto &caption_segment : message) {
           if (caption_segment.type == "text") {
@@ -656,7 +590,6 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["caption"] = caption;
         }
 
-        // Add reply_to_message_id if present
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
           OBCX_I18N_DEBUG(common::LogMessageKey::SEND_VIDEO_REPLY_ID,
@@ -672,9 +605,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
     }
   }
 
-  // If message contains video_note, use sendVideoNote method
   if (has_video_note) {
-    // Handle the first video note in the message
     for (const auto &segment : message) {
       if (segment.type == "video_note") {
         nlohmann::json json;
@@ -684,19 +615,14 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["message_thread_id"] = topic_id.value();
         }
 
-        // Handle different video note sources
         if (segment.data.contains("file_id")) {
-          // Forwarding existing Telegram video note
           json["video_note"] = segment.data.at("file_id");
         } else if (segment.data.contains("url")) {
-          // Sending video note from URL
           json["video_note"] = segment.data.at("url");
         } else if (segment.data.contains("file")) {
-          // Sending local file - would need multipart/form-data handling
           json["video_note"] = segment.data.at("file");
         }
 
-        // Add optional metadata
         if (segment.data.contains("length")) {
           json["length"] = segment.data.at("length");
         }
@@ -704,7 +630,6 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["duration"] = segment.data.at("duration");
         }
 
-        // Add reply_to_message_id if present
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
           OBCX_I18N_DEBUG(common::LogMessageKey::SEND_VIDEO_NOTE_REPLY_ID,
@@ -720,10 +645,9 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
     }
   }
 
-  // If message contains images, we need to use sendPhoto method
   if (has_image) {
-    // For now, we'll handle the first image in the message
-    // In a full implementation, we might want to send multiple images
+    // TODO: handle multiple images per message via sendMediaGroup; current
+    // path picks only the first image segment.
     for (const auto &segment : message) {
       if (segment.type == "image") {
         nlohmann::json json;
@@ -733,19 +657,16 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["message_thread_id"] = topic_id.value();
         }
 
-        // Handle different image sources
         if (segment.data.contains("file_id")) {
-          // Forwarding existing Telegram image
+          // Forwarding an existing Telegram photo by file_id
           json["photo"] = segment.data.at("file_id");
         } else if (segment.data.contains("url")) {
-          // Sending image from URL
           json["photo"] = segment.data.at("url");
         } else if (segment.data.contains("file")) {
-          // Sending local file - would need multipart/form-data handling
+          // Local file path: caller must upload via multipart/form-data.
           json["photo"] = segment.data.at("file");
         }
 
-        // Add caption if present
         std::string caption;
         for (const auto &caption_segment : message) {
           if (caption_segment.type == "text") {
@@ -757,7 +678,6 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["caption"] = caption;
         }
 
-        // Add reply_to_message_id if present
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
         }
@@ -771,9 +691,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
     }
   }
 
-  // If message contains audio, use sendAudio method
   if (has_audio) {
-    // Handle the first audio in the message
     for (const auto &segment : message) {
       if (segment.type == "audio") {
         nlohmann::json json;
@@ -783,19 +701,14 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["message_thread_id"] = topic_id.value();
         }
 
-        // Handle different audio sources
         if (segment.data.contains("file_id")) {
-          // Forwarding existing Telegram audio
           json["audio"] = segment.data.at("file_id");
         } else if (segment.data.contains("url")) {
-          // Sending audio from URL
           json["audio"] = segment.data.at("url");
         } else if (segment.data.contains("file")) {
-          // Sending local file - would need multipart/form-data handling
           json["audio"] = segment.data.at("file");
         }
 
-        // Add optional metadata
         if (segment.data.contains("title")) {
           json["title"] = segment.data.at("title");
         }
@@ -806,7 +719,6 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["duration"] = segment.data.at("duration");
         }
 
-        // Add caption if present
         std::string caption;
         for (const auto &caption_segment : message) {
           if (caption_segment.type == "text") {
@@ -818,7 +730,6 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["caption"] = caption;
         }
 
-        // Add reply_to_message_id if present
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
           OBCX_I18N_DEBUG(common::LogMessageKey::SEND_AUDIO_REPLY_ID,
@@ -834,9 +745,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
     }
   }
 
-  // If message contains voice, use sendVoice method
   if (has_voice) {
-    // Handle the first voice in the message
     for (const auto &segment : message) {
       if (segment.type == "voice") {
         nlohmann::json json;
@@ -846,24 +755,18 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["message_thread_id"] = topic_id.value();
         }
 
-        // Handle different voice sources
         if (segment.data.contains("file_id")) {
-          // Forwarding existing Telegram voice
           json["voice"] = segment.data.at("file_id");
         } else if (segment.data.contains("url")) {
-          // Sending voice from URL
           json["voice"] = segment.data.at("url");
         } else if (segment.data.contains("file")) {
-          // Sending local file - would need multipart/form-data handling
           json["voice"] = segment.data.at("file");
         }
 
-        // Add optional metadata
         if (segment.data.contains("duration")) {
           json["duration"] = segment.data.at("duration");
         }
 
-        // Add caption if present
         std::string caption;
         for (const auto &caption_segment : message) {
           if (caption_segment.type == "text") {
@@ -875,7 +778,6 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["caption"] = caption;
         }
 
-        // Add reply_to_message_id if present
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
           OBCX_I18N_DEBUG(common::LogMessageKey::SEND_VOICE_REPLY_ID,
@@ -891,9 +793,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
     }
   }
 
-  // If message contains document, use sendDocument method
   if (has_document) {
-    // Handle the first document in the message
     for (const auto &segment : message) {
       if (segment.type == "document") {
         nlohmann::json json;
@@ -903,19 +803,14 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["message_thread_id"] = topic_id.value();
         }
 
-        // Handle different document sources
         if (segment.data.contains("file_id")) {
-          // Forwarding existing Telegram document
           json["document"] = segment.data.at("file_id");
         } else if (segment.data.contains("url")) {
-          // Sending document from URL
           json["document"] = segment.data.at("url");
         } else if (segment.data.contains("file")) {
-          // Sending local file - would need multipart/form-data handling
           json["document"] = segment.data.at("file");
         }
 
-        // Add caption if present
         std::string caption;
         for (const auto &caption_segment : message) {
           if (caption_segment.type == "text") {
@@ -927,7 +822,6 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["caption"] = caption;
         }
 
-        // Add reply_to_message_id if present
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
           OBCX_I18N_DEBUG(common::LogMessageKey::SEND_DOCUMENT_REPLY_ID,
@@ -943,7 +837,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
     }
   }
 
-  // Default to text message
+  // Default sendMessage path: text-only or text remainder.
   nlohmann::json json;
   json["method"] = "sendMessage";
   json["chat_id"] = target_id;
@@ -951,19 +845,17 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
     json["message_thread_id"] = topic_id.value();
   }
 
-  // Convert internal message format to Telegram format
   std::string text;
   for (const auto &segment : message) {
     if (segment.type == "text") {
       text += segment.data.at("text");
     }
-    // For other segment types, we would need to handle them appropriately
-    // For example, images might need to be sent as separate messages
+    // TODO: non-text/non-media segments are silently dropped here; richer
+    // segment kinds (e.g. mentions, links) need explicit handling.
   }
 
   json["text"] = text;
 
-  // Add reply_to_message_id if present
   if (reply_to_message_id.has_value()) {
     json["reply_to_message_id"] = reply_to_message_id.value();
     OBCX_I18N_DEBUG(common::LogMessageKey::SEND_MESSAGE_REPLY_ID,
@@ -1090,7 +982,6 @@ auto ProtocolAdapter::serialize_ban_all_members_request(
   json["chat_id"] = chat_id;
 
   if (enable) {
-    // Disable all permissions for everyone
     nlohmann::json permissions;
     permissions["can_send_messages"] = false;
     permissions["can_send_media_messages"] = false;
@@ -1103,7 +994,6 @@ auto ProtocolAdapter::serialize_ban_all_members_request(
 
     json["permissions"] = permissions;
   } else {
-    // Enable default permissions
     nlohmann::json permissions;
     permissions["can_send_messages"] = true;
     permissions["can_send_media_messages"] = true;
@@ -1163,7 +1053,6 @@ auto ProtocolAdapter::serialize_set_chat_admin_request(
   json["chat_id"] = chat_id;
   json["user_id"] = user_id;
 
-  // Set admin permissions
   json["can_change_info"] = is_admin;
   json["can_delete_messages"] = is_admin;
   json["can_invite_users"] = is_admin;
@@ -1189,7 +1078,6 @@ auto ProtocolAdapter::serialize_handle_join_request(
     const common::RequestEvent &request_event, bool approve,
     std::string_view reason, std::string_view remark,
     const std::optional<uint64_t> &echo) -> std::string {
-  // For Telegram, we handle chat join requests
   nlohmann::json json;
   if (approve) {
     json["method"] = "approveChatJoinRequest";
@@ -1197,17 +1085,14 @@ auto ProtocolAdapter::serialize_handle_join_request(
     json["method"] = "declineChatJoinRequest";
   }
 
-  // Extract chat_id and user_id from request_event
-  // This is a simplified implementation - in reality, you'd need to parse the
-  // event properly Since RequestEvent doesn't have chat_id, we'll use a
-  // placeholder
-  json["chat_id"] =
-      ""; // Placeholder - should be extracted from the actual event
+  // FIXME: RequestEvent does not currently carry chat_id; populate once the
+  // event model exposes it. Sending an empty chat_id will fail at Telegram.
+  json["chat_id"] = "";
   json["user_id"] = request_event.user_id;
 
   if (!approve && !reason.empty()) {
-    // For decline, we could add a note, but Telegram API doesn't support it
-    // directly
+    // Telegram's declineChatJoinRequest does not accept a reason field, so
+    // `reason` is intentionally dropped here.
   }
 
   if (echo.has_value()) {
@@ -1231,7 +1116,6 @@ auto ProtocolAdapter::serialize_download_file_request(
   return json.dump();
 }
 
-// --- Telegram 特有接口 ---
 auto ProtocolAdapter::serialize_get_user_info_by_id_request(
     std::string_view user_id, const std::optional<uint64_t> &echo)
     -> std::string {
@@ -1378,7 +1262,8 @@ auto ProtocolAdapter::serialize_send_media_group_request(
     json["reply_to_message_id"] = reply_to_message_id.value();
   }
 
-  // 构建media数组
+  // Telegram requires the caption on the first media item only; subsequent
+  // items must omit the caption field entirely.
   nlohmann::json media_array = nlohmann::json::array();
   bool first = true;
   for (const auto &[type, url] : media) {
@@ -1386,7 +1271,6 @@ auto ProtocolAdapter::serialize_send_media_group_request(
     media_item["type"] = type;
     media_item["media"] = url;
 
-    // 只在第一个媒体上添加caption
     if (first && !caption.empty()) {
       media_item["caption"] = caption;
       first = false;

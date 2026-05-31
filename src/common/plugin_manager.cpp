@@ -181,7 +181,6 @@ void PluginManager::shutdown_all_plugins() {
 
 auto PluginManager::find_plugin_file(const std::string &plugin_name) const
     -> std::string {
-  // Platform-specific library extensions
   const std::vector possible_names = {
       plugin_name, "lib" + plugin_name + ".so", plugin_name + ".so",
       "lib" + plugin_name + ".dylib", plugin_name + ".dylib"};
@@ -257,7 +256,6 @@ auto PluginManager::sort_plugins_by_priority_and_dependencies(
     const std::vector<std::string> &plugin_names) const
     -> std::vector<std::string> {
 
-  // Build plugin config map
   std::unordered_map<std::string, common::PluginConfig> plugin_configs;
   auto &config_loader = common::ConfigLoader::instance();
 
@@ -265,7 +263,6 @@ auto PluginManager::sort_plugins_by_priority_and_dependencies(
     if (auto config = config_loader.get_plugin_config(name)) {
       plugin_configs[name] = *config;
     } else {
-      // Plugin has no config, create default
       common::PluginConfig default_config;
       default_config.name = name;
       default_config.enabled = true;
@@ -274,7 +271,6 @@ auto PluginManager::sort_plugins_by_priority_and_dependencies(
     }
   }
 
-  // Build adjacency graph and in-degree map
   std::unordered_map<std::string, std::vector<std::string>> graph;
   std::unordered_map<std::string, int> in_degree;
 
@@ -283,10 +279,9 @@ auto PluginManager::sort_plugins_by_priority_and_dependencies(
     graph[name] = {};
   }
 
-  // Build edges: if B requires A, then A -> B
+  // Edge direction: if B requires A, then A -> B (A must run first).
   for (const auto &[name, config] : plugin_configs) {
     for (const auto &required : config.required) {
-      // Check if required plugin is in the list
       if (std::ranges::find(plugin_names, required) == plugin_names.end()) {
         OBCX_I18N_ERROR(common::LogMessageKey::PLUGIN_DEPENDENCY_MISSING, name,
                         required);
@@ -299,8 +294,8 @@ auto PluginManager::sort_plugins_by_priority_and_dependencies(
     }
   }
 
-  // Kahn's algorithm with priority queue
-  // Use max heap: higher priority comes first
+  // Kahn's algorithm with a max-heap on priority so higher-priority
+  // plugins are emitted first when their dependencies are resolved.
   auto cmp = [&plugin_configs](const std::string &a,
                                const std::string &b) -> bool {
     return plugin_configs[a].priority < plugin_configs[b].priority;
@@ -308,7 +303,6 @@ auto PluginManager::sort_plugins_by_priority_and_dependencies(
   std::priority_queue<std::string, std::vector<std::string>, decltype(cmp)> pq(
       cmp);
 
-  // Add all nodes with in-degree 0
   for (const auto &[name, degree] : in_degree) {
     if (degree == 0) {
       pq.push(name);
@@ -322,7 +316,6 @@ auto PluginManager::sort_plugins_by_priority_and_dependencies(
     pq.pop();
     sorted_plugins.push_back(current);
 
-    // Reduce in-degree for neighbors
     for (const auto &neighbor : graph[current]) {
       in_degree[neighbor]--;
       if (in_degree[neighbor] == 0) {
@@ -331,9 +324,7 @@ auto PluginManager::sort_plugins_by_priority_and_dependencies(
     }
   }
 
-  // Check for circular dependencies
   if (sorted_plugins.size() != plugin_names.size()) {
-    // Find plugins involved in the cycle
     std::vector<std::string> cycle_plugins;
     for (const auto &[name, degree] : in_degree) {
       if (degree > 0) {
@@ -349,11 +340,9 @@ auto PluginManager::sort_plugins_by_priority_and_dependencies(
       }
     }
 
-    // Log circular dependency error
     OBCX_I18N_ERROR(common::LogMessageKey::PLUGIN_CIRCULAR_DEPENDENCY,
                     cycle_info);
 
-    // Log detailed dependency information
     std::string detail_info;
     for (const auto &name : cycle_plugins) {
       const auto &config = plugin_configs[name];

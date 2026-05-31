@@ -15,10 +15,6 @@ namespace http = beast::http;
 namespace ssl = asio::ssl;
 using tcp = asio::ip::tcp;
 
-// ============================================================
-// 已弃用的同步API实现（保留以便向后兼容）
-// ============================================================
-
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"

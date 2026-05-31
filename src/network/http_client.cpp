@@ -33,10 +33,6 @@ HttpClient::HttpClient(asio::io_context &ioc,
 
 HttpClient::~HttpClient() = default;
 
-// ============================================================
-// 新的协程异步API实现
-// ============================================================
-
 auto HttpClient::post(std::string_view path, std::string_view body,
                       const std::map<std::string, std::string> &headers)
     -> asio::awaitable<HttpResponse> {
@@ -343,10 +339,6 @@ auto HttpClient::head(std::string_view path,
     throw HttpClientError(std::string("HTTP HEAD request failed: ") + e.what());
   }
 }
-
-// ============================================================
-// 辅助方法实现
-// ============================================================
 
 void HttpClient::set_timeout(std::chrono::milliseconds timeout) {
   pimpl_->config.connect_timeout = timeout;

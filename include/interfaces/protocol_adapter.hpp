@@ -25,13 +25,10 @@ public:
   BaseProtocolAdapter() = default;
   virtual ~BaseProtocolAdapter() = default;
 
-  // 禁止拷贝和赋值
   BaseProtocolAdapter(const BaseProtocolAdapter &) = delete;
   auto operator=(const BaseProtocolAdapter &) -> BaseProtocolAdapter & = delete;
   BaseProtocolAdapter(BaseProtocolAdapter &&) = default;
   auto operator=(BaseProtocolAdapter &&) -> BaseProtocolAdapter & = default;
-
-  // --- 事件解析 ---
 
   /**
    * @brief 解析从平台传入的原始事件数据。
@@ -41,8 +38,6 @@ public:
    */
   virtual auto parse_event(std::string_view json_str)
       -> std::optional<common::Event> = 0;
-
-  // --- 消息发送与管理 ---
 
   /**
    * @brief 发送消息。
@@ -84,8 +79,6 @@ public:
       std::string_view chat_id, std::string_view message_id,
       const std::optional<uint64_t> &echo = std::nullopt) -> std::string = 0;
 
-  // --- 用户与自身信息 ---
-
   /**
    * @brief 获取机器人自身的信息。
    * @param echo 可选的echo字符串，用于匹配响应。
@@ -117,8 +110,6 @@ public:
   virtual auto serialize_get_user_info_request(
       std::string_view chat_id, std::string_view user_id, bool no_cache = false,
       const std::optional<uint64_t> &echo = std::nullopt) -> std::string = 0;
-
-  // --- 群组/聊天管理 ---
 
   /**
    * @brief 获取群组/频道的基本信息。
@@ -313,8 +304,6 @@ public:
       std::string_view chat_id, bool is_dismiss = false,
       const std::optional<uint64_t> &echo = std::nullopt) -> std::string = 0;
 
-  // --- 事件处理 ---
-
   /**
    * @brief 处理好友/加群请求。
    * @param request_event 请求事件对象。
@@ -334,8 +323,6 @@ public:
       const common::RequestEvent &request_event, bool approve = true,
       std::string_view reason = "", std::string_view remark = "",
       const std::optional<uint64_t> &echo = std::nullopt) -> std::string = 0;
-
-  // --- 文件处理 ---
 
   /**
    * @brief 从平台下载文件（如图片、语音）。

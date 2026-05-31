@@ -94,11 +94,10 @@ public:
     OBCX_I18N_DEBUG(common::LogMessageKey::TASK_SCHEDULER_SUBMIT_HEAVY_TASK,
                     ss.str());
 
-    // 使用 promise/future 机制实现线程池任务调度
+    // promise/future bridges the thread pool task back to the coroutine.
     auto promise = std::make_shared<std::promise<ReturnType>>();
     auto future = promise->get_future();
 
-    // 提交任务到线程池
     asio::post(
         thread_pool_, [task = std::move(task), promise]() mutable -> auto {
           try {
@@ -108,7 +107,6 @@ public:
                 common::LogMessageKey::TASK_SCHEDULER_HEAVY_TASK_START,
                 worker_ss.str());
 
-            // 在线程池中执行实际的重负载任务
             if constexpr (std::is_void_v<ReturnType>) {
               task();
               OBCX_I18N_DEBUG(common::LogMessageKey::
@@ -127,7 +125,8 @@ public:
           }
         });
 
-    // 使用协程等待结果
+    // Poll the future on a 1ms timer so we yield to other coroutines on the
+    // io executor instead of blocking it with future.get().
     while (future.wait_for(std::chrono::milliseconds(1)) !=
            std::future_status::ready) {
       co_await asio::steady_timer(co_await asio::this_coro::executor,
@@ -135,16 +134,11 @@ public:
           .async_wait(asio::use_awaitable);
     }
 
-    // 获取结果并处理异常
-    try {
-      if constexpr (std::is_void_v<ReturnType>) {
-        future.get();
-        co_return;
-      } else {
-        co_return future.get();
-      }
-    } catch (...) {
-      throw; // 重新抛出异常
+    if constexpr (std::is_void_v<ReturnType>) {
+      future.get();
+      co_return;
+    } else {
+      co_return future.get();
     }
   }
 
@@ -167,7 +161,6 @@ public:
     OBCX_I18N_INFO(common::LogMessageKey::TASK_SCHEDULER_BATCH_START,
                    tasks.size());
 
-    // 并发执行所有任务
     for (auto &task : tasks) {
       auto result = co_await run_heavy_task(std::move(task));
       results.push_back(std::move(result));
@@ -197,8 +190,8 @@ public:
                     timeout.count());
 
     try {
-      // 这里可以使用 asio::steady_timer 实现真正的超时逻辑
-      // 为简化示例，这里直接执行任务
+      // TODO: implement real timeout via asio::steady_timer; today this just
+      // forwards to run_heavy_task and does NOT enforce the timeout.
       auto result = co_await run_heavy_task(std::move(task));
       co_return std::make_optional(std::move(result));
     } catch (const std::exception &e) {
@@ -207,11 +200,6 @@ public:
       co_return std::nullopt;
     }
   }
-
-  // /**
-  //  * @brief 获取线程池的线程数量
-  //  */
-  // size_t thread_count() const { return thread_pool_.get_executor(); }
 
 private:
   asio::thread_pool thread_pool_;
