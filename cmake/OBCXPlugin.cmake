@@ -43,7 +43,7 @@ function(obcx_add_plugin PLUGIN_NAME)
         OUTPUT_NAME "${_OUTPUT_NAME}"
         PREFIX ""
         POSITION_INDEPENDENT_CODE ON
-        CXX_STANDARD 26
+        CXX_STANDARD 20
         CXX_STANDARD_REQUIRED ON
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins")
 
