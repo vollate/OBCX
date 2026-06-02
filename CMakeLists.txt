@@ -29,24 +29,39 @@ endif()
 # On macOS, prefer CommandLineTools SDK over Xcode SDK to avoid header search
 # path conflicts when using Homebrew LLVM (its clang config points to
 # CommandLineTools, but CMake's xcrun picks Xcode SDK and inserts it first).
+#
+# Inside a Nix dev shell this override is actively harmful: the nix-supplied
+# clang wrapper has its own pinned apple-sdk baked into its config, and any
+# `-isysroot` CMake injects would point at the runner's CommandLineTools SDK,
+# which generally does not match the libc++ version pinned by nix. We
+# therefore skip the override and explicitly clear CMAKE_OSX_SYSROOT so
+# CMake's xcrun auto-detection does NOT pass -isysroot at all — the wrapper
+# then supplies the correct sysroot itself.
 if(APPLE AND NOT CMAKE_OSX_SYSROOT)
-  execute_process(
-    COMMAND xcrun --sdk macosx --show-sdk-path
-    OUTPUT_VARIABLE XCRUN_SDK_PATH
-    OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-  set(_CLT_SDK
-      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk")
-  if(EXISTS "${_CLT_SDK}" AND NOT "${XCRUN_SDK_PATH}" MATCHES
-                               "CommandLineTools")
-    set(CMAKE_OSX_SYSROOT
-        "${_CLT_SDK}"
-        CACHE PATH "Use CommandLineTools SDK to match Homebrew LLVM sysroot"
-              FORCE)
-    message(
-      STATUS
-        "Overriding Xcode SDK with CommandLineTools SDK: ${CMAKE_OSX_SYSROOT}")
+  if("$ENV{IN_NIX_SHELL}" STREQUAL "")
+    execute_process(
+      COMMAND xcrun --sdk macosx --show-sdk-path
+      OUTPUT_VARIABLE XCRUN_SDK_PATH
+      OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    set(_CLT_SDK
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk")
+    if(EXISTS "${_CLT_SDK}" AND NOT "${XCRUN_SDK_PATH}" MATCHES
+                                 "CommandLineTools")
+      set(CMAKE_OSX_SYSROOT
+          "${_CLT_SDK}"
+          CACHE PATH "Use CommandLineTools SDK to match Homebrew LLVM sysroot"
+                FORCE)
+      message(
+        STATUS
+          "Overriding Xcode SDK with CommandLineTools SDK: ${CMAKE_OSX_SYSROOT}")
+    endif()
+    unset(_CLT_SDK)
+  else()
+    set(CMAKE_OSX_SYSROOT "" CACHE STRING
+        "Cleared in IN_NIX_SHELL so the nix clang wrapper supplies its own pinned apple-sdk"
+        FORCE)
+    message(STATUS "Nix dev shell detected: CMAKE_OSX_SYSROOT cleared")
   endif()
-  unset(_CLT_SDK)
 endif()
 
 project(OBCX VERSION 1.1.0 LANGUAGES CXX)
