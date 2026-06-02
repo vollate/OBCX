@@ -11,8 +11,7 @@ auto EventConverter::from_v11_json(std::string_view json_str)
     -> std::optional<common::Event> {
   auto j_opt = common::JsonUtils::parse(std::string(json_str));
   if (!j_opt) {
-    OBCX_I18N_WARN(common::LogMessageKey::ONEBOT11_EVENT_PARSE_JSON_FAILED,
-                   json_str);
+    OBCX_WARN("EventConverter: Failed to parse JSON: {}", json_str);
     return std::nullopt;
   }
   const auto &j = j_opt.value();
@@ -52,8 +51,8 @@ auto EventConverter::from_v11_json(std::string_view json_str)
       if (meta_event_type == "heartbeat") {
         common::HeartbeatEvent event;
         event.from_json(j);
-        OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_EVENT_HEARTBEAT,
-                        event.interval);
+        OBCX_DEBUG("EventConverter: Received heartbeat, interval: {}ms",
+                   event.interval);
         return event;
       } else {
         common::MetaEvent event;
@@ -62,13 +61,13 @@ auto EventConverter::from_v11_json(std::string_view json_str)
       }
     }
   } catch (const nlohmann::json::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::ONEBOT11_EVENT_CREATE_EXCEPTION,
-                    e.what(), json_str);
+    OBCX_ERROR(
+        "EventConverter: JSON exception creating event object: {}. JSON: {}",
+        e.what(), json_str);
     return std::nullopt;
   }
 
-  OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_EVENT_UNKNOWN_POST_TYPE,
-                  post_type);
+  OBCX_DEBUG("EventConverter: Unknown post_type '{}'", post_type);
   return std::nullopt;
 }
 

@@ -1,9 +1,10 @@
 /**
  * @file websocket_queue_test.cpp
- * @brief 测试WebSocket写入队列机制
+ * @brief Tests for the WebSocket write-queue mechanism.
  *
- * 本测试验证在弱网环境下，WebSocket客户端的写入队列机制
- * 能够正确处理并发写入请求，避免Beast内部的竞争问题。
+ * Verifies that under weak-network conditions the WebSocket client's write
+ * queue serialises concurrent send requests correctly, avoiding Beast's
+ * internal "concurrent write" race.
  */
 
 #include "common/logger.hpp"
@@ -35,7 +36,7 @@ constexpr size_t WEAK_NETWORK_WRITE_COUNT = 20;
 constexpr size_t WEAK_NETWORK_DELAY_MS = 100;
 
 /**
- * 模拟弱网环境的WebSocket服务器
+ * Mock WebSocket server that simulates a weak-network environment.
  */
 class MockWebSocketServer {
 public:
@@ -57,18 +58,18 @@ public:
 
   void start() {
     thread_ = std::thread([this]() {
-      OBCX_DEBUG("服务器线程启动于 {}:{}", endpoint_.address().to_string(),
-                 endpoint_.port());
+      OBCX_DEBUG("Server thread started on {}:{}",
+                 endpoint_.address().to_string(), endpoint_.port());
       do_accept();
       ioc_.run();
-      OBCX_DEBUG("服务器线程停止");
+      OBCX_DEBUG("Server thread stopped");
     });
   }
 
   void join_and_stop() {
     accepting_ = false;
     asio::post(ioc_, [this]() {
-      OBCX_DEBUG("正在停止服务器...");
+      OBCX_DEBUG("Stopping server...");
       acceptor_.close();
       if (ws_ && ws_->is_open()) {
         ws_->async_close(beast::websocket::close_code::normal,
@@ -100,7 +101,7 @@ private:
         return;
       }
       if (!ec) {
-        OBCX_DEBUG("接受到新连接");
+        OBCX_DEBUG("Accepted new connection");
         handle_websocket(std::move(socket));
       }
       do_accept();
@@ -132,9 +133,9 @@ private:
       if (!ec) {
         received_count_++;
         std::string message = beast::buffers_to_string(buffer->data());
-        OBCX_DEBUG("收到消息 #{}: {}", received_count_.load(), message);
+        OBCX_DEBUG("Received message #{}: {}", received_count_.load(), message);
 
-        // 模拟弱网环境：延迟响应
+        // Simulate weak network: delay the response.
         auto timer = std::make_shared<asio::steady_timer>(ioc_);
         timer->expires_after(std::chrono::milliseconds(WEAK_NETWORK_DELAY_MS));
         timer->async_wait([this, ws, timer](beast::error_code ec) {
@@ -187,7 +188,7 @@ private:
 };
 
 /**
- * WebSocket队列测试类
+ * WebSocket queue test fixture.
  */
 class WebSocketQueueTest : public testing::Test {
 protected:
@@ -242,10 +243,10 @@ protected:
               [](const beast::error_code &ec, const std::string &msg) {
                 if (ec) {
                   if (ec != asio::error::operation_aborted) {
-                    OBCX_ERROR("WebSocket错误: {}", ec.message());
+                    OBCX_ERROR("WebSocket error: {}", ec.message());
                   }
                 } else if (!msg.empty()) {
-                  OBCX_DEBUG("收到消息: {}", msg);
+                  OBCX_DEBUG("Received message: {}", msg);
                 }
               });
         },
@@ -264,13 +265,13 @@ protected:
 };
 
 /**
- * 测试并发写入
+ * Test concurrent writes.
  */
 TEST_F(WebSocketQueueTest, ConcurrentWrites) {
   start_client_ioc();
   connect_to_server();
 
-  OBCX_INFO("开始测试并发写入...");
+  OBCX_INFO("Starting concurrent-writes test...");
 
   std::atomic<size_t> success_count{0};
   std::atomic<size_t> error_count{0};
@@ -284,49 +285,50 @@ TEST_F(WebSocketQueueTest, ConcurrentWrites) {
         client_ioc_,
         [this, i, &success_count, &error_count,
          p = std::move(promise)]() mutable -> asio::awaitable<void> {
-          std::string message = "消息 " + std::to_string(i);
-          OBCX_DEBUG("发送消息: {}", message);
+          std::string message = "message " + std::to_string(i);
+          OBCX_DEBUG("Sending message: {}", message);
 
           try {
             co_await client_->send(message);
             success_count++;
-            OBCX_DEBUG("消息 {} 发送成功", i);
+            OBCX_DEBUG("Message {} sent successfully", i);
           } catch (const std::exception &e) {
             error_count++;
-            OBCX_ERROR("消息 {} 发送失败: {}", i, e.what());
+            OBCX_ERROR("Message {} send failed: {}", i, e.what());
           }
           p.set_value();
         },
         asio::detached);
   }
 
-  // 等待所有任务完成
+  // Wait for all tasks to complete.
   for (auto &future : futures) {
     auto status = future.wait_for(std::chrono::seconds(5));
-    ASSERT_EQ(status, std::future_status::ready) << "并发写入任务应在5秒内完成";
+    ASSERT_EQ(status, std::future_status::ready)
+        << "concurrent write tasks should finish within 5 seconds";
   }
 
-  OBCX_INFO("并发写入完成: 成功={}, 失败={}", success_count.load(),
-            error_count.load());
+  OBCX_INFO("Concurrent writes done: success={}, failed={}",
+            success_count.load(), error_count.load());
 
   EXPECT_EQ(success_count.load(), CONCURRENT_WRITE_COUNT)
-      << "所有消息都应该发送成功";
-  EXPECT_EQ(error_count.load(), 0) << "不应该有发送失败的消息";
+      << "all messages should be sent successfully";
+  EXPECT_EQ(error_count.load(), 0) << "no message should fail to send";
 
-  // 等待服务器接收完所有消息
+  // Wait for the server to receive all messages.
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
   EXPECT_EQ(server_->get_received_count(), CONCURRENT_WRITE_COUNT)
-      << "服务器应该接收到所有消息";
+      << "server should have received every message";
 }
 
 /**
- * 测试弱网环境下的连续写入
+ * Test sequential writes under weak-network conditions.
  */
 TEST_F(WebSocketQueueTest, WeakNetworkWrites) {
   start_client_ioc();
   connect_to_server();
 
-  OBCX_INFO("开始测试弱网环境下的写入...");
+  OBCX_INFO("Starting weak-network writes test...");
 
   std::atomic<size_t> success_count{0};
   std::atomic<size_t> error_count{0};
@@ -338,42 +340,43 @@ TEST_F(WebSocketQueueTest, WeakNetworkWrites) {
       [this, &success_count, &error_count,
        p = std::move(completion_promise)]() mutable -> asio::awaitable<void> {
         for (size_t i = 0; i < WEAK_NETWORK_WRITE_COUNT; ++i) {
-          std::string message = "弱网测试消息 " + std::to_string(i);
-          OBCX_DEBUG("发送弱网测试消息: {}", message);
+          std::string message = "weak-net message " + std::to_string(i);
+          OBCX_DEBUG("Sending weak-net message: {}", message);
 
           try {
             co_await client_->send(message);
             success_count++;
-            OBCX_DEBUG("弱网测试消息 {} 发送成功", i);
+            OBCX_DEBUG("Weak-net message {} sent successfully", i);
 
-            // 短暂等待，模拟业务逻辑
+            // Brief sleep to mimic application logic between sends.
             co_await asio::steady_timer(co_await asio::this_coro::executor,
                                         std::chrono::milliseconds(10))
                 .async_wait(asio::use_awaitable);
           } catch (const std::exception &e) {
             error_count++;
-            OBCX_ERROR("弱网测试消息 {} 发送失败: {}", i, e.what());
+            OBCX_ERROR("Weak-net message {} send failed: {}", i, e.what());
           }
         }
         p.set_value();
       },
       asio::detached);
 
-  // 等待测试完成
+  // Wait for the test to complete.
   auto status = completion_future.wait_for(std::chrono::seconds(10));
-  ASSERT_EQ(status, std::future_status::ready) << "弱网测试应在10秒内完成";
+  ASSERT_EQ(status, std::future_status::ready)
+      << "weak-network test should finish within 10 seconds";
 
-  OBCX_INFO("弱网环境写入完成: 成功={}, 失败={}", success_count.load(),
-            error_count.load());
+  OBCX_INFO("Weak-network writes done: success={}, failed={}",
+            success_count.load(), error_count.load());
 
   EXPECT_EQ(success_count.load(), WEAK_NETWORK_WRITE_COUNT)
-      << "所有消息都应该发送成功";
-  EXPECT_EQ(error_count.load(), 0) << "不应该有发送失败的消息";
+      << "all messages should be sent successfully";
+  EXPECT_EQ(error_count.load(), 0) << "no message should fail to send";
 
-  // 等待服务器接收完所有消息
+  // Wait for the server to receive all messages.
   std::this_thread::sleep_for(std::chrono::seconds(1));
   EXPECT_EQ(server_->get_received_count(), WEAK_NETWORK_WRITE_COUNT)
-      << "服务器应该接收到所有消息";
+      << "server should have received every message";
 }
 
 } // namespace obcx::test

@@ -11,12 +11,10 @@ QQBot::QQBot(adapter::onebot11::ProtocolAdapter adapter,
     : IBot{std::make_unique<adapter::onebot11::ProtocolAdapter>(
                std::move(adapter)),
            std::move(task_scheduler)} {
-  OBCX_I18N_INFO(common::LogMessageKey::QQBOT_INSTANCE_CREATED);
+  OBCX_INFO("QQBot instance created, all core components initialized");
 }
 
-QQBot::~QQBot() {
-  OBCX_I18N_INFO(common::LogMessageKey::QQBOT_INSTANCE_DESTROYED);
-}
+QQBot::~QQBot() { OBCX_INFO("QQBot instance destroyed."); }
 
 void QQBot::connect(network::ConnectionManagerFactory::ConnectionType type,
                     const common::ConnectionConfig &config) {
@@ -30,21 +28,21 @@ void QQBot::connect(network::ConnectionManagerFactory::ConnectionType type,
 
   connection_manager_->connect(config);
 
-  OBCX_I18N_INFO(common::LogMessageKey::CONNECTING_WITH_TYPE, config.host,
-                 config.port, connection_manager_->get_connection_type());
+  OBCX_INFO("Connecting to {}:{} using {} connection type", config.host,
+            config.port, connection_manager_->get_connection_type());
 }
 
 void QQBot::run() {
   if (io_context_->stopped()) {
     io_context_->restart();
   }
-  OBCX_I18N_INFO(common::LogMessageKey::QQBOT_STARTING_EVENT_LOOP);
+  OBCX_INFO("QQBot starting event loop...");
   io_context_->run();
-  OBCX_I18N_INFO(common::LogMessageKey::QQBOT_EVENT_LOOP_ENDED);
+  OBCX_INFO("QQBot event loop ended");
 }
 
 void QQBot::stop() {
-  OBCX_I18N_INFO(common::LogMessageKey::QQBOT_REQUESTING_STOP);
+  OBCX_INFO("Requesting QQBot to stop...");
 
   if (connection_manager_) {
     connection_manager_->disconnect();
@@ -432,8 +430,8 @@ auto QQBot::is_connected() const -> bool {
 
 void QQBot::ensure_connection_manager() const {
   if (!connection_manager_) {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
-        common::LogMessageKey::BOT_NOT_CONNECTED));
+    throw std::runtime_error(
+        std::string("Bot not connected, please call connect* methods first"));
   }
 }
 
@@ -450,7 +448,7 @@ void QQBot::error_notify(std::string_view target_id, std::string_view message,
   if (dispatcher_) {
     dispatcher_->dispatch(this, error_event);
   } else {
-    OBCX_I18N_WARN(common::LogMessageKey::EVENT_DISPATCHER_NOT_INITIALIZED);
+    OBCX_WARN("Event dispatcher not initialized, cannot dispatch error event");
   }
 }
 

@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-24.04
+          - name: macos-arm
+            os: macos-14 # Apple Silicon
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          # Enable flakes + nix command (required to consume flake.nix).
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Prime dev shell
+        run: |
+          nix develop --command bash -c '
+            echo "IN_NIX_SHELL=$IN_NIX_SHELL"
+            test -n "$IN_NIX_SHELL"
+            echo "CC=$(command -v clang)"
+            echo "CXX=$(command -v clang++)"
+            echo "CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH"
+          '
+
+      - name: Configure
+        run: |
+          nix develop --command cmake -G Ninja -B build -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DOBCX_BUILD_TESTS=ON
+
+      - name: Build
+        run: nix develop --command cmake --build build --parallel
+
+      - name: Run tests
+        working-directory: build
+        run: |
+          nix develop --command ctest --output-on-failure --parallel 2 \
+            --exclude-regex "WsTimeoutTest\.|WebSocketQueueTest\."

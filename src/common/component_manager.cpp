@@ -1,5 +1,4 @@
 #include "common/component_manager.hpp"
-#include "common/i18n_log_messages.hpp"
 #include "common/plugin_manager.hpp"
 #include "core/qq_bot.hpp"
 #include "core/tg_bot.hpp"
@@ -34,7 +33,7 @@ auto obcx::common::ComponentManager::create_bot(
         ::obcx::adapter::telegram::ProtocolAdapter{}, task_scheduler);
   }
 
-  OBCX_I18N_ERROR(common::LogMessageKey::UNKNOWN_BOT_TYPE, config.type);
+  OBCX_ERROR("Unknown bot type: {}", config.type);
   return nullptr;
 }
 
@@ -61,8 +60,7 @@ auto ComponentManager::get_connection_type(const std::string &type,
     }
   }
 
-  OBCX_I18N_ERROR(common::LogMessageKey::UNKNOWN_CONNECTION_TYPE, type,
-                  bot_type);
+  OBCX_ERROR("Unknown connection type: {} for bot type: {}", type, bot_type);
   return ::obcx::network::ConnectionManagerFactory::ConnectionType::
       Onebot11HTTP;
 }
@@ -156,8 +154,8 @@ auto ComponentManager::create_connection_config(const toml::table &conn_table)
     config.proxy_type = "http";
   }
 
-  OBCX_I18N_INFO(common::LogMessageKey::PROXY_CONFIG_INFO, config.proxy_host,
-                 config.proxy_port, config.proxy_type);
+  OBCX_INFO("Proxy config - Host: '{}', Port: {}, Type: '{}'",
+            config.proxy_host, config.proxy_port, config.proxy_type);
 
   if (const auto *proxy_username = conn_table.get("proxy_username")) {
     config.proxy_username = proxy_username->value_or<std::string>("");
@@ -190,17 +188,17 @@ auto ComponentManager::setup_bot(::obcx::core::IBot &bot,
           order_info += " -> ";
         }
       }
-      OBCX_I18N_INFO(common::LogMessageKey::PLUGIN_LOAD_ORDER_INFO, order_info);
+      OBCX_INFO("Plugin initialization order: {}", order_info);
     }
 
     for (const auto &plugin_name : sorted_plugins) {
       if (!plugin_manager.load_plugin(plugin_name)) {
-        OBCX_I18N_WARN(common::LogMessageKey::PLUGIN_LOAD_WARN, plugin_name);
+        OBCX_WARN("Failed to load plugin: {}", plugin_name);
         continue;
       }
 
       if (!plugin_manager.initialize_plugin(plugin_name)) {
-        OBCX_I18N_WARN(common::LogMessageKey::PLUGIN_INIT_WARN, plugin_name);
+        OBCX_WARN("Failed to initialize plugin: {}", plugin_name);
         continue;
       }
     }
@@ -211,11 +209,11 @@ auto ComponentManager::setup_bot(::obcx::core::IBot &bot,
 
     bot.connect(get_connection_type(conn_type, config.type), connection_config);
 
-    OBCX_I18N_INFO(common::LogMessageKey::BOT_SETUP_SUCCESS);
+    OBCX_INFO("Bot component setup completed successfully");
     return true;
 
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::BOT_SETUP_FAILED, e.what());
+    OBCX_ERROR("Failed to setup bot component: {}", e.what());
     return false;
   }
 }

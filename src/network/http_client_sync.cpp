@@ -26,7 +26,7 @@ using tcp = asio::ip::tcp;
 auto HttpClient::post_sync(std::string_view path, std::string_view body,
                            const std::map<std::string, std::string> &headers)
     -> HttpResponse {
-  OBCX_I18N_DEBUG(common::LogMessageKey::HTTP_POST_DEBUG, path, body);
+  OBCX_DEBUG("POST {} with body:\n{}", path, body);
 
   asio::io_context local_ioc;
 
@@ -165,14 +165,13 @@ auto HttpClient::post_sync(std::string_view path, std::string_view body,
       throw boost::system::system_error(final_ec);
     }
 
-    OBCX_I18N_DEBUG(common::LogMessageKey::HTTP_RESPONSE_STATUS,
-                    response.status_code);
-    OBCX_I18N_DEBUG(common::LogMessageKey::HTTP_RESPONSE_BODY, response.body);
+    OBCX_DEBUG("Received response with status code: {}", response.status_code);
+    OBCX_DEBUG("Response body:\n{}", response.body);
 
     return response;
   } catch (const std::exception &e) {
     pimpl_->connected = false;
-    OBCX_I18N_ERROR(common::LogMessageKey::HTTP_POST_FAILED, e.what());
+    OBCX_ERROR("HTTP POST request failed: {}", e.what());
     throw HttpClientError(std::string("HTTP POST request failed: ") + e.what());
   }
 }
@@ -180,7 +179,7 @@ auto HttpClient::post_sync(std::string_view path, std::string_view body,
 auto HttpClient::get_sync(std::string_view path,
                           const std::map<std::string, std::string> &headers)
     -> HttpResponse {
-  OBCX_I18N_DEBUG(common::LogMessageKey::HTTP_GET_DEBUG, path);
+  OBCX_DEBUG("GET {}", path);
 
   asio::io_context local_ioc;
 
@@ -316,14 +315,13 @@ auto HttpClient::get_sync(std::string_view path,
       throw boost::system::system_error(final_ec);
     }
 
-    OBCX_I18N_DEBUG(common::LogMessageKey::HTTP_RESPONSE_STATUS,
-                    response.status_code);
-    OBCX_I18N_DEBUG(common::LogMessageKey::HTTP_RESPONSE_BODY, response.body);
+    OBCX_DEBUG("Received response with status code: {}", response.status_code);
+    OBCX_DEBUG("Response body:\n{}", response.body);
 
     return response;
   } catch (const std::exception &e) {
     pimpl_->connected = false;
-    OBCX_I18N_ERROR(common::LogMessageKey::HTTP_GET_FAILED, e.what());
+    OBCX_ERROR("HTTP GET request failed: {}", e.what());
     throw HttpClientError(std::string("HTTP GET request failed: ") + e.what());
   }
 }
@@ -470,7 +468,7 @@ auto HttpClient::head_sync(std::string_view path,
     return response;
   } catch (const std::exception &e) {
     pimpl_->connected = false;
-    OBCX_I18N_ERROR(common::LogMessageKey::HTTP_HEAD_FAILED, e.what());
+    OBCX_ERROR("HTTP HEAD request failed: {}", e.what());
     throw HttpClientError(std::string("HTTP HEAD request failed: ") + e.what());
   }
 }

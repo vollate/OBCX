@@ -26,27 +26,31 @@ if(NOT CMAKE_C_COMPILER)
   endif()
 endif()
 
-# On macOS, prefer CommandLineTools SDK over Xcode SDK to avoid header search
-# path conflicts when using Homebrew LLVM (its clang config points to
-# CommandLineTools, but CMake's xcrun picks Xcode SDK and inserts it first).
 if(APPLE AND NOT CMAKE_OSX_SYSROOT)
-  execute_process(
-    COMMAND xcrun --sdk macosx --show-sdk-path
-    OUTPUT_VARIABLE XCRUN_SDK_PATH
-    OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-  set(_CLT_SDK
-      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk")
-  if(EXISTS "${_CLT_SDK}" AND NOT "${XCRUN_SDK_PATH}" MATCHES
-                               "CommandLineTools")
-    set(CMAKE_OSX_SYSROOT
-        "${_CLT_SDK}"
-        CACHE PATH "Use CommandLineTools SDK to match Homebrew LLVM sysroot"
-              FORCE)
-    message(
-      STATUS
-        "Overriding Xcode SDK with CommandLineTools SDK: ${CMAKE_OSX_SYSROOT}")
+  if("$ENV{IN_NIX_SHELL}" STREQUAL "")
+    execute_process(
+      COMMAND xcrun --sdk macosx --show-sdk-path
+      OUTPUT_VARIABLE XCRUN_SDK_PATH
+      OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    set(_CLT_SDK
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk")
+    if(EXISTS "${_CLT_SDK}" AND NOT "${XCRUN_SDK_PATH}" MATCHES
+                                 "CommandLineTools")
+      set(CMAKE_OSX_SYSROOT
+          "${_CLT_SDK}"
+          CACHE PATH "Use CommandLineTools SDK to match Homebrew LLVM sysroot"
+                FORCE)
+      message(
+        STATUS
+          "Overriding Xcode SDK with CommandLineTools SDK: ${CMAKE_OSX_SYSROOT}")
+    endif()
+    unset(_CLT_SDK)
+  else()
+    set(CMAKE_OSX_SYSROOT "" CACHE STRING
+        "Cleared in IN_NIX_SHELL so the nix clang wrapper supplies its own pinned apple-sdk"
+        FORCE)
+    message(STATUS "Nix dev shell detected: CMAKE_OSX_SYSROOT cleared")
   endif()
-  unset(_CLT_SDK)
 endif()
 
 project(OBCX VERSION 1.1.0 LANGUAGES CXX)
@@ -118,13 +122,13 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
   message(STATUS "Using libc++ standard library with Clang")
 endif()
 
-set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(
   Boost CONFIG REQUIRED
-  COMPONENTS thread locale
+  COMPONENTS thread
   OPTIONAL_COMPONENTS system)
 if(TARGET Boost::system)
   set(BOOST_SYSTEM_TARGET Boost::system)
@@ -164,17 +168,6 @@ find_package(tomlplusplus CONFIG REQUIRED)
 find_package(ftxui CONFIG REQUIRED)
 find_package(re2 CONFIG REQUIRED)
 
-# ============================================================================
-# io_uring support (Linux only)
-# ----------------------------------------------------------------------------
-# Boost.Asio can use io_uring as its reactor backend (kernel >= 5.10, liburing
-# available). This replaces the epoll-based implementation for socket I/O and
-# is significantly faster for high-concurrency async workloads.
-#
-# We enable it automatically on Linux when liburing is found. Set
-# OBCX_ENABLE_IO_URING=OFF to opt out, or OBCX_ENABLE_IO_URING=ON to require
-# it (fails the configure step if liburing is missing).
-# ============================================================================
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   option(OBCX_ENABLE_IO_URING
          "Use io_uring as Boost.Asio's reactor backend (requires liburing)"
@@ -212,34 +205,6 @@ if(OBCX_BUILD_TESTS)
   enable_testing()
 endif()
 
-
-# Compile i18n .po files to .mo files
-find_program(GETTEXT_MSGFMT_EXECUTABLE msgfmt)
-if(GETTEXT_MSGFMT_EXECUTABLE)
-  file(GLOB_RECURSE PO_FILES "${CMAKE_SOURCE_DIR}/locales/*/messages.po")
-
-  foreach(PO_FILE ${PO_FILES})
-    get_filename_component(PO_DIR ${PO_FILE} DIRECTORY)
-    get_filename_component(LOCALE_NAME ${PO_DIR} NAME)
-
-    set(MO_FILE
-        "${CMAKE_BINARY_DIR}/locales/${LOCALE_NAME}/LC_MESSAGES/messages.mo")
-
-    add_custom_command(
-      OUTPUT ${MO_FILE}
-      COMMAND ${CMAKE_COMMAND} -E make_directory
-              "${CMAKE_BINARY_DIR}/locales/${LOCALE_NAME}/LC_MESSAGES"
-      COMMAND ${GETTEXT_MSGFMT_EXECUTABLE} -o ${MO_FILE} ${PO_FILE}
-      DEPENDS ${PO_FILE}
-      COMMENT "Compiling ${PO_FILE} to ${MO_FILE}")
-
-    list(APPEND MO_FILES ${MO_FILE})
-  endforeach()
-
-  add_custom_target(i18n ALL DEPENDS ${MO_FILES})
-else()
-  message(WARNING "msgfmt not found. i18n .mo files will not be compiled.")
-endif()
 
 add_subdirectory(src)
 

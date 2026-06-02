@@ -10,7 +10,7 @@ auto ProtocolAdapter::parse_event(std::string_view json_str)
     -> std::optional<common::Event> {
   try {
     auto json = nlohmann::json::parse(json_str);
-    OBCX_I18N_DEBUG(common::LogMessageKey::PARSING_EVENT, json_str);
+    OBCX_DEBUG("Parsing event: {}", json_str);
 
     if (json.contains("update_id")) {
       if (json.contains("message")) {
@@ -28,14 +28,14 @@ auto ProtocolAdapter::parse_event(std::string_view json_str)
       if (json.contains("callback_query")) {
         return parse_callback_query_event(json);
       }
-      OBCX_I18N_DEBUG(common::LogMessageKey::UNHANDLED_UPDATE_TYPE);
+      OBCX_DEBUG("Unhandled update type in update");
       return std::nullopt;
     }
-    OBCX_I18N_DEBUG(common::LogMessageKey::NO_UPDATE_ID_FIELD);
+    OBCX_DEBUG("No update_id field in JSON");
 
     return std::nullopt;
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::PARSE_ERROR, e.what(), json_str);
+    OBCX_ERROR("Failed to parse event: {}. JSON: {}", e.what(), json_str);
     return std::nullopt;
   }
 }
@@ -63,16 +63,14 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
 
     if (message.contains("message_id")) {
       event.message_id = std::to_string(message["message_id"].get<int64_t>());
-      OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_MESSAGE_ID,
-                      event.message_id);
+      OBCX_DEBUG("Extracted message_id: {}", event.message_id);
     }
 
     if (message.contains("from")) {
       auto from = message["from"];
       if (from.contains("id")) {
         event.user_id = std::to_string(from["id"].get<int64_t>());
-        OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_USER_ID,
-                        event.user_id);
+        OBCX_DEBUG("Extracted user_id: {}", event.user_id);
       }
     }
 
@@ -80,16 +78,16 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       auto chat = message["chat"];
       if (chat.contains("id")) {
         std::string chat_id = std::to_string(chat["id"].get<int64_t>());
-        OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_CHAT_ID, chat_id);
+        OBCX_DEBUG("Extracted chat_id: {}", chat_id);
 
         if (chat.contains("type")) {
           std::string chat_type = chat["type"];
-          OBCX_I18N_DEBUG(common::LogMessageKey::CHAT_TYPE, chat_type);
+          OBCX_DEBUG("Chat type: {}", chat_type);
 
           if (chat_type == "supergroup" || chat_type == "group") {
             event.group_id = chat_id;
             event.message_type = "group";
-            OBCX_I18N_DEBUG(common::LogMessageKey::SET_GROUP_ID, chat_id);
+            OBCX_DEBUG("Set group_id: {}", chat_id);
           } else if (chat_type == "private") {
             event.message_type = "private";
           } else if (chat_type == "channel") {
@@ -101,8 +99,7 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
 
     if (message.contains("text")) {
       event.raw_message = message["text"];
-      OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_MESSAGE_TEXT,
-                      event.raw_message);
+      OBCX_DEBUG("Extracted message text: {}", event.raw_message);
 
       common::MessageSegment segment;
       segment.type = "text";
@@ -116,10 +113,8 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
         auto photo = photos.back();
         std::string file_id = photo["file_id"];
 
-        event.raw_message = common::I18nLogMessages::get_message(
-            common::LogMessageKey::TELEGRAM_MSG_PHOTO);
-        OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_PHOTO_FILE_ID,
-                        file_id);
+        event.raw_message = std::string("[Photo]");
+        OBCX_DEBUG("Extracted photo file_id: {}", file_id);
 
         common::MessageSegment segment;
         segment.type = "image";
@@ -134,10 +129,8 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       auto sticker = message["sticker"];
       std::string file_id = sticker["file_id"];
 
-      event.raw_message = common::I18nLogMessages::get_message(
-          common::LogMessageKey::TELEGRAM_MSG_STICKER);
-      OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_STICKER_FILE_ID,
-                      file_id);
+      event.raw_message = std::string("[Sticker]");
+      OBCX_DEBUG("Extracted sticker file_id: {}", file_id);
 
       common::MessageSegment segment;
 
@@ -150,18 +143,16 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       segment.data["is_video"] = sticker["is_video"].get<bool>();
       if (sticker.contains("emoji")) {
         segment.data["emoji"] = sticker["emoji"];
-        event.raw_message = common::I18nLogMessages::format_message(
-            common::LogMessageKey::TELEGRAM_MSG_STICKER_WITH_EMOJI,
-            sticker["emoji"].get<std::string>());
+        event.raw_message =
+            fmt::format("[{} Sticker]", sticker["emoji"].get<std::string>());
       }
       event.message.push_back(segment);
     } else if (message.contains("video")) {
       auto video = message["video"];
       std::string file_id = video["file_id"];
 
-      event.raw_message = common::I18nLogMessages::get_message(
-          common::LogMessageKey::TELEGRAM_MSG_VIDEO);
-      OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_VIDEO_FILE_ID, file_id);
+      event.raw_message = std::string("[Video]");
+      OBCX_DEBUG("Extracted video file_id: {}", file_id);
 
       common::MessageSegment segment;
       segment.type = "video";
@@ -187,10 +178,8 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       auto animation = message["animation"];
       std::string file_id = animation["file_id"];
 
-      event.raw_message = common::I18nLogMessages::get_message(
-          common::LogMessageKey::TELEGRAM_MSG_ANIMATION);
-      OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_ANIMATION_FILE_ID,
-                      file_id);
+      event.raw_message = std::string("[Animation]");
+      OBCX_DEBUG("Extracted animation file_id: {}", file_id);
 
       common::MessageSegment segment;
       segment.type = "animation";
@@ -216,10 +205,8 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       auto document = message["document"];
       std::string file_id = document["file_id"];
 
-      event.raw_message = common::I18nLogMessages::get_message(
-          common::LogMessageKey::TELEGRAM_MSG_DOCUMENT);
-      OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_DOCUMENT_FILE_ID,
-                      file_id);
+      event.raw_message = std::string("[Document]");
+      OBCX_DEBUG("Extracted document file_id: {}", file_id);
 
       common::MessageSegment segment;
       segment.type = "document";
@@ -229,9 +216,8 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       }
       if (document.contains("file_name")) {
         segment.data["file_name"] = document["file_name"];
-        event.raw_message = common::I18nLogMessages::format_message(
-            common::LogMessageKey::TELEGRAM_MSG_DOCUMENT_WITH_NAME,
-            document["file_name"].get<std::string>());
+        event.raw_message = fmt::format(
+            "[Document: {}]", document["file_name"].get<std::string>());
       }
       if (document.contains("mime_type")) {
         segment.data["mime_type"] = document["mime_type"];
@@ -245,9 +231,8 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       auto audio = message["audio"];
       std::string file_id = audio["file_id"];
 
-      event.raw_message = common::I18nLogMessages::get_message(
-          common::LogMessageKey::TELEGRAM_MSG_AUDIO);
-      OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_AUDIO_FILE_ID, file_id);
+      event.raw_message = std::string("[Audio]");
+      OBCX_DEBUG("Extracted audio file_id: {}", file_id);
 
       common::MessageSegment segment;
       segment.type = "audio";
@@ -260,9 +245,8 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       }
       if (audio.contains("title")) {
         segment.data["title"] = audio["title"];
-        event.raw_message = common::I18nLogMessages::format_message(
-            common::LogMessageKey::TELEGRAM_MSG_AUDIO_WITH_TITLE,
-            audio["title"].get<std::string>());
+        event.raw_message =
+            fmt::format("[Audio: {}]", audio["title"].get<std::string>());
       }
       if (message.contains("caption")) {
         segment.data["caption"] = message["caption"];
@@ -273,9 +257,8 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       auto voice = message["voice"];
       std::string file_id = voice["file_id"];
 
-      event.raw_message = common::I18nLogMessages::get_message(
-          common::LogMessageKey::TELEGRAM_MSG_VOICE);
-      OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_VOICE_FILE_ID, file_id);
+      event.raw_message = std::string("[Voice]");
+      OBCX_DEBUG("Extracted voice file_id: {}", file_id);
 
       common::MessageSegment segment;
       segment.type = "voice";
@@ -291,10 +274,8 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
       auto video_note = message["video_note"];
       std::string file_id = video_note["file_id"];
 
-      event.raw_message = common::I18nLogMessages::get_message(
-          common::LogMessageKey::TELEGRAM_MSG_VIDEO_NOTE);
-      OBCX_I18N_DEBUG(common::LogMessageKey::EXTRACTED_VIDEO_NOTE_FILE_ID,
-                      file_id);
+      event.raw_message = std::string("[Video Note]");
+      OBCX_DEBUG("Extracted video_note file_id: {}", file_id);
 
       common::MessageSegment segment;
       segment.type = "video_note";
@@ -313,10 +294,10 @@ auto ProtocolAdapter::parse_message_event(const nlohmann::json &update_json)
 
     event.font = 0; // Not applicable for Telegram
 
-    OBCX_I18N_DEBUG(common::LogMessageKey::EVENT_PARSED_SUCCESS);
+    OBCX_DEBUG("Successfully parsed event");
     return event;
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::EVENT_PARSE_FAILED, e.what());
+    OBCX_ERROR("Failed to parse event: {}", e.what());
     return std::nullopt;
   }
 }
@@ -334,8 +315,8 @@ auto ProtocolAdapter::parse_edited_message_event(
               std::get_if<common::MessageEvent>(&event_opt.value())) {
         msg_event->data["is_edited"] = true;
         msg_event->sub_type = "edited";
-        OBCX_I18N_DEBUG(common::LogMessageKey::MARKED_EDIT_MESSAGE,
-                        msg_event->message_id);
+        OBCX_DEBUG("Marked as edit message: message_id={}",
+                   msg_event->message_id);
         return event_opt;
       }
     }
@@ -398,12 +379,11 @@ auto ProtocolAdapter::parse_callback_query_event(
             callback_query["message"]["chat"]["id"].get<int64_t>());
       }
 
-      OBCX_I18N_DEBUG(common::LogMessageKey::PARSED_CALLBACK_QUERY);
+      OBCX_DEBUG("Successfully parsed callback query event");
       return event;
     }
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::PARSE_CALLBACK_QUERY_FAILED,
-                    e.what());
+    OBCX_ERROR("Failed to parse callback query event: {}", e.what());
   }
 
   return std::nullopt;
@@ -506,8 +486,8 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
 
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
-          OBCX_I18N_DEBUG(common::LogMessageKey::SEND_STICKER_REPLY_ID,
-                          reply_to_message_id.value());
+          OBCX_DEBUG("sendSticker added reply message ID: {}",
+                     reply_to_message_id.value());
         }
 
         if (echo.has_value()) {
@@ -592,8 +572,8 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
 
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
-          OBCX_I18N_DEBUG(common::LogMessageKey::SEND_VIDEO_REPLY_ID,
-                          reply_to_message_id.value());
+          OBCX_DEBUG("sendVideo added reply message ID: {}",
+                     reply_to_message_id.value());
         }
 
         if (echo.has_value()) {
@@ -632,8 +612,8 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
 
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
-          OBCX_I18N_DEBUG(common::LogMessageKey::SEND_VIDEO_NOTE_REPLY_ID,
-                          reply_to_message_id.value());
+          OBCX_DEBUG("sendVideoNote added reply message ID: {}",
+                     reply_to_message_id.value());
         }
 
         if (echo.has_value()) {
@@ -732,8 +712,8 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
 
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
-          OBCX_I18N_DEBUG(common::LogMessageKey::SEND_AUDIO_REPLY_ID,
-                          reply_to_message_id.value());
+          OBCX_DEBUG("sendAudio added reply message ID: {}",
+                     reply_to_message_id.value());
         }
 
         if (echo.has_value()) {
@@ -780,8 +760,8 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
 
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
-          OBCX_I18N_DEBUG(common::LogMessageKey::SEND_VOICE_REPLY_ID,
-                          reply_to_message_id.value());
+          OBCX_DEBUG("sendVoice added reply message ID: {}",
+                     reply_to_message_id.value());
         }
 
         if (echo.has_value()) {
@@ -824,8 +804,8 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
 
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
-          OBCX_I18N_DEBUG(common::LogMessageKey::SEND_DOCUMENT_REPLY_ID,
-                          reply_to_message_id.value());
+          OBCX_DEBUG("sendDocument added reply message ID: {}",
+                     reply_to_message_id.value());
         }
 
         if (echo.has_value()) {
@@ -858,8 +838,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
 
   if (reply_to_message_id.has_value()) {
     json["reply_to_message_id"] = reply_to_message_id.value();
-    OBCX_I18N_DEBUG(common::LogMessageKey::SEND_MESSAGE_REPLY_ID,
-                    reply_to_message_id.value());
+    OBCX_DEBUG("Added reply message ID: {}", reply_to_message_id.value());
   }
 
   if (echo.has_value()) {

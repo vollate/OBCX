@@ -1,5 +1,4 @@
 #include "common/message_type.hpp"
-#include "common/i18n_log_messages.hpp"
 
 namespace obcx::common {
 

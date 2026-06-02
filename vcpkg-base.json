@@ -4,7 +4,6 @@
   "version": "1.1.0",
   "dependencies": [
     "boost-beast",
-    "boost-locale",
     "boost-program-options",
     "boost-thread",
     "brotli",

@@ -1,7 +1,6 @@
 #include "common/cli_handler.hpp"
 #include "common/component_manager.hpp"
 #include "common/config_loader.hpp"
-#include "common/i18n_log_messages.hpp"
 #include "common/logger.hpp"
 #include "common/plugin_manager.hpp"
 #include "core/qq_bot.hpp"
@@ -13,10 +12,11 @@
 #include <boost/program_options.hpp>
 #include <csignal>
 #include <cstdlib>
+#include <fmt/format.h>
+#include <fmt/ostream.h>
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include <print>
 #include <spdlog/common.h>
 #include <string>
 #include <thread>
@@ -34,27 +34,27 @@ std::condition_variable g_stop_cv;
 constexpr int BOT_SHUTDOWN_TIMEOUT_SECONDS = 5;
 
 void print_version() {
-  std::println("OBCX Robot Framework v1.1.0");
-  std::println("A modular bot framework supporting QQ and Telegram");
+  fmt::print("OBCX Robot Framework v1.1.0\n");
+  fmt::print("A modular bot framework supporting QQ and Telegram\n");
 }
 
 void print_help(const po::options_description &desc) {
-  std::println("Usage: obcx [OPTIONS] [CONFIG_FILE]");
-  std::println("");
-  std::println("OPTIONS:");
+  fmt::print("Usage: obcx [OPTIONS] [CONFIG_FILE]\n");
+  fmt::print("\n");
+  fmt::print("OPTIONS:\n");
   std::cout << desc << "\n";
-  std::println("");
-  std::println("CONFIG_FILE:");
-  std::println("  Path to TOML configuration file (default: config.toml)");
+  fmt::print("\n");
+  fmt::print("CONFIG_FILE:\n");
+  fmt::print("  Path to TOML configuration file (default: config.toml)\n");
 }
 
 void signal_handler(int signal) {
   bool expected = false;
   if (!g_should_stop.compare_exchange_strong(expected, true)) {
-    OBCX_I18N_WARN(common::LogMessageKey::SHUTDOWN_IN_PROGRESS, signal);
+    OBCX_WARN("Shutdown already in progress, ignoring signal {}", signal);
     return;
   }
-  OBCX_I18N_INFO(common::LogMessageKey::SHUTDOWN_SIGNAL_RECEIVED, signal);
+  OBCX_INFO("Received signal {}, shutting down gracefully...", signal);
   g_stop_cv.notify_one();
 }
 } // namespace
@@ -104,7 +104,7 @@ public:
       use_tui = !vm.count("no-tui");
 
     } catch (const po::error &e) {
-      std::println(std::cerr, "Error parsing arguments: {}", e.what());
+      fmt::print(std::cerr, "Error parsing arguments: {}\n", e.what());
       return 1;
     }
 
@@ -119,19 +119,13 @@ public:
 
     auto &config_loader = common::ConfigLoader::instance();
     if (!config_loader.load_config(config_path)) {
-      std::println(std::cerr, "Failed to load configuration from: {}",
-                   config_path);
+      fmt::print(std::cerr, "Failed to load configuration from: {}\n",
+                 config_path);
       return 1;
     }
 
-    auto locale = config_loader.get_value<std::string>("global.locale");
-    if (locale.has_value()) {
-      common::I18nLogMessages::set_locale(*locale);
-      OBCX_I18N_INFO(common::LogMessageKey::LOG_LOCALE_SET, *locale);
-    }
-
-    OBCX_I18N_INFO(common::LogMessageKey::FRAMEWORK_STARTING);
-    OBCX_I18N_INFO(common::LogMessageKey::CONFIG_LOADED_FROM, config_path);
+    OBCX_INFO("OBCX Robot Framework starting...");
+    OBCX_INFO("Configuration loaded from: {}", config_path);
 
     common::PluginManager plugin_manager;
     auto &component_manager = ComponentManager::instance();
@@ -140,7 +134,7 @@ public:
 
     auto bot_configs = config_loader.get_bot_configs();
     if (bot_configs.empty()) {
-      OBCX_I18N_ERROR(common::LogMessageKey::NO_BOT_CONFIGS);
+      OBCX_ERROR("No bot configurations found");
       return 1;
     }
 
@@ -151,19 +145,18 @@ public:
     interface::IPlugin::set_bots(&bots, &bots_mutex);
 
     auto shared_task_scheduler = std::make_shared<core::TaskScheduler>();
-    OBCX_I18N_INFO(common::LogMessageKey::SHARED_TASK_SCHEDULER_CREATED,
-                   std::thread::hardware_concurrency());
+    OBCX_INFO("Created shared TaskScheduler with {} threads",
+              std::thread::hardware_concurrency());
 
     for (const auto &config : bot_configs) {
       if (!config.enabled) {
-        OBCX_I18N_INFO(common::LogMessageKey::SKIPPING_DISABLED_BOT,
-                       config.type);
+        OBCX_INFO("Skipping disabled bot component of type: {}", config.type);
         continue;
       }
 
       auto bot = ComponentManager::create_bot(config, shared_task_scheduler);
       if (!bot) {
-        OBCX_I18N_ERROR(common::LogMessageKey::BOT_CREATE_FAILED, config.type);
+        OBCX_ERROR("Failed to create bot component of type: {}", config.type);
         continue;
       }
 
@@ -173,29 +166,28 @@ public:
 
       if (!component_manager.setup_bot(*bots[bot_index], config,
                                        plugin_manager)) {
-        OBCX_I18N_ERROR(common::LogMessageKey::BOT_SETUP_FAILED_TYPE,
-                        config.type);
+        OBCX_ERROR("Failed to setup bot component of type: {}", config.type);
         bots.pop_back();
         continue;
       }
 
-      OBCX_I18N_INFO(common::LogMessageKey::STARTING_BOT, config.type);
+      OBCX_INFO("Starting bot component of type: {}", config.type);
 
       bot_threads.emplace_back([&bots, bot_index]() -> void {
         try {
           bots[bot_index]->run();
         } catch (const std::exception &e) {
-          OBCX_I18N_ERROR(common::LogMessageKey::BOT_RUNTIME_ERROR, e.what());
+          OBCX_ERROR("Bot component runtime error: {}", e.what());
         }
       });
     }
 
     if (bots.empty()) {
-      OBCX_I18N_ERROR(common::LogMessageKey::NO_BOTS_STARTED);
+      OBCX_ERROR("No bot components started successfully");
       return 1;
     }
 
-    OBCX_I18N_INFO(common::LogMessageKey::ALL_COMPONENTS_STARTED);
+    OBCX_INFO("All components started successfully. OBCX Framework running...");
 
     {
       common::CliHandler::Context ctx{
@@ -211,7 +203,7 @@ public:
       // Shutdown callback runs while the TUI is still alive so the user can
       // see the shutdown log lines in the pane.
       ctx.shutdown_cb = [&]() -> void {
-        OBCX_I18N_INFO(common::LogMessageKey::FRAMEWORK_SHUTDOWN);
+        OBCX_INFO("Shutting down OBCX Framework...");
 
         for (auto &bot : bots) {
           bot->stop();
@@ -219,14 +211,16 @@ public:
 
         for (size_t i = 0; i < bot_threads.size(); ++i) {
           if (bot_threads[i].joinable()) {
-            OBCX_I18N_INFO(common::LogMessageKey::WAITING_BOT_THREAD, i);
+            OBCX_INFO("Waiting for bot thread {} to finish...", i);
             std::atomic_bool thread_finished{false};
             std::thread timeout_thread([&thread_finished, &bot_threads,
                                         i]() -> void {
               std::this_thread::sleep_for(
                   std::chrono::seconds(BOT_SHUTDOWN_TIMEOUT_SECONDS));
               if (!thread_finished.load()) {
-                OBCX_I18N_WARN(common::LogMessageKey::BOT_THREAD_TIMEOUT, i);
+                OBCX_WARN(
+                    "Bot thread {} did not finish within timeout, detaching",
+                    i);
                 bot_threads[i].detach();
               }
             });
@@ -248,7 +242,7 @@ public:
 
         plugin_manager.shutdown_all_plugins();
 
-        OBCX_I18N_INFO(common::LogMessageKey::FRAMEWORK_SHUTDOWN_COMPLETE);
+        OBCX_INFO("OBCX Framework shutdown complete");
       };
 
       if (use_tui) {
@@ -261,7 +255,7 @@ public:
         // Block on signal in case stdin closed before SIGINT.
         {
           std::unique_lock lock(g_stop_mtx);
-          g_stop_cv.wait(lock, [] -> bool { return g_should_stop.load(); });
+          g_stop_cv.wait(lock, []() -> bool { return g_should_stop.load(); });
         }
         if (ctx.shutdown_cb) {
           ctx.shutdown_cb();
