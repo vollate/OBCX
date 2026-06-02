@@ -14,6 +14,8 @@
       supportedSystems = [
         "x86_64-linux"
         "aarch64-linux"
+        "aarch64-darwin"
+        "x86_64-darwin"
       ];
 
       # Helper function to generate attributes for each system
@@ -24,8 +26,17 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
+          inherit (pkgs) lib stdenv;
 
-          obcxDependencies = with pkgs; [
+          # Linux-only deps. liburing is the io_uring backend (kernel API,
+          # Linux-only). stdenv.cc.cc.lib carries the gcc runtime needed by
+          # libstdc++ users on Linux. Both must be omitted on Darwin.
+          linuxOnlyDeps = lib.optionals stdenv.isLinux (with pkgs; [
+            liburing
+            stdenv.cc.cc.lib
+          ]);
+
+          obcxDependencies = (with pkgs; [
             boost
             brotli
             fmt
@@ -40,14 +51,11 @@
             libxml2
             re2
             zstd
-            liburing
-            stdenv.cc.cc.lib
-          ];
+          ]) ++ linuxOnlyDeps;
         in
         {
           default = pkgs.mkShell.override { stdenv = pkgs.clangStdenv; } {
-            nativeBuildInputs = with pkgs; [
-              perf
+            nativeBuildInputs = (with pkgs; [
               clang-tools
               cmake
               ninja
@@ -55,7 +63,11 @@
               pkg-config
               cmake-format
               ffmpeg
-            ];
+            ]) ++ lib.optionals stdenv.isLinux (with pkgs; [
+              # `perf` is part of the Linux kernel tooling; not available on
+              # Darwin.
+              perf
+            ]);
 
             buildInputs = obcxDependencies;
 

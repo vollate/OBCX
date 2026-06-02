@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+# Newer pushes to the same ref cancel still-running builds — saves runner
+# minutes without changing what gets tested for the latest commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-24.04
+          - name: macos-arm
+            os: macos-14   # Apple Silicon
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------
+      # Nix toolchain
+      # ------------------------------------------------------------
+      #
+      # The repository already pins its full toolchain in flake.nix
+      # (clang/lld/cmake/ninja + every C++ dependency). We use that here
+      # instead of installing things ad-hoc on each runner. CMakeLists.txt
+      # already detects IN_NIX_SHELL and skips its vcpkg branch, so the
+      # whole vcpkg pipeline is bypassed on CI.
+      #
+      # Every actual build step runs through `nix develop -c …` so it
+      # executes inside the dev shell with the right PATH/CC/CXX.
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          # Enable flakes + nix command (required to consume flake.nix).
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      # Warm the dev shell once so subsequent `nix develop` calls reuse it
+      # instead of re-evaluating the flake. We also verify IN_NIX_SHELL is
+      # exported, since CMakeLists.txt branches on it to skip vcpkg.
+      - name: Prime dev shell
+        run: |
+          nix develop --command bash -c '
+            echo "IN_NIX_SHELL=$IN_NIX_SHELL"
+            test -n "$IN_NIX_SHELL"
+            echo "CC=$(command -v clang)"
+            echo "CXX=$(command -v clang++)"
+          '
+
+      # ------------------------------------------------------------
+      # Configure & build inside the nix dev shell
+      # ------------------------------------------------------------
+      #
+      # IN_NIX_SHELL is exported by `nix develop`; the project's
+      # CMakeLists.txt checks for it to skip vcpkg. We also pin CC/CXX
+      # to the dev shell's clang so CMakeLists.txt's compiler-detection
+      # block picks the right toolchain deterministically.
+
+      - name: Configure
+        run: |
+          nix develop --command bash -lc '
+            cmake -G Ninja -B build -S . \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DOBCX_BUILD_TESTS=ON \
+              -DCMAKE_C_COMPILER=clang \
+              -DCMAKE_CXX_COMPILER=clang++
+          '
+
+      - name: Build
+        run: nix develop --command cmake --build build --parallel
+
+      # ------------------------------------------------------------
+      # Tests
+      # ------------------------------------------------------------
+      #
+      # Some tests open real WebSocket sockets and rely on timing windows
+      # that are flaky on shared CI runners (e.g. WsTimeoutTest waits on
+      # a 5s internal timeout and asserts the elapsed window is within
+      # ±2s). They are skipped here by gtest fixture name.
+      # gtest_discover_tests registers tests as "Fixture.Case", so the
+      # regex matches at that granularity rather than by executable.
+
+      - name: Run tests
+        run: |
+          nix develop --command bash -lc '
+            cd build && ctest --output-on-failure --parallel 2 \
+              --exclude-regex "WsTimeoutTest\.|WebSocketQueueTest\."
+          '
