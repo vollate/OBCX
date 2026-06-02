@@ -26,17 +26,6 @@ if(NOT CMAKE_C_COMPILER)
   endif()
 endif()
 
-# On macOS, prefer CommandLineTools SDK over Xcode SDK to avoid header search
-# path conflicts when using Homebrew LLVM (its clang config points to
-# CommandLineTools, but CMake's xcrun picks Xcode SDK and inserts it first).
-#
-# Inside a Nix dev shell this override is actively harmful: the nix-supplied
-# clang wrapper has its own pinned apple-sdk baked into its config, and any
-# `-isysroot` CMake injects would point at the runner's CommandLineTools SDK,
-# which generally does not match the libc++ version pinned by nix. We
-# therefore skip the override and explicitly clear CMAKE_OSX_SYSROOT so
-# CMake's xcrun auto-detection does NOT pass -isysroot at all — the wrapper
-# then supplies the correct sysroot itself.
 if(APPLE AND NOT CMAKE_OSX_SYSROOT)
   if("$ENV{IN_NIX_SHELL}" STREQUAL "")
     execute_process(
@@ -179,17 +168,6 @@ find_package(tomlplusplus CONFIG REQUIRED)
 find_package(ftxui CONFIG REQUIRED)
 find_package(re2 CONFIG REQUIRED)
 
-# ============================================================================
-# io_uring support (Linux only)
-# ----------------------------------------------------------------------------
-# Boost.Asio can use io_uring as its reactor backend (kernel >= 5.10, liburing
-# available). This replaces the epoll-based implementation for socket I/O and
-# is significantly faster for high-concurrency async workloads.
-#
-# We enable it automatically on Linux when liburing is found. Set
-# OBCX_ENABLE_IO_URING=OFF to opt out, or OBCX_ENABLE_IO_URING=ON to require
-# it (fails the configure step if liburing is missing).
-# ============================================================================
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   option(OBCX_ENABLE_IO_URING
          "Use io_uring as Boost.Asio's reactor backend (requires liburing)"

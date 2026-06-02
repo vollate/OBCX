@@ -358,8 +358,8 @@ TEST_F(WsTimeoutTest, TimeoutScenario) {
       std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);
 
   ASSERT_EQ(status, std::future_status::ready)
-      << "coroutine should finish (via timeout) within " << EXTENDED_TIMEOUT.count()
-      << " seconds";
+      << "coroutine should finish (via timeout) within "
+      << EXTENDED_TIMEOUT.count() << " seconds";
 
   EXPECT_THROW(result_future.get(), std::runtime_error)
       << "should throw std::runtime_error";
@@ -368,11 +368,11 @@ TEST_F(WsTimeoutTest, TimeoutScenario) {
 
   // Verify the elapsed timeout is within the expected window.
   EXPECT_GE(duration.count(), CLIENT_DEFAULT_TIMEOUT.count() - 2)
-      << "timeout duration should be close to " << CLIENT_DEFAULT_TIMEOUT.count()
-      << " seconds";
+      << "timeout duration should be close to "
+      << CLIENT_DEFAULT_TIMEOUT.count() << " seconds";
   EXPECT_LE(duration.count(), CLIENT_DEFAULT_TIMEOUT.count() + 2)
-      << "timeout duration should be close to " << CLIENT_DEFAULT_TIMEOUT.count()
-      << " seconds";
+      << "timeout duration should be close to "
+      << CLIENT_DEFAULT_TIMEOUT.count() << " seconds";
 }
 
 /**
@@ -425,8 +425,8 @@ TEST_F(WsTimeoutTest, DelayedResponse) {
   EXPECT_EQ(response_json["echo"], TEST_ECHO_3) << "echo should match";
 
   EXPECT_GE(duration.count(), DELAYED_RESPONSE_TIME - 200)
-      << "response time should be slightly greater than " << DELAYED_RESPONSE_TIME
-      << " ms";
+      << "response time should be slightly greater than "
+      << DELAYED_RESPONSE_TIME << " ms";
   EXPECT_LE(duration.count(), DELAYED_RESPONSE_TIME + 500)
       << "response time should be approximately " << DELAYED_RESPONSE_TIME
       << " ms";
