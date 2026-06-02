@@ -9,16 +9,14 @@ auto ConfigLoader::load_config(const std::string &config_path) -> bool {
   try {
     config_path_ = config_path;
     config_data_ = std::make_unique<toml::table>(toml::parse_file(config_path));
-    OBCX_KEY_INFO(common::LogMessageKey::CONFIG_LOAD_SUCCESS, config_path);
+    OBCX_INFO("Config loaded successfully from: {}", config_path);
     return true;
   } catch (const toml::parse_error &e) {
-    OBCX_KEY_INFO(common::LogMessageKey::CONFIG_PARSE_FAILED, config_path,
-                  e.what());
+    OBCX_INFO("Failed to parse config file {}: {}", config_path, e.what());
     config_data_.reset();
     return false;
   } catch (const std::exception &e) {
-    OBCX_KEY_INFO(common::LogMessageKey::CONFIG_LOAD_ERROR, config_path,
-                  e.what());
+    OBCX_INFO("Failed to load config file {}: {}", config_path, e.what());
     config_data_.reset();
     return false;
   }
@@ -100,8 +98,9 @@ auto ConfigLoader::get_plugin_config(const std::string &plugin_name) const
       if (auto priority_section = plugin_table->get("priority")) {
         if (auto priority_val = priority_section->value<int64_t>()) {
           if (*priority_val < 0 || *priority_val > 255) {
-            OBCX_KEY_WARN(common::LogMessageKey::PLUGIN_PRIORITY_OUT_OF_RANGE,
-                          plugin_name);
+            OBCX_WARN(
+                "Plugin '{}' priority out of range [0-255], using default 0",
+                plugin_name);
             config.priority = 0;
           } else {
             config.priority = static_cast<uint8_t>(*priority_val);
@@ -162,9 +161,9 @@ auto ConfigLoader::get_all_plugin_configs() const -> std::vector<PluginConfig> {
           if (auto priority_section = plugin_table->get("priority")) {
             if (auto priority_val = priority_section->value<int64_t>()) {
               if (*priority_val < 0 || *priority_val > 255) {
-                OBCX_KEY_WARN(
-                    common::LogMessageKey::PLUGIN_PRIORITY_OUT_OF_RANGE,
-                    config.name);
+                OBCX_WARN("Plugin '{}' priority out of range [0-255], using "
+                          "default 0",
+                          config.name);
                 config.priority = 0;
               } else {
                 config.priority = static_cast<uint8_t>(*priority_val);

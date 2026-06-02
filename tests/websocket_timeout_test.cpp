@@ -25,20 +25,22 @@ constexpr size_t CONNECTION_ESTABLISH_DELAY = 200;
 constexpr size_t NORMAL_RESPONSE_DELAY = 100;
 constexpr size_t DELAYED_RESPONSE_TIME = 3000;
 
-// 客户端的默认超时时间，根据 TimeoutScenario 测试推断为30秒
+// Default client-side timeout. The TimeoutScenario test infers this is 30s
+// in production; we use a tighter value here so the test runs quickly.
 constexpr std::chrono::seconds CLIENT_DEFAULT_TIMEOUT{5};
-// 为测试用例设置一个比客户端默认超时更长的等待时间
+// Wait long enough for the client default timeout to fire, plus a margin.
 constexpr std::chrono::seconds EXTENDED_TIMEOUT{CLIENT_DEFAULT_TIMEOUT +
                                                 std::chrono::seconds(5)};
-// 用于测试延迟响应的等待时间，应大于延迟但小于客户端默认超时
+// For the delayed-response test: must exceed DELAYED_RESPONSE_TIME but stay
+// below the client default timeout.
 constexpr std::chrono::seconds DELAYED_WAIT_TIMEOUT{10};
 constexpr uint64_t TEST_ECHO_1 = 12345;
 constexpr uint64_t TEST_ECHO_2 = 54321;
 constexpr uint64_t TEST_ECHO_3 = 67890;
 
 /**
- * 模拟WebSocket服务器用于测试
- * (重写版本: 自包含，管理自己的线程和io_context)
+ * Mock WebSocket server for these tests.
+ * (Self-contained: owns its thread and io_context.)
  */
 class MockWebSocketServer {
 public:
@@ -60,17 +62,17 @@ public:
 
   void start() {
     thread_ = std::thread([this]() {
-      OBCX_DEBUG("服务器线程启动于 {}:{}", endpoint_.address().to_string(),
-                 endpoint_.port());
+      OBCX_DEBUG("Server thread started on {}:{}",
+                 endpoint_.address().to_string(), endpoint_.port());
       do_accept();
       ioc_.run();
-      OBCX_DEBUG("服务器线程停止");
+      OBCX_DEBUG("Server thread stopped");
     });
   }
 
   void join_and_stop() {
     asio::post(ioc_, [this]() {
-      OBCX_DEBUG("正在停止服务器...");
+      OBCX_DEBUG("Stopping server...");
       acceptor_.close();
       if (ws_ && ws_->is_open()) {
         ws_->async_close(websocket::close_code::normal,
@@ -101,13 +103,13 @@ private:
   void do_accept() {
     acceptor_.async_accept([this](beast::error_code ec, tcp::socket socket) {
       if (!acceptor_.is_open()) {
-        return; // 服务器正在停止
+        return; // server is shutting down
       }
       if (!ec) {
-        OBCX_DEBUG("接受到新连接");
+        OBCX_DEBUG("Accepted new connection");
         handle_websocket(std::move(socket));
       }
-      do_accept(); // 继续监听下一个连接
+      do_accept(); // keep accepting
     });
   }
 
@@ -130,13 +132,13 @@ private:
                                     std::size_t /*bytes_transferred*/) {
           if (ec == websocket::error::closed ||
               ec == asio::error::operation_aborted) {
-            return; // 连接关闭
+            return; // connection closed
           }
           if (!ec) {
             std::string message = beast::buffers_to_string(buffer->data());
-            OBCX_DEBUG("收到消息: {}", message);
+            OBCX_DEBUG("Received message: {}", message);
             handle_message(ws, message);
-            start_read_loop(ws); // 继续读取
+            start_read_loop(ws); // keep reading
           }
         });
   }
@@ -144,7 +146,7 @@ private:
   void handle_message(const std::shared_ptr<websocket::stream<tcp::socket>> &ws,
                       const std::string &message) {
     if (!should_respond_) {
-      OBCX_DEBUG("配置为不响应");
+      OBCX_DEBUG("Configured not to respond");
       return;
     }
 
@@ -166,17 +168,17 @@ private:
         timer->async_wait(
             [this, ws, response_str, timer, echo](beast::error_code ec) {
               if (!ec) {
-                OBCX_DEBUG("延迟 {}ms 后发送响应 (echo: {})",
+                OBCX_DEBUG("Sending response after {}ms delay (echo: {})",
                            response_delay_.load(), echo);
                 ws->async_write(asio::buffer(response_str), asio::detached);
               }
             });
       } else {
-        OBCX_DEBUG("立即发送响应 (echo: {})", echo);
+        OBCX_DEBUG("Sending response immediately (echo: {})", echo);
         ws->async_write(asio::buffer(response_str), asio::detached);
       }
     } catch (const nlohmann::json::parse_error &e) {
-      OBCX_ERROR("JSON 解析错误: {}", e.what());
+      OBCX_ERROR("JSON parse error: {}", e.what());
     }
   }
 
@@ -192,7 +194,7 @@ private:
 };
 
 /**
- * 超时机制测试类
+ * Timeout-mechanism test fixture.
  */
 class WsTimeoutTest : public testing::Test {
 
@@ -251,7 +253,7 @@ protected:
 };
 
 /**
- * 测试正常响应情况
+ * Normal response: server replies quickly, request resolves successfully.
  */
 TEST_F(WsTimeoutTest, NormalResponse) {
   start_client_ioc();
@@ -284,31 +286,32 @@ TEST_F(WsTimeoutTest, NormalResponse) {
       },
       asio::detached);
 
-  // 使用比正常响应时间宽裕的超时时间等待
+  // Wait with margin over the expected response time.
   auto status = result_future.wait_for(std::chrono::seconds(3));
   auto end_time = std::chrono::steady_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
       end_time - start_time);
 
-  ASSERT_EQ(status, std::future_status::ready) << "请求应该在2秒内完成";
+  ASSERT_EQ(status, std::future_status::ready)
+      << "request should complete within 2 seconds";
 
   std::string response;
   ASSERT_NO_THROW(response = result_future.get())
-      << "请求应该成功完成，没有异常";
+      << "request should complete without throwing";
 
-  ASSERT_FALSE(response.empty()) << "响应不应该为空";
+  ASSERT_FALSE(response.empty()) << "response should not be empty";
 
   auto response_json = nlohmann::json::parse(response);
-  EXPECT_EQ(response_json["echo"], TEST_ECHO_1) << "Echo应该匹配";
-  EXPECT_EQ(response_json["retcode"], 0) << "返回码应该为0";
+  EXPECT_EQ(response_json["echo"], TEST_ECHO_1) << "echo should match";
+  EXPECT_EQ(response_json["retcode"], 0) << "retcode should be 0";
 
-  EXPECT_LT(duration.count(), 1000) << "响应时间应该小于1秒";
+  EXPECT_LT(duration.count(), 1000) << "response time should be under 1 second";
   EXPECT_GT(duration.count(), NORMAL_RESPONSE_DELAY - 50)
-      << "响应时间应该略大于服务器延迟";
+      << "response time should be slightly greater than the server delay";
 }
 
 /**
- * 测试超时情况
+ * Timeout: server never replies; client should give up after its timeout.
  */
 TEST_F(WsTimeoutTest, TimeoutScenario) {
   start_client_ioc();
@@ -334,12 +337,11 @@ TEST_F(WsTimeoutTest, TimeoutScenario) {
           [[maybe_unused]] std::string _ =
               co_await connection_manager_->send_action_and_wait_async(
                   request.dump(), TEST_ECHO_2);
-          result_promise->set_value(); // 不应执行到这里
+          result_promise->set_value(); // should not be reached
         } catch (const std::runtime_error &e) {
           std::string error_msg = e.what();
-          // 假设超时异常信息包含 "超时" 或 "timeout"
-          if (error_msg.find("超时") != std::string::npos ||
-              error_msg.find("timeout") != std::string::npos) {
+          // Timeout error message is expected to contain "timeout".
+          if (error_msg.find("timeout") != std::string::npos) {
             *timeout_occurred = true;
           }
           result_promise->set_exception(std::current_exception());
@@ -349,28 +351,32 @@ TEST_F(WsTimeoutTest, TimeoutScenario) {
       },
       asio::detached);
 
-  // 等待一个比内部超时稍长的时间
+  // Wait slightly longer than the client's internal timeout.
   auto status = result_future.wait_for(EXTENDED_TIMEOUT);
   auto end_time = std::chrono::steady_clock::now();
   auto duration =
       std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);
 
   ASSERT_EQ(status, std::future_status::ready)
-      << "协程应该在 " << EXTENDED_TIMEOUT.count() << " 秒内因超时而完成";
+      << "coroutine should finish (via timeout) within " << EXTENDED_TIMEOUT.count()
+      << " seconds";
 
   EXPECT_THROW(result_future.get(), std::runtime_error)
-      << "应该抛出 std::runtime_error 异常";
-  EXPECT_TRUE(*timeout_occurred) << "异常信息应该与超时有关";
+      << "should throw std::runtime_error";
+  EXPECT_TRUE(*timeout_occurred)
+      << "exception message should indicate a timeout";
 
-  // 验证超时时间是否在预期范围内 (例如 30s +/- 2s)
+  // Verify the elapsed timeout is within the expected window.
   EXPECT_GE(duration.count(), CLIENT_DEFAULT_TIMEOUT.count() - 2)
-      << "超时持续时间应接近 " << CLIENT_DEFAULT_TIMEOUT.count() << " 秒";
+      << "timeout duration should be close to " << CLIENT_DEFAULT_TIMEOUT.count()
+      << " seconds";
   EXPECT_LE(duration.count(), CLIENT_DEFAULT_TIMEOUT.count() + 2)
-      << "超时持续时间应接近 " << CLIENT_DEFAULT_TIMEOUT.count() << " 秒";
+      << "timeout duration should be close to " << CLIENT_DEFAULT_TIMEOUT.count()
+      << " seconds";
 }
 
 /**
- * 测试延迟响应（在客户端超时之前）
+ * Delayed response: server replies just before the client's timeout fires.
  */
 TEST_F(WsTimeoutTest, DelayedResponse) {
   start_client_ioc();
@@ -408,18 +414,22 @@ TEST_F(WsTimeoutTest, DelayedResponse) {
       end_time - start_time);
 
   ASSERT_EQ(status, std::future_status::ready)
-      << "请求应该在 " << DELAYED_WAIT_TIMEOUT.count() << " 秒内完成";
+      << "request should complete within " << DELAYED_WAIT_TIMEOUT.count()
+      << " seconds";
 
   std::string response;
-  ASSERT_NO_THROW(response = result_future.get()) << "延迟的请求应该成功完成";
+  ASSERT_NO_THROW(response = result_future.get())
+      << "delayed request should complete successfully";
 
   auto response_json = nlohmann::json::parse(response);
-  EXPECT_EQ(response_json["echo"], TEST_ECHO_3) << "Echo应该匹配";
+  EXPECT_EQ(response_json["echo"], TEST_ECHO_3) << "echo should match";
 
   EXPECT_GE(duration.count(), DELAYED_RESPONSE_TIME - 200)
-      << "响应时间应略大于 " << DELAYED_RESPONSE_TIME << " ms";
+      << "response time should be slightly greater than " << DELAYED_RESPONSE_TIME
+      << " ms";
   EXPECT_LE(duration.count(), DELAYED_RESPONSE_TIME + 500)
-      << "响应时间应约等于 " << DELAYED_RESPONSE_TIME << " ms";
+      << "response time should be approximately " << DELAYED_RESPONSE_TIME
+      << " ms";
 }
 
 } // namespace obcx::test

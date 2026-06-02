@@ -4,7 +4,6 @@ add_library(
         common/cli_handler.cpp
         tui/tui_app.cpp
         common/component_manager.cpp
-        common/log_messages.cpp
         common/json_utils.cpp
         common/message_type.cpp
         common/config_loader.cpp

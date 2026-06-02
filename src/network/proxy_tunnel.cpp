@@ -79,15 +79,14 @@ auto ProxyHttpClient::connect_through_proxy_async()
 
     if (!SSL_set_tlsext_host_name(ssl_stream.native_handle(),
                                   proxy_config_.host.c_str())) {
-      OBCX_KEY_WARN(common::LogMessageKey::PROXY_HTTPS_SNI_FAILED,
-                    proxy_config_.host);
+      OBCX_WARN("Failed to set SNI for HTTPS proxy: {}", proxy_config_.host);
     }
 
     beast::get_lowest_layer(ssl_stream).expires_after(get_timeout());
     co_await ssl_stream.async_handshake(ssl::stream_base::client,
                                         asio::use_awaitable);
 
-    OBCX_KEY_TRACE(common::LogMessageKey::PROXY_HTTPS_SSL_SUCCESS);
+    OBCX_TRACE("HTTPS proxy SSL connection established");
     co_return co_await establish_https_tunnel_async(ssl_stream);
   }
 
@@ -96,8 +95,7 @@ auto ProxyHttpClient::connect_through_proxy_async()
     co_return stream;
 
   default:
-    throw std::runtime_error(common::LogMessages::get_message(
-        common::LogMessageKey::PROXY_UNSUPPORTED_TYPE));
+    throw std::runtime_error("Unsupported proxy type");
   }
 }
 
@@ -133,16 +131,15 @@ auto ProxyHttpClient::establish_http_tunnel_async(beast::tcp_stream &stream)
                             asio::use_awaitable);
 
   if (connect_response.result() != http::status::ok) {
-    OBCX_KEY_ERROR(common::LogMessageKey::PROXY_HTTPS_CONNECT_ERROR,
-                   static_cast<int>(connect_response.result()),
-                   connect_response.reason(), connect_response.body());
-    throw std::runtime_error(common::LogMessages::format_message(
-        common::LogMessageKey::PROXY_CONNECT_FAILED_EXCEPTION,
-        std::string(connect_response.reason())));
+    OBCX_ERROR("HTTPS proxy CONNECT response: {}, status: {}, content: {}",
+               static_cast<int>(connect_response.result()),
+               connect_response.reason(), connect_response.body());
+    throw std::runtime_error(
+        fmt::format("Proxy CONNECT request failed: {}",
+                    std::string(connect_response.reason())));
   }
 
-  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_RESPONSE_HEADER,
-                 std::string(connect_response.reason()));
+  OBCX_TRACE("Response header:\n{}", std::string(connect_response.reason()));
 
   stream.expires_never();
 }
@@ -166,8 +163,7 @@ auto ProxyHttpClient::establish_https_tunnel_async(
                     "Basic " + base64_encode(credentials));
   }
 
-  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_HTTPS_CONNECT_SEND,
-                 connect_target);
+  OBCX_TRACE("Sending CONNECT request via HTTPS proxy: {}", connect_target);
 
   beast::get_lowest_layer(ssl_stream).expires_after(get_timeout());
   co_await http::async_write(ssl_stream, connect_req, asio::use_awaitable);
@@ -179,17 +175,17 @@ auto ProxyHttpClient::establish_https_tunnel_async(
                             asio::use_awaitable);
 
   if (connect_response.result() != http::status::ok) {
-    OBCX_KEY_ERROR(common::LogMessageKey::PROXY_HTTPS_CONNECT_ERROR,
-                   static_cast<int>(connect_response.result()),
-                   connect_response.reason(), connect_response.body());
-    throw std::runtime_error(common::LogMessages::format_message(
-        common::LogMessageKey::PROXY_HTTPS_CONNECT_STATUS_ERROR,
-        static_cast<int>(connect_response.result())));
+    OBCX_ERROR("HTTPS proxy CONNECT response: {}, status: {}, content: {}",
+               static_cast<int>(connect_response.result()),
+               connect_response.reason(), connect_response.body());
+    throw std::runtime_error(
+        fmt::format("HTTPS proxy CONNECT request failed: {}",
+                    static_cast<int>(connect_response.result())));
   }
 
-  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_HTTPS_TUNNEL_SUCCESS,
-                 proxy_config_.host, proxy_config_.port, target_host_,
-                 target_port_);
+  OBCX_TRACE("HTTPS proxy tunnel established: {}:{} -> {}:{}",
+             proxy_config_.host, proxy_config_.port, target_host_,
+             target_port_);
 
   beast::get_lowest_layer(ssl_stream).expires_never();
 
@@ -198,8 +194,8 @@ auto ProxyHttpClient::establish_https_tunnel_async(
 
 auto ProxyHttpClient::establish_socks5_tunnel_async(beast::tcp_stream &stream)
     -> asio::awaitable<void> {
-  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_SOCKS5_TUNNEL_START,
-                 proxy_config_.host, target_host_, target_port_);
+  OBCX_TRACE("Establishing SOCKS5 tunnel: {} -> {}:{}", proxy_config_.host,
+             target_host_, target_port_);
 
   std::vector<uint8_t> greeting;
   greeting.push_back(0x05);
@@ -223,14 +219,13 @@ auto ProxyHttpClient::establish_socks5_tunnel_async(beast::tcp_stream &stream)
                             asio::use_awaitable);
 
   if (response[0] != 0x05) {
-    throw std::runtime_error(common::LogMessages::get_message(
-        common::LogMessageKey::PROXY_SOCKS5_VERSION_MISMATCH));
+    throw std::runtime_error("SOCKS5 version mismatch");
   }
 
   if (response[1] == 0x02) {
     if (!proxy_config_.username || !proxy_config_.password) {
-      throw std::runtime_error(common::LogMessages::get_message(
-          common::LogMessageKey::PROXY_AUTH_REQUIRED));
+      throw std::runtime_error(
+          std::string("Proxy authentication required but not provided"));
     }
 
     std::vector<uint8_t> auth_req;
@@ -252,12 +247,11 @@ auto ProxyHttpClient::establish_socks5_tunnel_async(beast::tcp_stream &stream)
                               asio::use_awaitable);
 
     if (auth_resp[1] != 0x00) {
-      throw std::runtime_error(common::LogMessages::get_message(
-          common::LogMessageKey::PROXY_SOCKS5_AUTH_FAILED));
+      throw std::runtime_error("SOCKS5 authentication failed");
     }
   } else if (response[1] != 0x00) {
-    throw std::runtime_error(common::LogMessages::get_message(
-        common::LogMessageKey::PROXY_SOCKS5_UNSUPPORTED_AUTH));
+    throw std::runtime_error(
+        std::string("SOCKS5 unsupported authentication method"));
   }
 
   std::vector<uint8_t> connect_req;
@@ -281,9 +275,9 @@ auto ProxyHttpClient::establish_socks5_tunnel_async(beast::tcp_stream &stream)
                             asio::use_awaitable);
 
   if (connect_resp[0] != 0x05 || connect_resp[1] != 0x00) {
-    throw std::runtime_error(common::LogMessages::format_message(
-        common::LogMessageKey::PROXY_SOCKS5_CONNECT_FAILED_EXCEPTION,
-        std::to_string(connect_resp[1])));
+    throw std::runtime_error(
+        fmt::format("SOCKS5 connect failed, error code: {}",
+                    std::to_string(connect_resp[1])));
   }
 
   size_t remaining_bytes = 0;
@@ -306,9 +300,8 @@ auto ProxyHttpClient::establish_socks5_tunnel_async(beast::tcp_stream &stream)
                               asio::use_awaitable);
   }
 
-  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_SOCKS5_TUNNEL_SUCCESS,
-                 proxy_config_.host, proxy_config_.port, target_host_,
-                 target_port_);
+  OBCX_TRACE("SOCKS5 tunnel established: {}:{} -> {}:{}", proxy_config_.host,
+             proxy_config_.port, target_host_, target_port_);
 
   stream.expires_never();
 }
@@ -347,19 +340,17 @@ auto ProxyHttpClient::connect_through_proxy() -> tcp::socket {
 
     if (!SSL_set_tlsext_host_name(ssl_socket.native_handle(),
                                   proxy_config_.host.c_str())) {
-      OBCX_KEY_WARN(common::LogMessageKey::PROXY_HTTPS_SNI_FAILED,
-                    proxy_config_.host);
+      OBCX_WARN("Failed to set SNI for HTTPS proxy: {}", proxy_config_.host);
     }
 
     boost::system::error_code ec;
     ssl_socket.handshake(ssl::stream_base::client, ec);
     if (ec) {
-      throw std::runtime_error(common::LogMessages::format_message(
-          common::LogMessageKey::PROXY_HTTPS_SSL_HANDSHAKE_FAILED_EXCEPTION,
-          ec.message()));
+      throw std::runtime_error(
+          fmt::format("HTTPS proxy SSL handshake failed: {}", ec.message()));
     }
 
-    OBCX_KEY_TRACE(common::LogMessageKey::PROXY_HTTPS_SSL_SUCCESS);
+    OBCX_TRACE("HTTPS proxy SSL connection established");
     return establish_https_tunnel(ssl_socket, target_host_, target_port_);
   }
   case ProxyType::SOCKS5: {
@@ -368,8 +359,7 @@ auto ProxyHttpClient::connect_through_proxy() -> tcp::socket {
     return establish_socks5_tunnel(proxy_socket, target_host_, target_port_);
   }
   default:
-    throw std::runtime_error(common::LogMessages::get_message(
-        common::LogMessageKey::PROXY_UNSUPPORTED_TYPE));
+    throw std::runtime_error("Unsupported proxy type");
   }
 }
 
@@ -398,8 +388,8 @@ auto ProxyHttpClient::establish_http_tunnel(tcp::socket &proxy_socket,
   boost::system::error_code ec;
   asio::write(proxy_socket, asio::buffer(request_str), ec);
   if (ec) {
-    throw std::runtime_error(common::LogMessages::format_message(
-        common::LogMessageKey::PROXY_CONNECT_REQUEST_FAILED, ec.message()));
+    throw std::runtime_error(
+        fmt::format("Failed to send CONNECT request: {}", ec.message()));
   }
 
   std::string response_line;
@@ -415,14 +405,13 @@ auto ProxyHttpClient::establish_http_tunnel(tcp::socket &proxy_socket,
   }
 
   if (ec) {
-    throw std::runtime_error(common::LogMessages::format_message(
-        common::LogMessageKey::PROXY_CONNECT_RESPONSE_READ_FAILED,
-        ec.message()));
+    throw std::runtime_error(
+        fmt::format("Failed to read CONNECT response: {}", ec.message()));
   }
 
   if (response_line.find("200") == std::string::npos) {
-    throw std::runtime_error(common::LogMessages::format_message(
-        common::LogMessageKey::PROXY_CONNECT_FAILED_EXCEPTION, response_line));
+    throw std::runtime_error(
+        fmt::format("Proxy CONNECT request failed: {}", response_line));
   }
 
   std::string header_line;
@@ -442,7 +431,7 @@ auto ProxyHttpClient::establish_http_tunnel(tcp::socket &proxy_socket,
       break;
     }
 
-    OBCX_KEY_TRACE(common::LogMessageKey::PROXY_RESPONSE_HEADER, header_line);
+    OBCX_TRACE("Response header:\n{}", header_line);
   }
 
   return std::move(proxy_socket);
@@ -466,40 +455,36 @@ auto ProxyHttpClient::establish_https_tunnel(
                     "Basic " + base64_encode(credentials));
   }
 
-  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_HTTPS_CONNECT_SEND,
-                 connect_target);
+  OBCX_TRACE("Sending CONNECT request via HTTPS proxy: {}", connect_target);
 
   boost::system::error_code ec;
   http::write(ssl_socket, connect_req, ec);
   if (ec) {
-    throw std::runtime_error(common::LogMessages::format_message(
-        common::LogMessageKey::PROXY_HTTPS_CONNECT_REQUEST_FAILED,
-        ec.message()));
+    throw std::runtime_error(
+        fmt::format("Failed to send HTTPS CONNECT request: {}", ec.message()));
   }
 
   beast::flat_buffer buffer;
   http::response<http::string_body> connect_response;
   http::read(ssl_socket, buffer, connect_response, ec);
   if (ec) {
-    throw std::runtime_error(common::LogMessages::format_message(
-        common::LogMessageKey::PROXY_HTTPS_CONNECT_RESPONSE_FAILED,
-        ec.message()));
+    throw std::runtime_error(
+        fmt::format("Failed to read HTTPS CONNECT response: {}", ec.message()));
   }
 
   if (connect_response.result() != http::status::ok) {
-    OBCX_KEY_ERROR(common::LogMessageKey::PROXY_HTTPS_CONNECT_ERROR,
-                   static_cast<int>(connect_response.result()),
-                   connect_response.reason(), connect_response.body());
-    throw std::runtime_error(common::LogMessages::format_message(
-        common::LogMessageKey::PROXY_HTTPS_CONNECT_STATUS_ERROR,
-        static_cast<int>(connect_response.result())));
+    OBCX_ERROR("HTTPS proxy CONNECT response: {}, status: {}, content: {}",
+               static_cast<int>(connect_response.result()),
+               connect_response.reason(), connect_response.body());
+    throw std::runtime_error(
+        fmt::format("HTTPS proxy CONNECT request failed: {}",
+                    static_cast<int>(connect_response.result())));
   }
 
   buffer.consume(buffer.size());
 
-  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_HTTPS_TUNNEL_SUCCESS,
-                 proxy_config_.host, proxy_config_.port, target_host,
-                 target_port);
+  OBCX_TRACE("HTTPS proxy tunnel established: {}:{} -> {}:{}",
+             proxy_config_.host, proxy_config_.port, target_host, target_port);
 
   return std::move(ssl_socket.next_layer());
 }
@@ -508,8 +493,8 @@ auto ProxyHttpClient::establish_socks5_tunnel(tcp::socket &proxy_socket,
                                               const std::string &target_host,
                                               uint16_t target_port)
     -> tcp::socket {
-  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_SOCKS5_TUNNEL_START,
-                 proxy_config_.host, target_host, target_port);
+  OBCX_TRACE("Establishing SOCKS5 tunnel: {} -> {}:{}", proxy_config_.host,
+             target_host, target_port);
 
   boost::system::error_code ec;
 
@@ -527,26 +512,25 @@ auto ProxyHttpClient::establish_socks5_tunnel(tcp::socket &proxy_socket,
 
   asio::write(proxy_socket, asio::buffer(greeting), ec);
   if (ec) {
-    throw std::runtime_error(common::LogMessages::format_message(
-        common::LogMessageKey::PROXY_SOCKS5_HANDSHAKE_FAILED, ec.message()));
+    throw std::runtime_error(
+        fmt::format("SOCKS5 handshake failed: {}", ec.message()));
   }
 
   std::vector<uint8_t> response(2);
   asio::read(proxy_socket, asio::buffer(response), ec);
   if (ec) {
-    throw std::runtime_error(common::LogMessages::format_message(
-        common::LogMessageKey::PROXY_SOCKS5_RESPONSE_FAILED, ec.message()));
+    throw std::runtime_error(
+        fmt::format("Failed to read SOCKS5 response: {}", ec.message()));
   }
 
   if (response[0] != 0x05) {
-    throw std::runtime_error(common::LogMessages::get_message(
-        common::LogMessageKey::PROXY_SOCKS5_VERSION_MISMATCH));
+    throw std::runtime_error("SOCKS5 version mismatch");
   }
 
   if (response[1] == 0x02) {
     if (!proxy_config_.username || !proxy_config_.password) {
-      throw std::runtime_error(common::LogMessages::get_message(
-          common::LogMessageKey::PROXY_AUTH_REQUIRED));
+      throw std::runtime_error(
+          std::string("Proxy authentication required but not provided"));
     }
 
     std::vector<uint8_t> auth_req;
@@ -560,26 +544,23 @@ auto ProxyHttpClient::establish_socks5_tunnel(tcp::socket &proxy_socket,
 
     asio::write(proxy_socket, asio::buffer(auth_req), ec);
     if (ec) {
-      throw std::runtime_error(common::LogMessages::format_message(
-          common::LogMessageKey::PROXY_SOCKS5_AUTH_REQUEST_FAILED,
-          ec.message()));
+      throw std::runtime_error(fmt::format(
+          "SOCKS5 authentication request failed: {}", ec.message()));
     }
 
     std::vector<uint8_t> auth_resp(2);
     asio::read(proxy_socket, asio::buffer(auth_resp), ec);
     if (ec) {
-      throw std::runtime_error(common::LogMessages::format_message(
-          common::LogMessageKey::PROXY_SOCKS5_AUTH_RESPONSE_FAILED,
-          ec.message()));
+      throw std::runtime_error(fmt::format(
+          "Failed to read SOCKS5 authentication response: {}", ec.message()));
     }
 
     if (auth_resp[1] != 0x00) {
-      throw std::runtime_error(common::LogMessages::get_message(
-          common::LogMessageKey::PROXY_SOCKS5_AUTH_FAILED));
+      throw std::runtime_error("SOCKS5 authentication failed");
     }
   } else if (response[1] != 0x00) {
-    throw std::runtime_error(common::LogMessages::get_message(
-        common::LogMessageKey::PROXY_SOCKS5_UNSUPPORTED_AUTH));
+    throw std::runtime_error(
+        std::string("SOCKS5 unsupported authentication method"));
   }
 
   std::vector<uint8_t> connect_req;
@@ -594,23 +575,21 @@ auto ProxyHttpClient::establish_socks5_tunnel(tcp::socket &proxy_socket,
 
   asio::write(proxy_socket, asio::buffer(connect_req), ec);
   if (ec) {
-    throw std::runtime_error(common::LogMessages::format_message(
-        common::LogMessageKey::PROXY_SOCKS5_CONNECT_REQUEST_FAILED,
-        ec.message()));
+    throw std::runtime_error(
+        fmt::format("SOCKS5 connect request failed: {}", ec.message()));
   }
 
   std::vector<uint8_t> connect_resp(10);
   asio::read(proxy_socket, asio::buffer(connect_resp, 4), ec);
   if (ec) {
-    throw std::runtime_error(common::LogMessages::format_message(
-        common::LogMessageKey::PROXY_SOCKS5_CONNECT_RESPONSE_FAILED,
-        ec.message()));
+    throw std::runtime_error(fmt::format(
+        "Failed to read SOCKS5 connect response: {}", ec.message()));
   }
 
   if (connect_resp[0] != 0x05 || connect_resp[1] != 0x00) {
-    throw std::runtime_error(common::LogMessages::format_message(
-        common::LogMessageKey::PROXY_SOCKS5_CONNECT_FAILED_EXCEPTION,
-        std::to_string(connect_resp[1])));
+    throw std::runtime_error(
+        fmt::format("SOCKS5 connect failed, error code: {}",
+                    std::to_string(connect_resp[1])));
   }
 
   size_t remaining_bytes = 0;
@@ -627,15 +606,13 @@ auto ProxyHttpClient::establish_socks5_tunnel(tcp::socket &proxy_socket,
     std::vector<uint8_t> addr_data(remaining_bytes);
     asio::read(proxy_socket, asio::buffer(addr_data), ec);
     if (ec) {
-      throw std::runtime_error(common::LogMessages::format_message(
-          common::LogMessageKey::PROXY_SOCKS5_ADDRESS_READ_FAILED,
-          ec.message()));
+      throw std::runtime_error(
+          fmt::format("Failed to read SOCKS5 address data: {}", ec.message()));
     }
   }
 
-  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_SOCKS5_TUNNEL_SUCCESS,
-                 proxy_config_.host, proxy_config_.port, target_host,
-                 target_port);
+  OBCX_TRACE("SOCKS5 tunnel established: {}:{} -> {}:{}", proxy_config_.host,
+             proxy_config_.port, target_host, target_port);
 
   return std::move(proxy_socket);
 }

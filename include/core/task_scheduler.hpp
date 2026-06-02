@@ -35,7 +35,7 @@ public:
   explicit TaskScheduler(
       std::size_t thread_count = std::thread::hardware_concurrency())
       : thread_pool_(thread_count) {
-    OBCX_KEY_INFO(common::LogMessageKey::TASK_SCHEDULER_CREATED, thread_count);
+    OBCX_INFO("TaskScheduler created with thread pool size: {}", thread_count);
   }
 
   /**
@@ -49,7 +49,7 @@ public:
    */
   ~TaskScheduler() {
     stop();
-    OBCX_KEY_INFO(common::LogMessageKey::TASK_SCHEDULER_DESTROYED);
+    OBCX_INFO("TaskScheduler destroyed");
   }
 
   /**
@@ -57,11 +57,11 @@ public:
    */
   void stop() {
     if (!stopped_) {
-      OBCX_KEY_INFO(common::LogMessageKey::TASK_SCHEDULER_STOPPING);
+      OBCX_INFO("Stopping TaskScheduler...");
       thread_pool_.stop();
       thread_pool_.join();
       stopped_ = true;
-      OBCX_KEY_INFO(common::LogMessageKey::TASK_SCHEDULER_STOPPED);
+      OBCX_INFO("TaskScheduler stopped");
     }
   }
 
@@ -91,8 +91,9 @@ public:
 
     std::stringstream ss;
     ss << std::this_thread::get_id();
-    OBCX_KEY_DEBUG(common::LogMessageKey::TASK_SCHEDULER_SUBMIT_HEAVY_TASK,
-                   ss.str());
+    OBCX_DEBUG(
+        "TaskScheduler: Submitting heavy task to thread pool (thread ID: {})",
+        ss.str());
 
     // promise/future bridges the thread pool task back to the coroutine.
     auto promise = std::make_shared<std::promise<ReturnType>>();
@@ -103,24 +104,24 @@ public:
           try {
             std::stringstream worker_ss;
             worker_ss << std::this_thread::get_id();
-            OBCX_KEY_DEBUG(
-                common::LogMessageKey::TASK_SCHEDULER_HEAVY_TASK_START,
-                worker_ss.str());
+            OBCX_DEBUG("TaskScheduler: Starting heavy task execution (worker "
+                       "thread ID: {})",
+                       worker_ss.str());
 
             if constexpr (std::is_void_v<ReturnType>) {
               task();
-              OBCX_KEY_DEBUG(common::LogMessageKey::
-                                 TASK_SCHEDULER_HEAVY_TASK_COMPLETE_VOID);
+              OBCX_DEBUG(
+                  "TaskScheduler: Heavy task completed (no return value)");
               promise->set_value();
             } else {
               auto result = task();
-              OBCX_KEY_DEBUG(common::LogMessageKey::
-                                 TASK_SCHEDULER_HEAVY_TASK_COMPLETE_RESULT);
+              OBCX_DEBUG(
+                  "TaskScheduler: Heavy task completed, returning result");
               promise->set_value(std::move(result));
             }
           } catch (...) {
-            OBCX_KEY_ERROR(
-                common::LogMessageKey::TASK_SCHEDULER_HEAVY_TASK_EXCEPTION);
+            OBCX_ERROR("TaskScheduler: Exception occurred during heavy task "
+                       "execution");
             promise->set_exception(std::current_exception());
           }
         });
@@ -158,15 +159,15 @@ public:
     std::vector<ReturnType> results;
     results.reserve(tasks.size());
 
-    OBCX_KEY_INFO(common::LogMessageKey::TASK_SCHEDULER_BATCH_START,
-                  tasks.size());
+    OBCX_INFO("TaskScheduler: Starting batch execution of {} heavy tasks",
+              tasks.size());
 
     for (auto &task : tasks) {
       auto result = co_await run_heavy_task(std::move(task));
       results.push_back(std::move(result));
     }
 
-    OBCX_KEY_INFO(common::LogMessageKey::TASK_SCHEDULER_BATCH_COMPLETE);
+    OBCX_INFO("TaskScheduler: Batch task execution completed");
     co_return results;
   }
 
@@ -186,8 +187,9 @@ public:
 
     using ReturnType = std::invoke_result_t<Func>;
 
-    OBCX_KEY_DEBUG(common::LogMessageKey::TASK_SCHEDULER_TIMEOUT_TASK_START,
-                   timeout.count());
+    OBCX_DEBUG(
+        "TaskScheduler: Executing heavy task with timeout (timeout: {}ms)",
+        timeout.count());
 
     try {
       // TODO: implement real timeout via asio::steady_timer; today this just
@@ -195,8 +197,7 @@ public:
       auto result = co_await run_heavy_task(std::move(task));
       co_return std::make_optional(std::move(result));
     } catch (const std::exception &e) {
-      OBCX_KEY_ERROR(common::LogMessageKey::TASK_SCHEDULER_TIMEOUT_TASK_FAILED,
-                     e.what());
+      OBCX_ERROR("TaskScheduler: Timeout task execution failed: {}", e.what());
       co_return std::nullopt;
     }
   }

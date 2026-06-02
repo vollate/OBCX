@@ -1,5 +1,4 @@
 #include "common/cli_handler.hpp"
-#include "common/log_messages.hpp"
 #include "common/logger.hpp"
 
 #include <fmt/format.h>
@@ -56,7 +55,7 @@ auto CliHandler::handle_exit(Context &ctx,
                              [[maybe_unused]] const std::string &args) -> bool {
   bool expected = false;
   if (ctx.should_stop.compare_exchange_strong(expected, true)) {
-    OBCX_KEY_INFO(common::LogMessageKey::SHUTDOWN_SIGNAL_RECEIVED, 0);
+    OBCX_INFO("Received signal {}, shutting down gracefully...", 0);
     ctx.stop_cv.notify_one();
   }
   return false; // Stop the CLI loop
@@ -65,7 +64,7 @@ auto CliHandler::handle_exit(Context &ctx,
 auto CliHandler::handle_reload(Context &ctx,
                                [[maybe_unused]] const std::string &args)
     -> bool {
-  OBCX_KEY_INFO(common::LogMessageKey::PLUGIN_RELOAD_START);
+  OBCX_INFO("Starting plugin reload...");
 
   // Step 1: Clear all event handlers from bots to prevent dangling
   // function pointers after plugin unload
@@ -93,17 +92,17 @@ auto CliHandler::handle_reload(Context &ctx,
     }
     for (const auto &plugin_name : config.plugins) {
       if (!ctx.plugin_manager.load_plugin(plugin_name)) {
-        OBCX_KEY_WARN(common::LogMessageKey::PLUGIN_LOAD_WARN, plugin_name);
+        OBCX_WARN("Failed to load plugin: {}", plugin_name);
         continue;
       }
       if (!ctx.plugin_manager.initialize_plugin(plugin_name)) {
-        OBCX_KEY_WARN(common::LogMessageKey::PLUGIN_INIT_WARN, plugin_name);
+        OBCX_WARN("Failed to initialize plugin: {}", plugin_name);
         continue;
       }
     }
   }
 
-  OBCX_KEY_INFO(common::LogMessageKey::PLUGIN_RELOAD_COMPLETE);
+  OBCX_INFO("Plugin reload completed");
   return true; // Continue the CLI loop
 }
 
