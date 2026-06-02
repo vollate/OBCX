@@ -4,8 +4,7 @@ add_library(
         common/cli_handler.cpp
         tui/tui_app.cpp
         common/component_manager.cpp
-        common/i18n_log_messages.cpp
-        common/embedded_locales.cpp
+        common/log_messages.cpp
         common/json_utils.cpp
         common/message_type.cpp
         common/config_loader.cpp
@@ -41,7 +40,6 @@ target_link_libraries(
         PUBLIC fmt::fmt
         spdlog::spdlog
         ${BOOST_SYSTEM_TARGET}
-        Boost::locale
         ZLIB::ZLIB
         ${BROTLIDEC_TARGET}
         ${ZSTD_TARGET}
@@ -71,11 +69,6 @@ if(OBCX_ENABLE_IO_URING AND OBCX_IO_URING_TARGET)
   target_compile_definitions(obcx_core PUBLIC BOOST_ASIO_HAS_IO_URING=1)
   target_link_libraries(obcx_core PUBLIC ${OBCX_IO_URING_TARGET})
 endif()
-
-# Make obcx_core depend on i18n target to ensure .mo files are built first
-if (TARGET i18n)
-    add_dependencies(obcx_core i18n)
-endif ()
 
 # Enable position independent code for shared library compatibility
 set_target_properties(obcx_core PROPERTIES POSITION_INDEPENDENT_CODE ON)

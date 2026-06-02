@@ -13,7 +13,7 @@ using json = nlohmann::json;
 HttpConnectionManager::HttpConnectionManager(
     asio::io_context &ioc, adapter::onebot11::ProtocolAdapter &adapter)
     : ioc_(ioc), adapter_(adapter), poll_timer_(ioc) {
-  OBCX_I18N_INFO(common::LogMessageKey::ONEBOT11_HTTP_MANAGER_INIT);
+  OBCX_KEY_INFO(common::LogMessageKey::ONEBOT11_HTTP_MANAGER_INIT);
 }
 
 HttpConnectionManager::~HttpConnectionManager() {
@@ -31,8 +31,8 @@ void HttpConnectionManager::connect(const common::ConnectionConfig &config) {
   is_connected_ = true;
   start_polling();
 
-  OBCX_I18N_INFO(common::LogMessageKey::HTTP_CONNECTION_ESTABLISHED,
-                 config_.host, config_.port);
+  OBCX_KEY_INFO(common::LogMessageKey::HTTP_CONNECTION_ESTABLISHED,
+                config_.host, config_.port);
 }
 
 void HttpConnectionManager::disconnect() {
@@ -44,7 +44,7 @@ void HttpConnectionManager::disconnect() {
     http_client_.reset();
   }
 
-  OBCX_I18N_INFO(common::LogMessageKey::ONEBOT11_HTTP_DISCONNECTED);
+  OBCX_KEY_INFO(common::LogMessageKey::ONEBOT11_HTTP_DISCONNECTED);
 }
 
 auto HttpConnectionManager::is_connected() const -> bool {
@@ -56,7 +56,7 @@ auto HttpConnectionManager::send_action_and_wait_async(
     -> asio::awaitable<std::string> {
 
   if (!http_client_) {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::HTTP_CLIENT_NOT_INIT));
   }
 
@@ -74,7 +74,7 @@ auto HttpConnectionManager::send_action_and_wait_async(
         co_await http_client_->post(api_path, action_payload, headers);
 
     if (!response.is_success()) {
-      throw std::runtime_error(common::I18nLogMessages::format_message(
+      throw std::runtime_error(common::LogMessages::format_message(
           common::LogMessageKey::HTTP_REQUEST_FAILED_STATUS,
           std::to_string(response.status_code)));
     }
@@ -82,7 +82,7 @@ auto HttpConnectionManager::send_action_and_wait_async(
     co_return response.body;
 
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::ONEBOT11_HTTP_API_FAILED, e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::ONEBOT11_HTTP_API_FAILED, e.what());
     throw;
   }
 }
@@ -98,15 +98,15 @@ auto HttpConnectionManager::get_connection_type() const -> std::string {
 void HttpConnectionManager::start_polling() {
   if (is_polling_.exchange(true) == false) {
     asio::co_spawn(ioc_, poll_events(), asio::detached);
-    OBCX_I18N_INFO(common::LogMessageKey::ONEBOT11_HTTP_POLLING_START,
-                   poll_interval_.count());
+    OBCX_KEY_INFO(common::LogMessageKey::ONEBOT11_HTTP_POLLING_START,
+                  poll_interval_.count());
   }
 }
 
 void HttpConnectionManager::stop_polling() {
   is_polling_ = false;
   poll_timer_.cancel();
-  OBCX_I18N_INFO(common::LogMessageKey::ONEBOT11_HTTP_POLLING_STOP);
+  OBCX_KEY_INFO(common::LogMessageKey::ONEBOT11_HTTP_POLLING_STOP);
 }
 
 auto HttpConnectionManager::poll_events() -> asio::awaitable<void> {
@@ -132,8 +132,8 @@ auto HttpConnectionManager::poll_events() -> asio::awaitable<void> {
       }
 
     } catch (const std::exception &e) {
-      OBCX_I18N_WARN(common::LogMessageKey::ONEBOT11_HTTP_POLLING_FAILED,
-                     e.what());
+      OBCX_KEY_WARN(common::LogMessageKey::ONEBOT11_HTTP_POLLING_FAILED,
+                    e.what());
     }
 
     poll_timer_.expires_after(poll_interval_);
@@ -146,7 +146,7 @@ auto HttpConnectionManager::poll_events() -> asio::awaitable<void> {
     }
   }
 
-  OBCX_I18N_DEBUG(common::LogMessageKey::ONEBOT11_HTTP_POLLING_EXIT);
+  OBCX_KEY_DEBUG(common::LogMessageKey::ONEBOT11_HTTP_POLLING_EXIT);
 }
 
 void HttpConnectionManager::process_events(std::string_view events_json) {
@@ -169,8 +169,8 @@ void HttpConnectionManager::process_events(std::string_view events_json) {
     }
 
   } catch (const json::exception &e) {
-    OBCX_I18N_WARN(common::LogMessageKey::ONEBOT11_HTTP_PARSE_EVENT_FAILED,
-                   e.what());
+    OBCX_KEY_WARN(common::LogMessageKey::ONEBOT11_HTTP_PARSE_EVENT_FAILED,
+                  e.what());
   }
 }
 

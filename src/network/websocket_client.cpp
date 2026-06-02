@@ -41,8 +41,8 @@ auto WebsocketClient::run(std::string host, std::string port,
         }));
     co_await ws_.async_handshake(host_, "/", asio::use_awaitable);
 
-    OBCX_I18N_INFO(common::LogMessageKey::WEBSOCKET_CONNECTED_SUCCESSFULLY,
-                   host_, port_str);
+    OBCX_KEY_INFO(common::LogMessageKey::WEBSOCKET_CONNECTED_SUCCESSFULLY,
+                  host_, port_str);
 
     start_writer();
 
@@ -57,23 +57,23 @@ auto WebsocketClient::run(std::string host, std::string port,
   } catch (const beast::system_error &se) {
     if (se.code() != websocket::error::closed &&
         se.code() != asio::error::operation_aborted) {
-      OBCX_I18N_ERROR(common::LogMessageKey::WEBSOCKET_RUN_ERROR, se.what());
+      OBCX_KEY_ERROR(common::LogMessageKey::WEBSOCKET_RUN_ERROR, se.what());
     }
     on_message_(se.code(), "");
   } catch (const std::exception &e) {
-    OBCX_I18N_CRITICAL(common::LogMessageKey::WEBSOCKET_UNHANDLED_EXCEPTION,
-                       e.what());
+    OBCX_KEY_CRITICAL(common::LogMessageKey::WEBSOCKET_UNHANDLED_EXCEPTION,
+                      e.what());
     beast::error_code ec = asio::error::fault;
     on_message_(ec, "");
   }
 
   stop_writer();
-  OBCX_I18N_WARN(common::LogMessageKey::WEBSOCKET_CONNECTION_CLOSED);
+  OBCX_KEY_WARN(common::LogMessageKey::WEBSOCKET_CONNECTION_CLOSED);
 }
 
 auto WebsocketClient::send(std::string message) -> asio::awaitable<void> {
   if (!ws_.is_open()) {
-    OBCX_I18N_WARN(common::LogMessageKey::WEBSOCKET_NOT_CONNECTED);
+    OBCX_KEY_WARN(common::LogMessageKey::WEBSOCKET_NOT_CONNECTED);
     co_return;
   }
 
@@ -93,8 +93,7 @@ auto WebsocketClient::send(std::string message) -> asio::awaitable<void> {
           .async_wait(asio::use_awaitable);
     }
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::WEBSOCKET_WRITE_WAIT_ERROR,
-                    e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::WEBSOCKET_WRITE_WAIT_ERROR, e.what());
     throw;
   }
 }
@@ -106,12 +105,11 @@ auto WebsocketClient::close() -> asio::awaitable<void> {
                                asio::use_awaitable);
     } catch (const beast::system_error &se) {
       if (se.code() != websocket::error::closed) {
-        OBCX_I18N_ERROR(common::LogMessageKey::WEBSOCKET_CLOSE_ERROR,
-                        se.what());
+        OBCX_KEY_ERROR(common::LogMessageKey::WEBSOCKET_CLOSE_ERROR, se.what());
       }
     } catch (const std::exception &e) {
-      OBCX_I18N_ERROR(common::LogMessageKey::WEBSOCKET_CLOSE_EXCEPTION,
-                      e.what());
+      OBCX_KEY_ERROR(common::LogMessageKey::WEBSOCKET_CLOSE_EXCEPTION,
+                     e.what());
     }
   }
 }
@@ -146,10 +144,10 @@ auto WebsocketClient::writer_coro() -> asio::awaitable<void> {
 
         request->promise.set_value();
 
-        OBCX_I18N_DEBUG(common::LogMessageKey::MESSAGE_SENT_SUCCESSFULLY,
-                        request->message);
+        OBCX_KEY_DEBUG(common::LogMessageKey::MESSAGE_SENT_SUCCESSFULLY,
+                       request->message);
       } catch (const std::exception &e) {
-        OBCX_I18N_ERROR(common::LogMessageKey::WEBSOCKET_WRITE_ERROR, e.what());
+        OBCX_KEY_ERROR(common::LogMessageKey::WEBSOCKET_WRITE_ERROR, e.what());
 
         try {
           request->promise.set_exception(std::current_exception());

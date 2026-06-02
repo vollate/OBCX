@@ -1,20 +1,21 @@
 #pragma once
 
-#include <boost/locale.hpp>
 #include <cstdint>
 #include <fmt/format.h>
-#include <map>
 #include <string>
 
 namespace obcx::common {
 
 /**
- * \if CHINESE
- * @brief 日志消息枚举，用于多语言支持
- * \endif
- * \if ENGLISH
- * @brief Log message enumeration for multilingual support
- * \endif
+ * @brief Log message enumeration.
+ *
+ * The project used to support runtime translation of these messages via
+ * boost::locale + gettext .mo files. That machinery has been removed: every
+ * message now resolves to a fixed English string compiled into the binary.
+ *
+ * The enum and the OBCX_KEY_* / PLUGIN_KEY_* macros are retained for
+ * source-compat with existing call sites; they are otherwise equivalent to
+ * fmt::format on a hard-coded English template.
  */
 enum class LogMessageKey : std::uint16_t {
   // Logger initialization
@@ -438,93 +439,40 @@ enum class LogMessageKey : std::uint16_t {
 };
 
 /**
- * \if CHINESE
- * @brief 国际化日志消息管理类
- * \endif
- * \if ENGLISH
- * @brief Internationalized logging message manager
- * \endif
+ * @brief Compile-time English message lookup.
+ *
+ * Replaces the previous boost::locale-backed implementation. The strings live
+ * in log_messages.cpp; this class is essentially a thin lookup wrapper
+ * preserved so existing OBCX_KEY_* / PLUGIN_KEY_* call sites do not need to
+ * change.
  */
-class I18nLogMessages {
+class LogMessages {
 public:
-  /**
-   * \if CHINESE
-   * @brief 初始化消息映射表
-   * @param use_embedded 是否使用内嵌的语言资源（默认true）
-   * @param locale_dir 国际化文件目录路径（当use_embedded=false时使用）
-   * \endif
-   * \if ENGLISH
-   * @brief Initialize message mappings
-   * @param use_embedded Whether to use embedded locale resources (default true)
-   * @param locale_dir Path to the i18n directory containing .mo files (used
-   * when use_embedded=false)
-   * \endif
-   */
-  static void initialize(bool use_embedded = true,
-                         const std::string &locale_dir = "");
+  /// No-op kept for ABI/source compatibility with previous releases.
+  static void initialize(bool /*use_embedded*/ = true,
+                         const std::string & /*locale_dir*/ = "") {}
 
-  /**
-   * \if CHINESE
-   * @brief 设置当前语言环境
-   * @param locale 语言环境字符串，如 "zh_CN" 或 "en_US"
-   * \endif
-   * \if ENGLISH
-   * @brief Set the current locale
-   * @param locale Locale string, e.g., "zh_CN" or "en_US"
-   * \endif
-   */
-  static void set_locale(const std::string &locale);
+  /// No-op kept for source compatibility. The framework is English-only now.
+  static void set_locale(const std::string & /*locale*/) {}
 
-  /**
-   * \if CHINESE
-   * @brief 获取指定日志消息的翻译文本
-   * @param key 日志消息键
-   * @return 翻译后的文本
-   * \endif
-   * \if ENGLISH
-   * @brief Get the translated text for a log message
-   * @param key The log message key
-   * @return The translated text
-   * \endif
-   */
+  /// Look up the English template string for `key`. Never throws.
   static auto get_message(LogMessageKey key) -> std::string;
 
-  /**
-   * \if CHINESE
-   * @brief 获取格式化后的翻译文本
-   * @param key 日志消息键
-   * @param args 格式化参数
-   * @return 格式化后的翻译文本
-   * \endif
-   * \if ENGLISH
-   * @brief Get formatted translated text
-   * @param key The log message key
-   * @param args Format arguments
-   * @return The formatted translated text
-   * \endif
-   */
+  /// Format `key`'s template with `args`, returning the resulting string.
+  /// On a formatting error the raw template is returned unchanged.
   template <typename... Args>
   static auto format_message(LogMessageKey key, Args &&...args) -> std::string {
-    std::string msg = get_message(key);
-    try {
-      return fmt::format(fmt::runtime(msg), std::forward<Args>(args)...);
-    } catch (const std::exception &) {
+    auto msg = get_message(key);
+    if constexpr (sizeof...(Args) == 0) {
       return msg;
+    } else {
+      try {
+        return fmt::format(fmt::runtime(msg), std::forward<Args>(args)...);
+      } catch (const std::exception &) {
+        return msg;
+      }
     }
   }
-
-private:
-  using MessageMap = std::map<LogMessageKey, std::string>;
-  static MessageMap message_keys_;
-  static std::string current_locale_;
-  static std::string locale_dir_;
-  static bool initialized_;
-  static bool use_embedded_;
-  static std::locale current_locale_obj_;
-
-  static void setup_message_keys();
-  static void initialize_from_embedded();
-  static void initialize_from_files(const std::string &locale_dir);
 };
 
 } // namespace obcx::common

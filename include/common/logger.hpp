@@ -5,14 +5,13 @@
 #include <spdlog/spdlog.h>
 #include <string>
 
+#include "common/log_messages.hpp" // NOLINT
 #include "tui/tui_sink.hpp"
 
 #ifdef OBCX_DEBUG_TRACE
 #include <fmt/color.h>
 #include <fmt/format.h>
 #endif
-
-#include "common/i18n_log_messages.hpp" // NOLINT
 
 namespace obcx::common {
 
@@ -156,7 +155,6 @@ private:
 #define OBCX_CRITICAL(__fmt, ...) OBCX_LOG_IMPL(critical, __fmt, ##__VA_ARGS__)
 #else
 #define OBCX_TRACE(...) obcx::common::Logger::get()->trace(__VA_ARGS__)
-
 #define OBCX_DEBUG(...) obcx::common::Logger::get()->debug(__VA_ARGS__)
 #define OBCX_INFO(...) obcx::common::Logger::get()->info(__VA_ARGS__)
 #define OBCX_WARN(...) obcx::common::Logger::get()->warn(__VA_ARGS__)
@@ -164,27 +162,24 @@ private:
 #define OBCX_CRITICAL(...) obcx::common::Logger::get()->critical(__VA_ARGS__)
 #endif
 
-#define OBCX_I18N_LOG_IMPL(__level, __key, ...)                                \
+#define OBCX_KEY_LOG_IMPL(__level, __key, ...)                                 \
   do {                                                                         \
     if (obcx::common::Logger::get()->should_log(spdlog::level::__level)) {     \
       std::string __msg =                                                      \
-          obcx::common::I18nLogMessages::format_message(__key, ##__VA_ARGS__); \
+          obcx::common::LogMessages::format_message(__key, ##__VA_ARGS__);     \
       obcx::common::Logger::get()->log(spdlog::level::__level, __msg);         \
     }                                                                          \
   } while (false)
 
-#define OBCX_I18N_TRACE(__key, ...)                                            \
-  OBCX_I18N_LOG_IMPL(trace, __key, ##__VA_ARGS__)
-#define OBCX_I18N_DEBUG(__key, ...)                                            \
-  OBCX_I18N_LOG_IMPL(debug, __key, ##__VA_ARGS__)
-#define OBCX_I18N_INFO(__key, ...)                                             \
-  OBCX_I18N_LOG_IMPL(info, __key, ##__VA_ARGS__)
-#define OBCX_I18N_WARN(__key, ...)                                             \
-  OBCX_I18N_LOG_IMPL(warn, __key, ##__VA_ARGS__)
-#define OBCX_I18N_ERROR(__key, ...)                                            \
-  OBCX_I18N_LOG_IMPL(err, __key, ##__VA_ARGS__)
-#define OBCX_I18N_CRITICAL(__key, ...)                                         \
-  OBCX_I18N_LOG_IMPL(critical, __key, ##__VA_ARGS__)
+#define OBCX_KEY_TRACE(__key, ...)                                             \
+  OBCX_KEY_LOG_IMPL(trace, __key, ##__VA_ARGS__)
+#define OBCX_KEY_DEBUG(__key, ...)                                             \
+  OBCX_KEY_LOG_IMPL(debug, __key, ##__VA_ARGS__)
+#define OBCX_KEY_INFO(__key, ...) OBCX_KEY_LOG_IMPL(info, __key, ##__VA_ARGS__)
+#define OBCX_KEY_WARN(__key, ...) OBCX_KEY_LOG_IMPL(warn, __key, ##__VA_ARGS__)
+#define OBCX_KEY_ERROR(__key, ...) OBCX_KEY_LOG_IMPL(err, __key, ##__VA_ARGS__)
+#define OBCX_KEY_CRITICAL(__key, ...)                                          \
+  OBCX_KEY_LOG_IMPL(critical, __key, ##__VA_ARGS__)
 
 } // namespace obcx::common
 
@@ -274,32 +269,32 @@ private:
 /*
  * \if CHINESE
  * Plugin专用国际化日志宏定义
- * 使用方式：PLUGIN_I18N_INFO(get_name(), LogMessageKey::XXX, args...)
+ * 使用方式：PLUGIN_KEY_INFO(get_name(), LogMessageKey::XXX, args...)
  * \endif
  * \if ENGLISH
  * Plugin-specific internationalized logging macro definitions
- * Usage: PLUGIN_I18N_INFO(get_name(), LogMessageKey::XXX, args...)
+ * Usage: PLUGIN_KEY_INFO(get_name(), LogMessageKey::XXX, args...)
  * \endif
  */
-#define PLUGIN_I18N_LOG_IMPL(__plugin_name, __level, __key, ...)               \
+#define PLUGIN_KEY_LOG_IMPL(__plugin_name, __level, __key, ...)                \
   do {                                                                         \
     auto __logger = obcx::common::Logger::get(__plugin_name);                  \
     if (__logger && __logger->should_log(spdlog::level::__level)) {            \
       std::string __msg =                                                      \
-          obcx::common::I18nLogMessages::format_message(__key, ##__VA_ARGS__); \
+          obcx::common::LogMessages::format_message(__key, ##__VA_ARGS__);     \
       __logger->log(spdlog::level::__level, __msg);                            \
     }                                                                          \
   } while (false)
 
-#define PLUGIN_I18N_TRACE(__plugin_name, __key, ...)                           \
-  PLUGIN_I18N_LOG_IMPL(__plugin_name, trace, __key, ##__VA_ARGS__)
-#define PLUGIN_I18N_DEBUG_TRACE(__plugin_name, __key, ...)                     \
-  PLUGIN_I18N_LOG_IMPL(__plugin_name, debug, __key, ##__VA_ARGS__)
-#define PLUGIN_I18N_INFO(__plugin_name, __key, ...)                            \
-  PLUGIN_I18N_LOG_IMPL(__plugin_name, info, __key, ##__VA_ARGS__)
-#define PLUGIN_I18N_WARN(__plugin_name, __key, ...)                            \
-  PLUGIN_I18N_LOG_IMPL(__plugin_name, warn, __key, ##__VA_ARGS__)
-#define PLUGIN_I18N_ERROR(__plugin_name, __key, ...)                           \
-  PLUGIN_I18N_LOG_IMPL(__plugin_name, err, __key, ##__VA_ARGS__)
-#define PLUGIN_I18N_CRITICAL(__plugin_name, __key, ...)                        \
-  PLUGIN_I18N_LOG_IMPL(__plugin_name, critical, __key, ##__VA_ARGS__)
+#define PLUGIN_KEY_TRACE(__plugin_name, __key, ...)                            \
+  PLUGIN_KEY_LOG_IMPL(__plugin_name, trace, __key, ##__VA_ARGS__)
+#define PLUGIN_KEY_DEBUG_TRACE(__plugin_name, __key, ...)                      \
+  PLUGIN_KEY_LOG_IMPL(__plugin_name, debug, __key, ##__VA_ARGS__)
+#define PLUGIN_KEY_INFO(__plugin_name, __key, ...)                             \
+  PLUGIN_KEY_LOG_IMPL(__plugin_name, info, __key, ##__VA_ARGS__)
+#define PLUGIN_KEY_WARN(__plugin_name, __key, ...)                             \
+  PLUGIN_KEY_LOG_IMPL(__plugin_name, warn, __key, ##__VA_ARGS__)
+#define PLUGIN_KEY_ERROR(__plugin_name, __key, ...)                            \
+  PLUGIN_KEY_LOG_IMPL(__plugin_name, err, __key, ##__VA_ARGS__)
+#define PLUGIN_KEY_CRITICAL(__plugin_name, __key, ...)                         \
+  PLUGIN_KEY_LOG_IMPL(__plugin_name, critical, __key, ##__VA_ARGS__)

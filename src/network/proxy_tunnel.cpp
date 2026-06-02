@@ -79,15 +79,15 @@ auto ProxyHttpClient::connect_through_proxy_async()
 
     if (!SSL_set_tlsext_host_name(ssl_stream.native_handle(),
                                   proxy_config_.host.c_str())) {
-      OBCX_I18N_WARN(common::LogMessageKey::PROXY_HTTPS_SNI_FAILED,
-                     proxy_config_.host);
+      OBCX_KEY_WARN(common::LogMessageKey::PROXY_HTTPS_SNI_FAILED,
+                    proxy_config_.host);
     }
 
     beast::get_lowest_layer(ssl_stream).expires_after(get_timeout());
     co_await ssl_stream.async_handshake(ssl::stream_base::client,
                                         asio::use_awaitable);
 
-    OBCX_I18N_TRACE(common::LogMessageKey::PROXY_HTTPS_SSL_SUCCESS);
+    OBCX_KEY_TRACE(common::LogMessageKey::PROXY_HTTPS_SSL_SUCCESS);
     co_return co_await establish_https_tunnel_async(ssl_stream);
   }
 
@@ -96,7 +96,7 @@ auto ProxyHttpClient::connect_through_proxy_async()
     co_return stream;
 
   default:
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::PROXY_UNSUPPORTED_TYPE));
   }
 }
@@ -133,16 +133,16 @@ auto ProxyHttpClient::establish_http_tunnel_async(beast::tcp_stream &stream)
                             asio::use_awaitable);
 
   if (connect_response.result() != http::status::ok) {
-    OBCX_I18N_ERROR(common::LogMessageKey::PROXY_HTTPS_CONNECT_ERROR,
-                    static_cast<int>(connect_response.result()),
-                    connect_response.reason(), connect_response.body());
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    OBCX_KEY_ERROR(common::LogMessageKey::PROXY_HTTPS_CONNECT_ERROR,
+                   static_cast<int>(connect_response.result()),
+                   connect_response.reason(), connect_response.body());
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_CONNECT_FAILED_EXCEPTION,
         std::string(connect_response.reason())));
   }
 
-  OBCX_I18N_TRACE(common::LogMessageKey::PROXY_RESPONSE_HEADER,
-                  std::string(connect_response.reason()));
+  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_RESPONSE_HEADER,
+                 std::string(connect_response.reason()));
 
   stream.expires_never();
 }
@@ -166,8 +166,8 @@ auto ProxyHttpClient::establish_https_tunnel_async(
                     "Basic " + base64_encode(credentials));
   }
 
-  OBCX_I18N_TRACE(common::LogMessageKey::PROXY_HTTPS_CONNECT_SEND,
-                  connect_target);
+  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_HTTPS_CONNECT_SEND,
+                 connect_target);
 
   beast::get_lowest_layer(ssl_stream).expires_after(get_timeout());
   co_await http::async_write(ssl_stream, connect_req, asio::use_awaitable);
@@ -179,17 +179,17 @@ auto ProxyHttpClient::establish_https_tunnel_async(
                             asio::use_awaitable);
 
   if (connect_response.result() != http::status::ok) {
-    OBCX_I18N_ERROR(common::LogMessageKey::PROXY_HTTPS_CONNECT_ERROR,
-                    static_cast<int>(connect_response.result()),
-                    connect_response.reason(), connect_response.body());
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    OBCX_KEY_ERROR(common::LogMessageKey::PROXY_HTTPS_CONNECT_ERROR,
+                   static_cast<int>(connect_response.result()),
+                   connect_response.reason(), connect_response.body());
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_HTTPS_CONNECT_STATUS_ERROR,
         static_cast<int>(connect_response.result())));
   }
 
-  OBCX_I18N_TRACE(common::LogMessageKey::PROXY_HTTPS_TUNNEL_SUCCESS,
-                  proxy_config_.host, proxy_config_.port, target_host_,
-                  target_port_);
+  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_HTTPS_TUNNEL_SUCCESS,
+                 proxy_config_.host, proxy_config_.port, target_host_,
+                 target_port_);
 
   beast::get_lowest_layer(ssl_stream).expires_never();
 
@@ -198,8 +198,8 @@ auto ProxyHttpClient::establish_https_tunnel_async(
 
 auto ProxyHttpClient::establish_socks5_tunnel_async(beast::tcp_stream &stream)
     -> asio::awaitable<void> {
-  OBCX_I18N_TRACE(common::LogMessageKey::PROXY_SOCKS5_TUNNEL_START,
-                  proxy_config_.host, target_host_, target_port_);
+  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_SOCKS5_TUNNEL_START,
+                 proxy_config_.host, target_host_, target_port_);
 
   std::vector<uint8_t> greeting;
   greeting.push_back(0x05);
@@ -223,13 +223,13 @@ auto ProxyHttpClient::establish_socks5_tunnel_async(beast::tcp_stream &stream)
                             asio::use_awaitable);
 
   if (response[0] != 0x05) {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::PROXY_SOCKS5_VERSION_MISMATCH));
   }
 
   if (response[1] == 0x02) {
     if (!proxy_config_.username || !proxy_config_.password) {
-      throw std::runtime_error(common::I18nLogMessages::get_message(
+      throw std::runtime_error(common::LogMessages::get_message(
           common::LogMessageKey::PROXY_AUTH_REQUIRED));
     }
 
@@ -252,11 +252,11 @@ auto ProxyHttpClient::establish_socks5_tunnel_async(beast::tcp_stream &stream)
                               asio::use_awaitable);
 
     if (auth_resp[1] != 0x00) {
-      throw std::runtime_error(common::I18nLogMessages::get_message(
+      throw std::runtime_error(common::LogMessages::get_message(
           common::LogMessageKey::PROXY_SOCKS5_AUTH_FAILED));
     }
   } else if (response[1] != 0x00) {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::PROXY_SOCKS5_UNSUPPORTED_AUTH));
   }
 
@@ -281,7 +281,7 @@ auto ProxyHttpClient::establish_socks5_tunnel_async(beast::tcp_stream &stream)
                             asio::use_awaitable);
 
   if (connect_resp[0] != 0x05 || connect_resp[1] != 0x00) {
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_SOCKS5_CONNECT_FAILED_EXCEPTION,
         std::to_string(connect_resp[1])));
   }
@@ -306,9 +306,9 @@ auto ProxyHttpClient::establish_socks5_tunnel_async(beast::tcp_stream &stream)
                               asio::use_awaitable);
   }
 
-  OBCX_I18N_TRACE(common::LogMessageKey::PROXY_SOCKS5_TUNNEL_SUCCESS,
-                  proxy_config_.host, proxy_config_.port, target_host_,
-                  target_port_);
+  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_SOCKS5_TUNNEL_SUCCESS,
+                 proxy_config_.host, proxy_config_.port, target_host_,
+                 target_port_);
 
   stream.expires_never();
 }
@@ -347,19 +347,19 @@ auto ProxyHttpClient::connect_through_proxy() -> tcp::socket {
 
     if (!SSL_set_tlsext_host_name(ssl_socket.native_handle(),
                                   proxy_config_.host.c_str())) {
-      OBCX_I18N_WARN(common::LogMessageKey::PROXY_HTTPS_SNI_FAILED,
-                     proxy_config_.host);
+      OBCX_KEY_WARN(common::LogMessageKey::PROXY_HTTPS_SNI_FAILED,
+                    proxy_config_.host);
     }
 
     boost::system::error_code ec;
     ssl_socket.handshake(ssl::stream_base::client, ec);
     if (ec) {
-      throw std::runtime_error(common::I18nLogMessages::format_message(
+      throw std::runtime_error(common::LogMessages::format_message(
           common::LogMessageKey::PROXY_HTTPS_SSL_HANDSHAKE_FAILED_EXCEPTION,
           ec.message()));
     }
 
-    OBCX_I18N_TRACE(common::LogMessageKey::PROXY_HTTPS_SSL_SUCCESS);
+    OBCX_KEY_TRACE(common::LogMessageKey::PROXY_HTTPS_SSL_SUCCESS);
     return establish_https_tunnel(ssl_socket, target_host_, target_port_);
   }
   case ProxyType::SOCKS5: {
@@ -368,7 +368,7 @@ auto ProxyHttpClient::connect_through_proxy() -> tcp::socket {
     return establish_socks5_tunnel(proxy_socket, target_host_, target_port_);
   }
   default:
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::PROXY_UNSUPPORTED_TYPE));
   }
 }
@@ -398,7 +398,7 @@ auto ProxyHttpClient::establish_http_tunnel(tcp::socket &proxy_socket,
   boost::system::error_code ec;
   asio::write(proxy_socket, asio::buffer(request_str), ec);
   if (ec) {
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_CONNECT_REQUEST_FAILED, ec.message()));
   }
 
@@ -415,13 +415,13 @@ auto ProxyHttpClient::establish_http_tunnel(tcp::socket &proxy_socket,
   }
 
   if (ec) {
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_CONNECT_RESPONSE_READ_FAILED,
         ec.message()));
   }
 
   if (response_line.find("200") == std::string::npos) {
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_CONNECT_FAILED_EXCEPTION, response_line));
   }
 
@@ -442,7 +442,7 @@ auto ProxyHttpClient::establish_http_tunnel(tcp::socket &proxy_socket,
       break;
     }
 
-    OBCX_I18N_TRACE(common::LogMessageKey::PROXY_RESPONSE_HEADER, header_line);
+    OBCX_KEY_TRACE(common::LogMessageKey::PROXY_RESPONSE_HEADER, header_line);
   }
 
   return std::move(proxy_socket);
@@ -466,13 +466,13 @@ auto ProxyHttpClient::establish_https_tunnel(
                     "Basic " + base64_encode(credentials));
   }
 
-  OBCX_I18N_TRACE(common::LogMessageKey::PROXY_HTTPS_CONNECT_SEND,
-                  connect_target);
+  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_HTTPS_CONNECT_SEND,
+                 connect_target);
 
   boost::system::error_code ec;
   http::write(ssl_socket, connect_req, ec);
   if (ec) {
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_HTTPS_CONNECT_REQUEST_FAILED,
         ec.message()));
   }
@@ -481,25 +481,25 @@ auto ProxyHttpClient::establish_https_tunnel(
   http::response<http::string_body> connect_response;
   http::read(ssl_socket, buffer, connect_response, ec);
   if (ec) {
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_HTTPS_CONNECT_RESPONSE_FAILED,
         ec.message()));
   }
 
   if (connect_response.result() != http::status::ok) {
-    OBCX_I18N_ERROR(common::LogMessageKey::PROXY_HTTPS_CONNECT_ERROR,
-                    static_cast<int>(connect_response.result()),
-                    connect_response.reason(), connect_response.body());
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    OBCX_KEY_ERROR(common::LogMessageKey::PROXY_HTTPS_CONNECT_ERROR,
+                   static_cast<int>(connect_response.result()),
+                   connect_response.reason(), connect_response.body());
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_HTTPS_CONNECT_STATUS_ERROR,
         static_cast<int>(connect_response.result())));
   }
 
   buffer.consume(buffer.size());
 
-  OBCX_I18N_TRACE(common::LogMessageKey::PROXY_HTTPS_TUNNEL_SUCCESS,
-                  proxy_config_.host, proxy_config_.port, target_host,
-                  target_port);
+  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_HTTPS_TUNNEL_SUCCESS,
+                 proxy_config_.host, proxy_config_.port, target_host,
+                 target_port);
 
   return std::move(ssl_socket.next_layer());
 }
@@ -508,8 +508,8 @@ auto ProxyHttpClient::establish_socks5_tunnel(tcp::socket &proxy_socket,
                                               const std::string &target_host,
                                               uint16_t target_port)
     -> tcp::socket {
-  OBCX_I18N_TRACE(common::LogMessageKey::PROXY_SOCKS5_TUNNEL_START,
-                  proxy_config_.host, target_host, target_port);
+  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_SOCKS5_TUNNEL_START,
+                 proxy_config_.host, target_host, target_port);
 
   boost::system::error_code ec;
 
@@ -527,25 +527,25 @@ auto ProxyHttpClient::establish_socks5_tunnel(tcp::socket &proxy_socket,
 
   asio::write(proxy_socket, asio::buffer(greeting), ec);
   if (ec) {
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_SOCKS5_HANDSHAKE_FAILED, ec.message()));
   }
 
   std::vector<uint8_t> response(2);
   asio::read(proxy_socket, asio::buffer(response), ec);
   if (ec) {
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_SOCKS5_RESPONSE_FAILED, ec.message()));
   }
 
   if (response[0] != 0x05) {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::PROXY_SOCKS5_VERSION_MISMATCH));
   }
 
   if (response[1] == 0x02) {
     if (!proxy_config_.username || !proxy_config_.password) {
-      throw std::runtime_error(common::I18nLogMessages::get_message(
+      throw std::runtime_error(common::LogMessages::get_message(
           common::LogMessageKey::PROXY_AUTH_REQUIRED));
     }
 
@@ -560,7 +560,7 @@ auto ProxyHttpClient::establish_socks5_tunnel(tcp::socket &proxy_socket,
 
     asio::write(proxy_socket, asio::buffer(auth_req), ec);
     if (ec) {
-      throw std::runtime_error(common::I18nLogMessages::format_message(
+      throw std::runtime_error(common::LogMessages::format_message(
           common::LogMessageKey::PROXY_SOCKS5_AUTH_REQUEST_FAILED,
           ec.message()));
     }
@@ -568,17 +568,17 @@ auto ProxyHttpClient::establish_socks5_tunnel(tcp::socket &proxy_socket,
     std::vector<uint8_t> auth_resp(2);
     asio::read(proxy_socket, asio::buffer(auth_resp), ec);
     if (ec) {
-      throw std::runtime_error(common::I18nLogMessages::format_message(
+      throw std::runtime_error(common::LogMessages::format_message(
           common::LogMessageKey::PROXY_SOCKS5_AUTH_RESPONSE_FAILED,
           ec.message()));
     }
 
     if (auth_resp[1] != 0x00) {
-      throw std::runtime_error(common::I18nLogMessages::get_message(
+      throw std::runtime_error(common::LogMessages::get_message(
           common::LogMessageKey::PROXY_SOCKS5_AUTH_FAILED));
     }
   } else if (response[1] != 0x00) {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::PROXY_SOCKS5_UNSUPPORTED_AUTH));
   }
 
@@ -594,7 +594,7 @@ auto ProxyHttpClient::establish_socks5_tunnel(tcp::socket &proxy_socket,
 
   asio::write(proxy_socket, asio::buffer(connect_req), ec);
   if (ec) {
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_SOCKS5_CONNECT_REQUEST_FAILED,
         ec.message()));
   }
@@ -602,13 +602,13 @@ auto ProxyHttpClient::establish_socks5_tunnel(tcp::socket &proxy_socket,
   std::vector<uint8_t> connect_resp(10);
   asio::read(proxy_socket, asio::buffer(connect_resp, 4), ec);
   if (ec) {
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_SOCKS5_CONNECT_RESPONSE_FAILED,
         ec.message()));
   }
 
   if (connect_resp[0] != 0x05 || connect_resp[1] != 0x00) {
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_SOCKS5_CONNECT_FAILED_EXCEPTION,
         std::to_string(connect_resp[1])));
   }
@@ -627,15 +627,15 @@ auto ProxyHttpClient::establish_socks5_tunnel(tcp::socket &proxy_socket,
     std::vector<uint8_t> addr_data(remaining_bytes);
     asio::read(proxy_socket, asio::buffer(addr_data), ec);
     if (ec) {
-      throw std::runtime_error(common::I18nLogMessages::format_message(
+      throw std::runtime_error(common::LogMessages::format_message(
           common::LogMessageKey::PROXY_SOCKS5_ADDRESS_READ_FAILED,
           ec.message()));
     }
   }
 
-  OBCX_I18N_TRACE(common::LogMessageKey::PROXY_SOCKS5_TUNNEL_SUCCESS,
-                  proxy_config_.host, proxy_config_.port, target_host,
-                  target_port);
+  OBCX_KEY_TRACE(common::LogMessageKey::PROXY_SOCKS5_TUNNEL_SUCCESS,
+                 proxy_config_.host, proxy_config_.port, target_host,
+                 target_port);
 
   return std::move(proxy_socket);
 }

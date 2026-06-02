@@ -22,9 +22,8 @@ ProxyHttpClient::ProxyHttpClient(asio::io_context &ioc,
     : HttpClient(ioc, config), ioc_(ioc),
       proxy_config_(std::move(proxy_config)), target_host_(config.host),
       target_port_(config.port) {
-  OBCX_I18N_INFO(common::LogMessageKey::PROXY_CLIENT_CREATED,
-                 proxy_config_.host, proxy_config_.port, target_host_,
-                 target_port_);
+  OBCX_KEY_INFO(common::LogMessageKey::PROXY_CLIENT_CREATED, proxy_config_.host,
+                proxy_config_.port, target_host_, target_port_);
 }
 
 auto ProxyHttpClient::post(std::string_view path, std::string_view body,
@@ -62,8 +61,8 @@ auto ProxyHttpClient::post(std::string_view path, std::string_view body,
 
       if (!SSL_set_tlsext_host_name(ssl_stream.native_handle(),
                                     target_host_.c_str())) {
-        OBCX_I18N_WARN(common::LogMessageKey::PROXY_TARGET_SNI_FAILED,
-                       target_host_);
+        OBCX_KEY_WARN(common::LogMessageKey::PROXY_TARGET_SNI_FAILED,
+                      target_host_);
       }
 
       beast::get_lowest_layer(ssl_stream).expires_after(get_timeout());
@@ -102,7 +101,7 @@ auto ProxyHttpClient::post(std::string_view path, std::string_view body,
     co_return response;
 
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::PROXY_POST_FAILED, e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::PROXY_POST_FAILED, e.what());
     throw HttpClientError(std::string("HTTP POST request failed: ") + e.what());
   }
 }
@@ -136,8 +135,8 @@ auto ProxyHttpClient::get(std::string_view path,
 
       if (!SSL_set_tlsext_host_name(ssl_stream.native_handle(),
                                     target_host_.c_str())) {
-        OBCX_I18N_WARN(common::LogMessageKey::PROXY_TARGET_SNI_FAILED,
-                       target_host_);
+        OBCX_KEY_WARN(common::LogMessageKey::PROXY_TARGET_SNI_FAILED,
+                      target_host_);
       }
 
       beast::get_lowest_layer(ssl_stream).expires_after(get_timeout());
@@ -176,7 +175,7 @@ auto ProxyHttpClient::get(std::string_view path,
     co_return response;
 
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::PROXY_GET_FAILED, e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::PROXY_GET_FAILED, e.what());
     throw HttpClientError(std::string("HTTP GET request failed: ") + e.what());
   }
 }
@@ -210,8 +209,8 @@ auto ProxyHttpClient::head(std::string_view path,
 
       if (!SSL_set_tlsext_host_name(ssl_stream.native_handle(),
                                     target_host_.c_str())) {
-        OBCX_I18N_WARN(common::LogMessageKey::PROXY_TARGET_SNI_FAILED,
-                       target_host_);
+        OBCX_KEY_WARN(common::LogMessageKey::PROXY_TARGET_SNI_FAILED,
+                      target_host_);
       }
 
       beast::get_lowest_layer(ssl_stream).expires_after(get_timeout());
@@ -265,7 +264,7 @@ auto ProxyHttpClient::head(std::string_view path,
     co_return response;
 
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::PROXY_GET_FAILED, e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::PROXY_GET_FAILED, e.what());
     throw HttpClientError(std::string("HTTP HEAD request failed: ") + e.what());
   }
 }
@@ -288,7 +287,7 @@ auto ProxyHttpClient::post_sync(
     return send_http_request(tunnel_socket, "POST", std::string(path),
                              std::string(body), headers);
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::PROXY_POST_FAILED, e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::PROXY_POST_FAILED, e.what());
     HttpResponse error_response;
     error_response.status_code = 0;
     error_response.body = e.what();
@@ -306,7 +305,7 @@ auto ProxyHttpClient::get_sync(
     return send_http_request(tunnel_socket, "GET", std::string(path), "",
                              headers);
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::PROXY_GET_FAILED, e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::PROXY_GET_FAILED, e.what());
     HttpResponse error_response;
     error_response.status_code = 0;
     error_response.body = e.what();
@@ -360,8 +359,8 @@ auto ProxyHttpClient::send_http_request(
 
       if (!SSL_set_tlsext_host_name(ssl_stream.native_handle(),
                                     target_host_.c_str())) {
-        OBCX_I18N_WARN(common::LogMessageKey::PROXY_TARGET_SNI_FAILED,
-                       target_host_);
+        OBCX_KEY_WARN(common::LogMessageKey::PROXY_TARGET_SNI_FAILED,
+                      target_host_);
       }
 
       boost::system::error_code ec;
@@ -369,25 +368,25 @@ auto ProxyHttpClient::send_http_request(
       for (int retry = 0; retry < max_retries; ++retry) {
         auto _ = ssl_stream.handshake(ssl::stream_base::client, ec);
         if (!ec) {
-          OBCX_I18N_TRACE(common::LogMessageKey::PROXY_SSL_HANDSHAKE_SUCCESS,
-                          retry);
+          OBCX_KEY_TRACE(common::LogMessageKey::PROXY_SSL_HANDSHAKE_SUCCESS,
+                         retry);
           break;
         }
 
-        OBCX_I18N_WARN(common::LogMessageKey::PROXY_SSL_HANDSHAKE_FAILED_RETRY,
-                       retry + 1, max_retries, ec.message());
+        OBCX_KEY_WARN(common::LogMessageKey::PROXY_SSL_HANDSHAKE_FAILED_RETRY,
+                      retry + 1, max_retries, ec.message());
 
         if (retry < max_retries - 1) {
           auto wait_time = std::chrono::milliseconds(1000 << retry);
-          OBCX_I18N_TRACE(common::LogMessageKey::PROXY_RETRY_WAIT,
-                          wait_time.count());
+          OBCX_KEY_TRACE(common::LogMessageKey::PROXY_RETRY_WAIT,
+                         wait_time.count());
           std::this_thread::sleep_for(wait_time);
 
           if (ec.message().find("stream truncated") != std::string::npos) {
-            OBCX_I18N_TRACE(common::LogMessageKey::PROXY_STREAM_TRUNCATED);
+            OBCX_KEY_TRACE(common::LogMessageKey::PROXY_STREAM_TRUNCATED);
           }
         } else {
-          throw std::runtime_error(common::I18nLogMessages::format_message(
+          throw std::runtime_error(common::LogMessages::format_message(
               common::LogMessageKey::
                   PROXY_SSL_HANDSHAKE_FAILED_MAX_RETRIES_EXCEPTION,
               max_retries, ec.message()));
@@ -397,7 +396,7 @@ auto ProxyHttpClient::send_http_request(
       boost::system::error_code write_ec;
       http::write(ssl_stream, req, write_ec);
       if (write_ec) {
-        throw std::runtime_error(common::I18nLogMessages::format_message(
+        throw std::runtime_error(common::LogMessages::format_message(
             common::LogMessageKey::PROXY_SSL_SEND_FAILED, write_ec.message()));
       }
 
@@ -406,7 +405,7 @@ auto ProxyHttpClient::send_http_request(
       boost::system::error_code read_ec;
       http::read(ssl_stream, buffer, res, read_ec);
       if (read_ec) {
-        throw std::runtime_error(common::I18nLogMessages::format_message(
+        throw std::runtime_error(common::LogMessages::format_message(
             common::LogMessageKey::PROXY_SSL_READ_FAILED, read_ec.message()));
       }
 
@@ -433,7 +432,7 @@ auto ProxyHttpClient::send_http_request(
       return result;
     }
   } catch (const std::exception &e) {
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::PROXY_HTTP_SEND_FAILED, e.what()));
   }
 }

@@ -146,7 +146,7 @@ void TuiApp::run() {
   int log_pane_size = 0; // populated by ResizableSplit on first draw
 
   // Virtualized log pane: only renders rows currently on-screen.
-  auto log_pane = ftxui::Renderer([this, &log_pane_size] -> ftxui::Element {
+  auto log_pane = ftxui::Renderer([this, &log_pane_size]() -> ftxui::Element {
     auto total = static_cast<int>(tui_sink_->line_count());
     auto version = tui_sink_->version();
 
@@ -239,39 +239,41 @@ void TuiApp::run() {
   });
 
   // Console pane: pure renderer, delegates to input_with_enter
-  auto console_pane = ftxui::Renderer(input_with_enter, [&] -> ftxui::Element {
-    ftxui::Elements console_elements;
-    {
-      std::scoped_lock lock(console_mutex);
-      console_elements.reserve(console_lines_.size());
-      for (const auto &line : console_lines_) {
-        console_elements.push_back(ftxui::text(line));
-      }
-    }
-    console_elements.push_back(input_with_enter->Render());
+  auto console_pane =
+      ftxui::Renderer(input_with_enter, [&]() -> ftxui::Element {
+        ftxui::Elements console_elements;
+        {
+          std::scoped_lock lock(console_mutex);
+          console_elements.reserve(console_lines_.size());
+          for (const auto &line : console_lines_) {
+            console_elements.push_back(ftxui::text(line));
+          }
+        }
+        console_elements.push_back(input_with_enter->Render());
 
-    auto total = static_cast<int>(console_elements.size());
-    console_scroll_offset_ =
-        std::clamp(console_scroll_offset_, 0, std::max(0, total - 1));
+        auto total = static_cast<int>(console_elements.size());
+        console_scroll_offset_ =
+            std::clamp(console_scroll_offset_, 0, std::max(0, total - 1));
 
-    float position = total > 1
-                         ? 1.f - static_cast<float>(console_scroll_offset_) /
-                                     static_cast<float>(total - 1)
-                         : 1.f;
-    position = std::clamp(position, 0.f, 1.f);
+        float position =
+            total > 1 ? 1.f - static_cast<float>(console_scroll_offset_) /
+                                  static_cast<float>(total - 1)
+                      : 1.f;
+        position = std::clamp(position, 0.f, 1.f);
 
-    return ftxui::vbox(std::move(console_elements)) |
-           ftxui::focusPositionRelative(0.f, position) |
-           ftxui::vscroll_indicator | ftxui::yframe | ftxui::yflex_grow;
-  });
+        return ftxui::vbox(std::move(console_elements)) |
+               ftxui::focusPositionRelative(0.f, position) |
+               ftxui::vscroll_indicator | ftxui::yframe | ftxui::yflex_grow;
+      });
 
-  auto log_bordered = ftxui::Renderer(log_pane, [&log_pane] -> ftxui::Element {
-    return log_pane->Render() | ftxui::borderStyled(ftxui::Color::Blue) |
-           ftxui::bold;
-  });
+  auto log_bordered =
+      ftxui::Renderer(log_pane, [&log_pane]() -> ftxui::Element {
+        return log_pane->Render() | ftxui::borderStyled(ftxui::Color::Blue) |
+               ftxui::bold;
+      });
 
   auto console_bordered =
-      ftxui::Renderer(console_pane, [&console_pane] -> ftxui::Element {
+      ftxui::Renderer(console_pane, [&console_pane]() -> ftxui::Element {
         return console_pane->Render() |
                ftxui::borderStyled(ftxui::Color::Green);
       });
@@ -282,7 +284,7 @@ void TuiApp::run() {
   // Set initial split ratio (70/30)
   bool size_initialized = false;
 
-  auto inner = ftxui::Renderer(container, [&] -> ftxui::Element {
+  auto inner = ftxui::Renderer(container, [&]() -> ftxui::Element {
     auto element = container->Render();
     if (!size_initialized) {
       log_pane_size = ftxui::Terminal::Size().dimy * 7 / 10;

@@ -9,7 +9,7 @@ auto IPlugin::get_bots()
     -> std::tuple<std::unique_lock<std::mutex>,
                   std::vector<std::unique_ptr<core::IBot>> &> {
   if (!bots_ || !bots_mutex_) {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::PLUGIN_BOT_VECTOR_NOT_INIT));
   }
 

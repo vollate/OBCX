@@ -27,8 +27,8 @@ using tcp = asio::ip::tcp;
 HttpClient::HttpClient(asio::io_context &ioc,
                        const common::ConnectionConfig &config)
     : pimpl_(std::make_unique<Impl>(ioc, config)) {
-  OBCX_I18N_INFO(common::LogMessageKey::HTTP_CLIENT_INIT, config.host,
-                 config.port);
+  OBCX_KEY_INFO(common::LogMessageKey::HTTP_CLIENT_INIT, config.host,
+                config.port);
 }
 
 HttpClient::~HttpClient() = default;
@@ -36,7 +36,7 @@ HttpClient::~HttpClient() = default;
 auto HttpClient::post(std::string_view path, std::string_view body,
                       const std::map<std::string, std::string> &headers)
     -> asio::awaitable<HttpResponse> {
-  OBCX_I18N_DEBUG(common::LogMessageKey::HTTP_POST_DEBUG, path, body);
+  OBCX_KEY_DEBUG(common::LogMessageKey::HTTP_POST_DEBUG, path, body);
 
   auto executor = co_await asio::this_coro::executor;
 
@@ -121,15 +121,15 @@ auto HttpClient::post(std::string_view path, std::string_view body,
       response.raw_response = std::move(res);
     }
 
-    OBCX_I18N_TRACE(common::LogMessageKey::HTTP_RESPONSE_STATUS,
-                    response.status_code);
-    OBCX_I18N_TRACE(common::LogMessageKey::HTTP_RESPONSE_BODY, response.body);
+    OBCX_KEY_TRACE(common::LogMessageKey::HTTP_RESPONSE_STATUS,
+                   response.status_code);
+    OBCX_KEY_TRACE(common::LogMessageKey::HTTP_RESPONSE_BODY, response.body);
 
     co_return response;
 
   } catch (const std::exception &e) {
     pimpl_->connected = false;
-    OBCX_I18N_ERROR(common::LogMessageKey::HTTP_POST_FAILED, e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::HTTP_POST_FAILED, e.what());
     throw HttpClientError(std::string("HTTP POST request failed: ") + e.what());
   }
 }
@@ -137,7 +137,7 @@ auto HttpClient::post(std::string_view path, std::string_view body,
 auto HttpClient::get(std::string_view path,
                      const std::map<std::string, std::string> &headers)
     -> asio::awaitable<HttpResponse> {
-  OBCX_I18N_DEBUG(common::LogMessageKey::HTTP_GET_DEBUG, path);
+  OBCX_KEY_DEBUG(common::LogMessageKey::HTTP_GET_DEBUG, path);
 
   auto executor = co_await asio::this_coro::executor;
 
@@ -219,15 +219,15 @@ auto HttpClient::get(std::string_view path,
       response.raw_response = std::move(res);
     }
 
-    OBCX_I18N_DEBUG(common::LogMessageKey::HTTP_RESPONSE_STATUS,
-                    response.status_code);
-    OBCX_I18N_DEBUG(common::LogMessageKey::HTTP_RESPONSE_BODY, response.body);
+    OBCX_KEY_DEBUG(common::LogMessageKey::HTTP_RESPONSE_STATUS,
+                   response.status_code);
+    OBCX_KEY_DEBUG(common::LogMessageKey::HTTP_RESPONSE_BODY, response.body);
 
     co_return response;
 
   } catch (const std::exception &e) {
     pimpl_->connected = false;
-    OBCX_I18N_ERROR(common::LogMessageKey::HTTP_GET_FAILED, e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::HTTP_GET_FAILED, e.what());
     throw HttpClientError(std::string("HTTP GET request failed: ") + e.what());
   }
 }
@@ -335,7 +335,7 @@ auto HttpClient::head(std::string_view path,
 
   } catch (const std::exception &e) {
     pimpl_->connected = false;
-    OBCX_I18N_ERROR(common::LogMessageKey::HTTP_HEAD_FAILED, e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::HTTP_HEAD_FAILED, e.what());
     throw HttpClientError(std::string("HTTP HEAD request failed: ") + e.what());
   }
 }
@@ -371,7 +371,7 @@ auto HttpClient::get_ssl_context() const -> ssl::context * {
 
 void HttpClient::close() {
   pimpl_->connected = false;
-  OBCX_I18N_INFO(common::LogMessageKey::HTTP_CLIENT_CLOSED);
+  OBCX_KEY_INFO(common::LogMessageKey::HTTP_CLIENT_CLOSED);
 }
 
 } // namespace obcx::network

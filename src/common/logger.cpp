@@ -20,7 +20,7 @@ void Logger::initialize(spdlog::level::level_enum level,
     return;
   }
 
-  I18nLogMessages::initialize();
+  LogMessages::initialize();
 
   try {
     std::vector<spdlog::sink_ptr> sinks;
@@ -59,9 +59,9 @@ void Logger::initialize(spdlog::level::level_enum level,
 
     initialized_ = true;
 
-    OBCX_I18N_INFO(common::LogMessageKey::LOGGER_INIT_SUCCESS);
+    OBCX_KEY_INFO(common::LogMessageKey::LOGGER_INIT_SUCCESS);
   } catch (const spdlog::spdlog_ex &ex) {
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::LOGGER_INIT_FAILED_EXCEPTION, ex.what()));
   }
 }

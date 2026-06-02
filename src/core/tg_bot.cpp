@@ -15,11 +15,11 @@ TGBot::TGBot(adapter::telegram::ProtocolAdapter adapter,
     : IBot{std::make_unique<adapter::telegram::ProtocolAdapter>(
                std::move(adapter)),
            std::move(task_scheduler)} {
-  OBCX_I18N_INFO(common::LogMessageKey::TELEGRAMBOT_INSTANCE_CREATED);
+  OBCX_KEY_INFO(common::LogMessageKey::TELEGRAMBOT_INSTANCE_CREATED);
 }
 
 TGBot::~TGBot() {
-  OBCX_I18N_INFO(common::LogMessageKey::TELEGRAMBOT_INSTANCE_DESTROYED);
+  OBCX_KEY_INFO(common::LogMessageKey::TELEGRAMBOT_INSTANCE_DESTROYED);
 }
 
 void TGBot::connect(network::ConnectionManagerFactory::ConnectionType type,
@@ -29,7 +29,7 @@ void TGBot::connect(network::ConnectionManagerFactory::ConnectionType type,
     connection_manager_ = network::ConnectionManagerFactory::create(
         type, *io_context_, *adapter_);
   } else {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::TELEGRAMBOT_ONLY_SUPPORT_HTTP));
   }
 
@@ -40,8 +40,8 @@ void TGBot::connect(network::ConnectionManagerFactory::ConnectionType type,
 
   connection_manager_->connect(config);
 
-  OBCX_I18N_INFO(common::LogMessageKey::CONNECTING_WITH_TYPE, config.host,
-                 config.port, connection_manager_->get_connection_type());
+  OBCX_KEY_INFO(common::LogMessageKey::CONNECTING_WITH_TYPE, config.host,
+                config.port, connection_manager_->get_connection_type());
 }
 
 void TGBot::run() {
@@ -49,13 +49,13 @@ void TGBot::run() {
     io_context_->restart();
   }
 
-  OBCX_I18N_INFO(common::LogMessageKey::TELEGRAMBOT_STARTING_EVENT_LOOP);
+  OBCX_KEY_INFO(common::LogMessageKey::TELEGRAMBOT_STARTING_EVENT_LOOP);
   io_context_->run();
-  OBCX_I18N_INFO(common::LogMessageKey::TELEGRAMBOT_EVENT_LOOP_ENDED);
+  OBCX_KEY_INFO(common::LogMessageKey::TELEGRAMBOT_EVENT_LOOP_ENDED);
 }
 
 void TGBot::stop() {
-  OBCX_I18N_INFO(common::LogMessageKey::TELEGRAMBOT_REQUESTING_STOP);
+  OBCX_KEY_INFO(common::LogMessageKey::TELEGRAMBOT_REQUESTING_STOP);
 
   if (connection_manager_) {
     connection_manager_->disconnect();
@@ -75,15 +75,15 @@ auto TGBot::poll_updates() -> asio::awaitable<void> {
     try {
       auto updates = co_await get_updates(offset, 100);
 
-      OBCX_I18N_DEBUG(common::LogMessageKey::TELEGRAMBOT_RECEIVED_UPDATES,
-                      updates.length());
+      OBCX_KEY_DEBUG(common::LogMessageKey::TELEGRAMBOT_RECEIVED_UPDATES,
+                     updates.length());
 
       offset += 1;
 
       success = true;
     } catch (const std::exception &e) {
-      OBCX_I18N_ERROR(common::LogMessageKey::TELEGRAMBOT_POLLING_ERROR,
-                      e.what());
+      OBCX_KEY_ERROR(common::LogMessageKey::TELEGRAMBOT_POLLING_ERROR,
+                     e.what());
     }
 
     asio::steady_timer timer(*io_context_,
@@ -104,7 +104,7 @@ void TGBot::error_notify(std::string_view target_id, std::string_view message,
   if (dispatcher_) {
     dispatcher_->dispatch(this, error_event);
   } else {
-    OBCX_I18N_WARN(common::LogMessageKey::EVENT_DISPATCHER_NOT_INITIALIZED);
+    OBCX_KEY_WARN(common::LogMessageKey::EVENT_DISPATCHER_NOT_INITIALIZED);
   }
 }
 
@@ -172,7 +172,7 @@ auto TGBot::send_photo_bytes(std::string_view chat_id,
   auto *tg_conn_mgr = dynamic_cast<network::TelegramConnectionManager *>(
       connection_manager_.get());
   if (!tg_conn_mgr) {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::TELEGRAMBOT_INVALID_CONNECTION_MANAGER));
   }
   co_return co_await tg_conn_mgr->upload_photo_multipart(
@@ -198,7 +198,7 @@ auto TGBot::delete_message(std::string_view message_id)
   std::string msg_id(message_id);
   size_t pos = msg_id.find(':');
   if (pos == std::string::npos) {
-    throw std::invalid_argument(common::I18nLogMessages::get_message(
+    throw std::invalid_argument(common::LogMessages::get_message(
         common::LogMessageKey::INVALID_PARAMETER));
   }
 
@@ -226,14 +226,14 @@ auto TGBot::edit_message_text(std::string_view chat_id,
 
 auto TGBot::get_message(std::string_view message_id)
     -> asio::awaitable<std::string> {
-  OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
-                 "get_message");
+  OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
+                "get_message");
   co_return "{}";
 }
 
 auto TGBot::get_friend_list() -> asio::awaitable<std::string> {
-  OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
-                 "get_friend_list");
+  OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
+                "get_friend_list");
   co_return "{}";
 }
 
@@ -247,8 +247,8 @@ auto TGBot::get_stranger_info(std::string_view user_id, bool no_cache)
 }
 
 auto TGBot::get_group_list() -> asio::awaitable<std::string> {
-  OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
-                 "get_group_list");
+  OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
+                "get_group_list");
   co_return "{}";
 }
 
@@ -311,8 +311,8 @@ auto TGBot::set_group_whole_ban(std::string_view group_id, bool enable)
 auto TGBot::set_group_card(std::string_view group_id, std::string_view user_id,
                            std::string_view card)
     -> asio::awaitable<std::string> {
-  OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
-                 "set_group_card");
+  OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
+                "set_group_card");
   co_return "{}";
 }
 
@@ -348,15 +348,15 @@ auto TGBot::set_group_anonymous_ban(std::string_view group_id,
                                     const std::string &anonymous,
                                     int32_t duration)
     -> asio::awaitable<std::string> {
-  OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
-                 "set_group_anonymous_ban");
+  OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
+                "set_group_anonymous_ban");
   co_return "{}";
 }
 
 auto TGBot::set_group_anonymous(std::string_view group_id, bool enable)
     -> asio::awaitable<std::string> {
-  OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
-                 "set_group_anonymous");
+  OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
+                "set_group_anonymous");
   co_return "{}";
 }
 
@@ -372,8 +372,8 @@ auto TGBot::set_group_portrait(std::string_view group_id, std::string_view file,
 auto TGBot::get_group_honor_info(std::string_view group_id,
                                  std::string_view type)
     -> asio::awaitable<std::string> {
-  OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
-                 "get_group_honor_info");
+  OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
+                "get_group_honor_info");
   co_return "{}";
 }
 
@@ -386,14 +386,14 @@ auto TGBot::get_login_info() -> asio::awaitable<std::string> {
 }
 
 auto TGBot::get_status() -> asio::awaitable<std::string> {
-  OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
-                 "get_status");
+  OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
+                "get_status");
   co_return R"({"retcode": 0, "status": "ok", "data": {"online": true}})";
 }
 
 auto TGBot::get_version_info() -> asio::awaitable<std::string> {
-  OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
-                 "get_version_info");
+  OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
+                "get_version_info");
   co_return R"({"retcode": 0, "data": {"version": "TelegramBot/1.0.0"}})";
 }
 
@@ -424,29 +424,29 @@ auto TGBot::can_send_record() -> asio::awaitable<std::string> {
 
 auto TGBot::get_cookies(std::string_view domain)
     -> asio::awaitable<std::string> {
-  OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
-                 "get_cookies");
+  OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
+                "get_cookies");
   co_return "{}";
 }
 
 auto TGBot::get_csrf_token() -> asio::awaitable<std::string> {
-  OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
-                 "get_csrf_token");
+  OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
+                "get_csrf_token");
   co_return "{}";
 }
 
 auto TGBot::get_credentials(std::string_view domain)
     -> asio::awaitable<std::string> {
-  OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
-                 "get_credentials");
+  OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
+                "get_credentials");
   co_return "{}";
 }
 
 auto TGBot::set_friend_add_request(std::string_view flag, bool approve,
                                    std::string_view remark)
     -> asio::awaitable<std::string> {
-  OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
-                 "set_friend_add_request");
+  OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
+                "set_friend_add_request");
   co_return "{}";
 }
 
@@ -454,8 +454,8 @@ auto TGBot::set_group_add_request(std::string_view flag,
                                   std::string_view sub_type, bool approve,
                                   std::string_view reason)
     -> asio::awaitable<std::string> {
-  OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
-                 "set_group_add_request");
+  OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_FUNCTION_NOT_IMPLEMENTED,
+                "set_group_add_request");
   co_return "{}";
 }
 
@@ -483,7 +483,7 @@ auto TGBot::generate_echo_id() -> uint64_t {
 
 void TGBot::ensure_connection_manager() const {
   if (!connection_manager_) {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::BOT_NOT_CONNECTED));
   }
 }
@@ -520,15 +520,15 @@ auto TGBot::extract_media_files(const nlohmann::json &message_data)
         MediaFileInfo info;
         info.file_id = largest_photo["file_id"].get<std::string>();
 
-        OBCX_I18N_DEBUG(common::LogMessageKey::TELEGRAMBOT_PHOTO_CONTENT,
-                        largest_photo.dump());
+        OBCX_KEY_DEBUG(common::LogMessageKey::TELEGRAMBOT_PHOTO_CONTENT,
+                       largest_photo.dump());
 
         info.file_unique_id =
             largest_photo.contains("file_unique_id")
                 ? largest_photo["file_unique_id"].get<std::string>()
                 : "";
 
-        OBCX_I18N_DEBUG(
+        OBCX_KEY_DEBUG(
             common::LogMessageKey::TELEGRAMBOT_FILE_UNIQUE_ID_EXTRACTED,
             info.file_unique_id, info.file_unique_id.empty());
 
@@ -552,15 +552,15 @@ auto TGBot::extract_media_files(const nlohmann::json &message_data)
           MediaFileInfo info;
           info.file_id = media_obj["file_id"].get<std::string>();
 
-          OBCX_I18N_DEBUG(common::LogMessageKey::TELEGRAMBOT_MEDIA_CONTENT,
-                          media_type, media_obj.dump());
+          OBCX_KEY_DEBUG(common::LogMessageKey::TELEGRAMBOT_MEDIA_CONTENT,
+                         media_type, media_obj.dump());
 
           info.file_unique_id =
               media_obj.contains("file_unique_id")
                   ? media_obj["file_unique_id"].get<std::string>()
                   : "";
 
-          OBCX_I18N_DEBUG(
+          OBCX_KEY_DEBUG(
               common::LogMessageKey::TELEGRAMBOT_MEDIA_FILE_UNIQUE_ID_EXTRACTED,
               media_type, info.file_unique_id, info.file_unique_id.empty());
 
@@ -584,8 +584,8 @@ auto TGBot::extract_media_files(const nlohmann::json &message_data)
     }
 
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::TELEGRAMBOT_EXTRACT_MEDIA_ERROR,
-                    e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::TELEGRAMBOT_EXTRACT_MEDIA_ERROR,
+                   e.what());
   }
 
   return media_files;
@@ -600,7 +600,7 @@ auto TGBot::get_media_download_url(const MediaFileInfo &media_info)
         dynamic_cast<obcx::network::TelegramConnectionManager *>(
             connection_manager_.get());
     if (!tg_conn_mgr) {
-      OBCX_I18N_ERROR(
+      OBCX_KEY_ERROR(
           common::LogMessageKey::TELEGRAMBOT_INVALID_CONNECTION_MANAGER);
       co_return std::nullopt;
     }
@@ -610,8 +610,8 @@ auto TGBot::get_media_download_url(const MediaFileInfo &media_info)
     co_return download_url;
 
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::TELEGRAMBOT_GET_DOWNLOAD_URL_FAILED,
-                    media_info.file_id, media_info.file_type, e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::TELEGRAMBOT_GET_DOWNLOAD_URL_FAILED,
+                   media_info.file_id, media_info.file_type, e.what());
     co_return std::nullopt;
   }
 }

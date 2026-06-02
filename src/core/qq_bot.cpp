@@ -11,11 +11,11 @@ QQBot::QQBot(adapter::onebot11::ProtocolAdapter adapter,
     : IBot{std::make_unique<adapter::onebot11::ProtocolAdapter>(
                std::move(adapter)),
            std::move(task_scheduler)} {
-  OBCX_I18N_INFO(common::LogMessageKey::QQBOT_INSTANCE_CREATED);
+  OBCX_KEY_INFO(common::LogMessageKey::QQBOT_INSTANCE_CREATED);
 }
 
 QQBot::~QQBot() {
-  OBCX_I18N_INFO(common::LogMessageKey::QQBOT_INSTANCE_DESTROYED);
+  OBCX_KEY_INFO(common::LogMessageKey::QQBOT_INSTANCE_DESTROYED);
 }
 
 void QQBot::connect(network::ConnectionManagerFactory::ConnectionType type,
@@ -30,21 +30,21 @@ void QQBot::connect(network::ConnectionManagerFactory::ConnectionType type,
 
   connection_manager_->connect(config);
 
-  OBCX_I18N_INFO(common::LogMessageKey::CONNECTING_WITH_TYPE, config.host,
-                 config.port, connection_manager_->get_connection_type());
+  OBCX_KEY_INFO(common::LogMessageKey::CONNECTING_WITH_TYPE, config.host,
+                config.port, connection_manager_->get_connection_type());
 }
 
 void QQBot::run() {
   if (io_context_->stopped()) {
     io_context_->restart();
   }
-  OBCX_I18N_INFO(common::LogMessageKey::QQBOT_STARTING_EVENT_LOOP);
+  OBCX_KEY_INFO(common::LogMessageKey::QQBOT_STARTING_EVENT_LOOP);
   io_context_->run();
-  OBCX_I18N_INFO(common::LogMessageKey::QQBOT_EVENT_LOOP_ENDED);
+  OBCX_KEY_INFO(common::LogMessageKey::QQBOT_EVENT_LOOP_ENDED);
 }
 
 void QQBot::stop() {
-  OBCX_I18N_INFO(common::LogMessageKey::QQBOT_REQUESTING_STOP);
+  OBCX_KEY_INFO(common::LogMessageKey::QQBOT_REQUESTING_STOP);
 
   if (connection_manager_) {
     connection_manager_->disconnect();
@@ -432,7 +432,7 @@ auto QQBot::is_connected() const -> bool {
 
 void QQBot::ensure_connection_manager() const {
   if (!connection_manager_) {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::BOT_NOT_CONNECTED));
   }
 }
@@ -450,7 +450,7 @@ void QQBot::error_notify(std::string_view target_id, std::string_view message,
   if (dispatcher_) {
     dispatcher_->dispatch(this, error_event);
   } else {
-    OBCX_I18N_WARN(common::LogMessageKey::EVENT_DISPATCHER_NOT_INITIALIZED);
+    OBCX_KEY_WARN(common::LogMessageKey::EVENT_DISPATCHER_NOT_INITIALIZED);
   }
 }
 

@@ -16,8 +16,8 @@ using json = nlohmann::json;
 TelegramConnectionManager::TelegramConnectionManager(
     asio::io_context &ioc, adapter::telegram::ProtocolAdapter &adapter)
     : ioc_(ioc), adapter_(adapter), poll_timer_(ioc) {
-  OBCX_I18N_INFO(common::LogMessageKey::CONNECTION_ESTABLISHED,
-                 "TelegramConnectionManager", "initialized");
+  OBCX_KEY_INFO(common::LogMessageKey::CONNECTION_ESTABLISHED,
+                "TelegramConnectionManager", "initialized");
 }
 
 TelegramConnectionManager::~TelegramConnectionManager() {
@@ -54,13 +54,13 @@ void TelegramConnectionManager::connect(
 
     http_client_ =
         std::make_unique<ProxyHttpClient>(ioc_, proxy_config, config_);
-    OBCX_I18N_INFO(common::LogMessageKey::PROXY_CONNECTION_ESTABLISHED,
-                   config_.proxy_type, config_.proxy_host, config_.proxy_port,
-                   config_.host, config_.port);
+    OBCX_KEY_INFO(common::LogMessageKey::PROXY_CONNECTION_ESTABLISHED,
+                  config_.proxy_type, config_.proxy_host, config_.proxy_port,
+                  config_.host, config_.port);
   } else {
     http_client_ = std::make_unique<HttpClient>(ioc_, config_);
-    OBCX_I18N_INFO(common::LogMessageKey::CONNECTION_ESTABLISHED, config_.host,
-                   config_.port);
+    OBCX_KEY_INFO(common::LogMessageKey::CONNECTION_ESTABLISHED, config_.host,
+                  config_.port);
   }
 
   is_connected_ = true;
@@ -71,7 +71,7 @@ void TelegramConnectionManager::disconnect() {
   stop_polling();
   is_connected_ = false;
 
-  OBCX_I18N_INFO(common::LogMessageKey::CONNECTION_CLOSED);
+  OBCX_KEY_INFO(common::LogMessageKey::CONNECTION_CLOSED);
 }
 
 auto TelegramConnectionManager::is_connected() const -> bool {
@@ -83,13 +83,13 @@ auto TelegramConnectionManager::send_action_and_wait_async(
     -> asio::awaitable<std::string> {
 
   if (!http_client_) {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::HTTP_CLIENT_NOT_INIT));
   }
 
   try {
     auto payload_json = json::parse(action_payload);
-    OBCX_I18N_TRACE(common::LogMessageKey::SENDING_ACTION, action_payload);
+    OBCX_KEY_TRACE(common::LogMessageKey::SENDING_ACTION, action_payload);
     std::string method = payload_json.value("method", "");
 
     std::map<std::string, std::string> headers;
@@ -112,7 +112,7 @@ auto TelegramConnectionManager::send_action_and_wait_async(
         co_await http_client_->post(api_path, body, headers);
 
     if (!response.is_success()) {
-      throw std::runtime_error(common::I18nLogMessages::format_message(
+      throw std::runtime_error(common::LogMessages::format_message(
           common::LogMessageKey::HTTP_REQUEST_FAILED_STATUS,
           std::to_string(response.status_code)));
     }
@@ -120,7 +120,7 @@ auto TelegramConnectionManager::send_action_and_wait_async(
     co_return response.body;
 
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::API_REQUEST_FAILED, e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::API_REQUEST_FAILED, e.what());
     throw;
   }
 }
@@ -136,7 +136,7 @@ auto TelegramConnectionManager::get_connection_type() const -> std::string {
 auto TelegramConnectionManager::download_file(std::string file_id)
     -> asio::awaitable<std::string> {
   if (!http_client_) {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::HTTP_CLIENT_NOT_INIT));
   }
 
@@ -170,17 +170,17 @@ auto TelegramConnectionManager::download_file(std::string file_id)
                                    config_.access_token + "/" + file_path;
         co_return download_url;
       } else {
-        throw std::runtime_error(common::I18nLogMessages::get_message(
+        throw std::runtime_error(common::LogMessages::get_message(
             common::LogMessageKey::TELEGRAM_GETFILE_NO_PATH));
       }
     } else {
-      throw std::runtime_error(common::I18nLogMessages::format_message(
+      throw std::runtime_error(common::LogMessages::format_message(
           common::LogMessageKey::TELEGRAM_GETFILE_FAILED_STATUS,
           std::to_string(response.status_code)));
     }
 
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::DOWNLOAD_FILE_FAILED, e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::DOWNLOAD_FILE_FAILED, e.what());
     throw;
   }
 }
@@ -188,7 +188,7 @@ auto TelegramConnectionManager::download_file(std::string file_id)
 auto TelegramConnectionManager::download_file_content(
     std::string_view download_url) -> asio::awaitable<std::string> {
   if (!http_client_) {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::HTTP_CLIENT_NOT_INIT));
   }
 
@@ -196,14 +196,14 @@ auto TelegramConnectionManager::download_file_content(
     std::string url_str(download_url);
     size_t protocol_pos = url_str.find("://");
     if (protocol_pos == std::string::npos) {
-      throw std::runtime_error(common::I18nLogMessages::get_message(
+      throw std::runtime_error(common::LogMessages::get_message(
           common::LogMessageKey::DOWNLOAD_URL_INVALID_FORMAT));
     }
 
     size_t host_start = protocol_pos + 3;
     size_t path_start = url_str.find('/', host_start);
     if (path_start == std::string::npos) {
-      throw std::runtime_error(common::I18nLogMessages::get_message(
+      throw std::runtime_error(common::LogMessages::get_message(
           common::LogMessageKey::DOWNLOAD_URL_NO_PATH));
     }
 
@@ -218,14 +218,14 @@ auto TelegramConnectionManager::download_file_content(
     if (response.is_success()) {
       co_return response.body;
     } else {
-      throw std::runtime_error(common::I18nLogMessages::format_message(
+      throw std::runtime_error(common::LogMessages::format_message(
           common::LogMessageKey::FILE_DOWNLOAD_FAILED_STATUS,
           std::to_string(response.status_code)));
     }
 
   } catch (const std::exception &e) {
-    OBCX_I18N_ERROR(common::LogMessageKey::DOWNLOAD_FILE_CONTENT_FAILED,
-                    e.what());
+    OBCX_KEY_ERROR(common::LogMessageKey::DOWNLOAD_FILE_CONTENT_FAILED,
+                   e.what());
     throw;
   }
 }
@@ -236,7 +236,7 @@ auto TelegramConnectionManager::upload_photo_multipart(
     std::string_view caption, std::optional<int64_t> message_thread_id)
     -> asio::awaitable<std::string> {
   if (!http_client_) {
-    throw std::runtime_error(common::I18nLogMessages::get_message(
+    throw std::runtime_error(common::LogMessages::get_message(
         common::LogMessageKey::HTTP_CLIENT_NOT_INIT));
   }
 
@@ -290,7 +290,7 @@ auto TelegramConnectionManager::upload_photo_multipart(
   HttpResponse response = co_await http_client_->post(api_path, body, headers);
 
   if (!response.is_success()) {
-    throw std::runtime_error(common::I18nLogMessages::format_message(
+    throw std::runtime_error(common::LogMessages::format_message(
         common::LogMessageKey::HTTP_REQUEST_FAILED_STATUS,
         std::to_string(response.status_code)));
   }
@@ -301,15 +301,15 @@ auto TelegramConnectionManager::upload_photo_multipart(
 void TelegramConnectionManager::start_polling() {
   if (is_polling_.exchange(true) == false) {
     asio::co_spawn(ioc_, poll_updates(), asio::detached);
-    OBCX_I18N_INFO(common::LogMessageKey::START_POLLING,
-                   config_.poll_timeout.count());
+    OBCX_KEY_INFO(common::LogMessageKey::START_POLLING,
+                  config_.poll_timeout.count());
   }
 }
 
 void TelegramConnectionManager::stop_polling() {
   is_polling_ = false;
   poll_timer_.cancel();
-  OBCX_I18N_INFO(common::LogMessageKey::STOP_POLLING);
+  OBCX_KEY_INFO(common::LogMessageKey::STOP_POLLING);
 }
 
 auto TelegramConnectionManager::poll_updates() -> asio::awaitable<void> {
@@ -361,7 +361,7 @@ auto TelegramConnectionManager::poll_updates() -> asio::awaitable<void> {
       // success we immediately reissue getUpdates with the advanced offset.
 
     } catch (const std::exception &e) {
-      OBCX_I18N_WARN(common::LogMessageKey::POLLING_FAILED, e.what());
+      OBCX_KEY_WARN(common::LogMessageKey::POLLING_FAILED, e.what());
       should_delay = true;
     }
 
@@ -378,18 +378,18 @@ auto TelegramConnectionManager::poll_updates() -> asio::awaitable<void> {
     }
   }
 
-  OBCX_I18N_DEBUG(common::LogMessageKey::POLLING_COROUTINE_EXIT);
+  OBCX_KEY_DEBUG(common::LogMessageKey::POLLING_COROUTINE_EXIT);
 }
 
 void TelegramConnectionManager::process_updates(std::string_view updates_json) {
   try {
     auto json_data = json::parse(updates_json);
-    OBCX_I18N_DEBUG(common::LogMessageKey::RECEIVED_UPDATES, updates_json);
+    OBCX_KEY_DEBUG(common::LogMessageKey::RECEIVED_UPDATES, updates_json);
 
     if (json_data.contains("result") && json_data["result"].is_array()) {
       auto result_array = json_data["result"];
-      OBCX_I18N_DEBUG(common::LogMessageKey::PROCESSING_UPDATES,
-                      result_array.size());
+      OBCX_KEY_DEBUG(common::LogMessageKey::PROCESSING_UPDATES,
+                     result_array.size());
 
       // Advance offset past the last seen update_id; the next getUpdates call
       // will then ack everything we just processed.
@@ -402,22 +402,21 @@ void TelegramConnectionManager::process_updates(std::string_view updates_json) {
 
       for (const auto &update_json : result_array) {
         std::string single_update = update_json.dump();
-        OBCX_I18N_DEBUG(common::LogMessageKey::PROCESSING_UPDATE,
-                        single_update);
+        OBCX_KEY_DEBUG(common::LogMessageKey::PROCESSING_UPDATE, single_update);
         auto event_opt = adapter_.parse_event(single_update);
         if (event_opt && event_callback_) {
-          OBCX_I18N_DEBUG(common::LogMessageKey::DISPATCHING_EVENT);
+          OBCX_KEY_DEBUG(common::LogMessageKey::DISPATCHING_EVENT);
           event_callback_(event_opt.value());
         } else if (!event_opt) {
-          OBCX_I18N_DEBUG(common::LogMessageKey::FAILED_PARSE_EVENT);
+          OBCX_KEY_DEBUG(common::LogMessageKey::FAILED_PARSE_EVENT);
         } else {
-          OBCX_I18N_DEBUG(common::LogMessageKey::EVENT_CALLBACK_NOT_SET);
+          OBCX_KEY_DEBUG(common::LogMessageKey::EVENT_CALLBACK_NOT_SET);
         }
       }
     }
   } catch (const std::exception &e) {
-    OBCX_I18N_WARN(common::LogMessageKey::TELEGRAMBOT_UPDATE_PARSE_ERROR,
-                   e.what());
+    OBCX_KEY_WARN(common::LogMessageKey::TELEGRAMBOT_UPDATE_PARSE_ERROR,
+                  e.what());
   }
 }
 

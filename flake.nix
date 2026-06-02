@@ -53,7 +53,6 @@
               ninja
               llvmPackages.bintools
               pkg-config
-              gettext
               cmake-format
               ffmpeg
             ];
