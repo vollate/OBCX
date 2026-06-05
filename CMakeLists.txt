@@ -1,33 +1,41 @@
 cmake_minimum_required(VERSION 3.20)
 
-if(NOT CMAKE_CXX_COMPILER)
-  find_program(CLANG_CXX_COMPILER clang++)
-  find_program(GNU_CXX_COMPILER g++)
-
-  if(CLANG_CXX_COMPILER)
-    set(CMAKE_CXX_COMPILER ${CLANG_CXX_COMPILER})
-    message(STATUS "Using LLVM Clang++ compiler: ${CLANG_CXX_COMPILER}")
-  elseif(GNU_CXX_COMPILER)
-    set(CMAKE_CXX_COMPILER ${GNU_CXX_COMPILER})
-    message(STATUS "Using GNU G++ compiler: ${GNU_CXX_COMPILER}")
-  endif()
+set(OBCX_IN_NIX_SHELL OFF)
+if(NOT "$ENV{IN_NIX_SHELL}" STREQUAL "")
+  set(OBCX_IN_NIX_SHELL ON)
 endif()
 
-if(NOT CMAKE_C_COMPILER)
-  find_program(CLANG_C_COMPILER clang)
-  find_program(GNU_C_COMPILER gcc)
+if(OBCX_IN_NIX_SHELL)
+  if(APPLE)
+    set(CMAKE_OSX_SYSROOT "" CACHE STRING
+        "Cleared in IN_NIX_SHELL so the nix clang wrapper supplies its own pinned apple-sdk"
+        FORCE)
+    message(STATUS "Nix dev shell detected: CMAKE_OSX_SYSROOT cleared")
 
-  if(CLANG_C_COMPILER)
-    set(CMAKE_C_COMPILER ${CLANG_C_COMPILER})
-    message(STATUS "Using LLVM Clang compiler: ${CLANG_C_COMPILER}")
-  elseif(GNU_C_COMPILER)
-    set(CMAKE_C_COMPILER ${GNU_C_COMPILER})
-    message(STATUS "Using GNU GCC compiler: ${GNU_C_COMPILER}")
+    foreach(_LINKER_FLAG_VAR
+            CMAKE_EXE_LINKER_FLAGS
+            CMAKE_SHARED_LINKER_FLAGS
+            CMAKE_MODULE_LINKER_FLAGS)
+      if("${${_LINKER_FLAG_VAR}}" MATCHES "/opt/homebrew/opt/llvm")
+        string(REGEX REPLACE
+               "(^| )-L/opt/homebrew/opt/llvm/lib(/unwind)?( |$)"
+               " "
+               _CLEANED_LINKER_FLAGS
+               "${${_LINKER_FLAG_VAR}}")
+        string(REGEX REPLACE "(^| )-lunwind( |$)" " " _CLEANED_LINKER_FLAGS
+                             "${_CLEANED_LINKER_FLAGS}")
+        string(STRIP "${_CLEANED_LINKER_FLAGS}" _CLEANED_LINKER_FLAGS)
+        set(${_LINKER_FLAG_VAR}
+            "${_CLEANED_LINKER_FLAGS}"
+            CACHE STRING "Linker flags sanitized for Nix dev shell" FORCE)
+        message(STATUS "Removed Homebrew LLVM linker flags from ${_LINKER_FLAG_VAR}")
+      endif()
+    endforeach()
+    unset(_CLEANED_LINKER_FLAGS)
+    unset(_LINKER_FLAG_VAR)
   endif()
-endif()
-
-if(APPLE AND NOT CMAKE_OSX_SYSROOT)
-  if("$ENV{IN_NIX_SHELL}" STREQUAL "")
+else()
+  if(APPLE AND NOT CMAKE_OSX_SYSROOT)
     execute_process(
       COMMAND xcrun --sdk macosx --show-sdk-path
       OUTPUT_VARIABLE XCRUN_SDK_PATH
@@ -45,11 +53,6 @@ if(APPLE AND NOT CMAKE_OSX_SYSROOT)
           "Overriding Xcode SDK with CommandLineTools SDK: ${CMAKE_OSX_SYSROOT}")
     endif()
     unset(_CLT_SDK)
-  else()
-    set(CMAKE_OSX_SYSROOT "" CACHE STRING
-        "Cleared in IN_NIX_SHELL so the nix clang wrapper supplies its own pinned apple-sdk"
-        FORCE)
-    message(STATUS "Nix dev shell detected: CMAKE_OSX_SYSROOT cleared")
   endif()
 endif()
 
@@ -84,11 +87,20 @@ elseif(UNIX)
   endif()
 endif()
 
-if("$ENV{IN_NIX_SHELL}" STREQUAL "")
+if(OBCX_IN_NIX_SHELL)
+  set(_VCPKG_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}")
+  if(_VCPKG_PREFIX IN_LIST CMAKE_PREFIX_PATH)
+    list(REMOVE_ITEM CMAKE_PREFIX_PATH "${_VCPKG_PREFIX}")
+    set(CMAKE_PREFIX_PATH
+        "${CMAKE_PREFIX_PATH}"
+        CACHE STRING "Package search prefixes" FORCE)
+    message(STATUS "Removed vcpkg prefix from CMAKE_PREFIX_PATH in Nix shell")
+  endif()
+  unset(_VCPKG_PREFIX)
+  message(STATUS "NIX shell activation detected, disable vcpkg")
+else()
   set(CMAKE_PREFIX_PATH
       "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}")
-else()
-  message(STATUS "NIX shell activation detected, disable vcpkg")
 endif()
 
 option(ENABLE_DEBUG_TRACE "Enable logging with file and line numbers" OFF)
@@ -118,7 +130,9 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
     set(CMAKE_USE_PTHREADS_INIT 1)
     set(THREADS_PREFER_PTHREAD_FLAG ON)
   endif()
-  set(CMAKE_LINKER_TYPE LLD)
+  if(NOT APPLE)
+    set(CMAKE_LINKER_TYPE LLD)
+  endif()
   message(STATUS "Using libc++ standard library with Clang")
 endif()
 
