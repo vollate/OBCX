@@ -1,0 +1,22 @@
+services:
+  llonebot-x64:
+    image: initialencounter/llonebot:latest
+    environment:
+      - VNC_PASSWD=nopasswd # 设置 VNC 密码
+    volumes:
+      - ./QQ:/root/.config/QQ # 挂载 QQ 配置目录
+      - ./llonebot:/root/llonebot # 挂载 llonebot 数据目录
+      - .:/workspace/tests # 挂载当前测试目录
+    ports:
+      - 0.0.0.0:11451:3080 # Web UI
+    container_name: llonebot
+    restart: always
+
+  obcx:
+    image: localhost/obcx:nix-amd64
+    container_name: obcx
+    volumes:
+      - .:/workspace/tests # 挂载当前测试目录，保留镜像内已构建的 /workspace/build
+    depends_on:
+      - llonebot-x64
+    restart: always

@@ -1,0 +1,9 @@
+.git
+**/.git
+build
+cmake-build-*
+vcpkg_installed
+logs
+*.log
+.cache
+.DS_Store

@@ -31,47 +31,57 @@
           # Linux-only deps. liburing is the io_uring backend (kernel API,
           # Linux-only). stdenv.cc.cc.lib carries the gcc runtime needed by
           # libstdc++ users on Linux. Both must be omitted on Darwin.
-          linuxOnlyDeps = lib.optionals stdenv.isLinux (with pkgs; [
-            liburing
-            stdenv.cc.cc.lib
-          ]);
+          linuxOnlyDeps = lib.optionals stdenv.isLinux (
+            with pkgs;
+            [
+              liburing
+              stdenv.cc.cc.lib
+            ]
+          );
 
-          obcxDependencies = (with pkgs; [
-            boost
-            brotli
-            fmt
-            zlib
-            gtest
-            nlohmann_json
-            openssl
-            spdlog
-            sqlite
-            tomlplusplus
-            ftxui
-            libxml2
-            re2
-            zstd
-          ]) ++ linuxOnlyDeps;
+          obcxDependencies =
+            (with pkgs; [
+              boost
+              brotli
+              fmt
+              zlib
+              gtest
+              nlohmann_json
+              openssl
+              spdlog
+              sqlite
+              tomlplusplus
+              ftxui
+              libxml2
+              re2
+              zstd
+            ])
+            ++ linuxOnlyDeps;
         in
         {
           default = pkgs.mkShell.override { stdenv = pkgs.clangStdenv; } {
-            nativeBuildInputs = (with pkgs; [
-              clang-tools
-              cmake
-              ninja
-              llvmPackages.bintools
-              pkg-config
-              cmake-format
-              ffmpeg
-            ]) ++ lib.optionals stdenv.isLinux (with pkgs; [
-              # `perf` is part of the Linux kernel tooling; not available on
-              # Darwin.
-              perf
-            ]);
+            nativeBuildInputs =
+              (with pkgs; [
+                clang-tools
+                cmake
+                ninja
+                llvmPackages.bintools
+                pkg-config
+                cmake-format
+                ffmpeg
+              ])
+              ++ lib.optionals stdenv.isLinux (
+                with pkgs;
+                [
+                  # `perf` is part of the Linux kernel tooling; not available on
+                  # Darwin.
+                  perf
+                ]
+              );
 
             buildInputs = obcxDependencies;
 
-            shellHook = '''';
+            shellHook = "";
           };
         }
       );
