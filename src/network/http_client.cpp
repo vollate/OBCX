@@ -14,6 +14,7 @@
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/version.hpp>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -27,7 +28,7 @@ using tcp = asio::ip::tcp;
 HttpClient::HttpClient(asio::io_context &ioc,
                        const common::ConnectionConfig &config)
     : pimpl_(std::make_unique<Impl>(ioc, config)) {
-  OBCX_INFO("HTTP Client initialized for {}:{}", config.host, config.port);
+  OBCX_TRACE("HTTP Client initialized for {}:{}", config.host, config.port);
 }
 
 HttpClient::~HttpClient() = default;
@@ -83,10 +84,12 @@ auto HttpClient::post(std::string_view path, std::string_view body,
       co_await http::async_write(stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
-      http::response<http::string_body> res;
+      http::response_parser<http::string_body> parser;
+      parser.body_limit(pimpl_->response_body_limit);
       beast::get_lowest_layer(stream).expires_after(
           pimpl_->config.connect_timeout);
-      co_await http::async_read(stream, buffer, res, asio::use_awaitable);
+      co_await http::async_read(stream, buffer, parser, asio::use_awaitable);
+      auto res = parser.release();
 
       decompress_inplace(res);
       response.status_code = res.result_int();
@@ -110,9 +113,11 @@ auto HttpClient::post(std::string_view path, std::string_view body,
       co_await http::async_write(stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
-      http::response<http::string_body> res;
+      http::response_parser<http::string_body> parser;
+      parser.body_limit(pimpl_->response_body_limit);
       stream.expires_after(pimpl_->config.connect_timeout);
-      co_await http::async_read(stream, buffer, res, asio::use_awaitable);
+      co_await http::async_read(stream, buffer, parser, asio::use_awaitable);
+      auto res = parser.release();
 
       decompress_inplace(res);
       response.status_code = res.result_int();
@@ -180,10 +185,12 @@ auto HttpClient::get(std::string_view path,
       co_await http::async_write(stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
-      http::response<http::string_body> res;
+      http::response_parser<http::string_body> parser;
+      parser.body_limit(pimpl_->response_body_limit);
       beast::get_lowest_layer(stream).expires_after(
           pimpl_->config.connect_timeout);
-      co_await http::async_read(stream, buffer, res, asio::use_awaitable);
+      co_await http::async_read(stream, buffer, parser, asio::use_awaitable);
+      auto res = parser.release();
 
       decompress_inplace(res);
       response.status_code = res.result_int();
@@ -207,9 +214,11 @@ auto HttpClient::get(std::string_view path,
       co_await http::async_write(stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
-      http::response<http::string_body> res;
+      http::response_parser<http::string_body> parser;
+      parser.body_limit(pimpl_->response_body_limit);
       stream.expires_after(pimpl_->config.connect_timeout);
-      co_await http::async_read(stream, buffer, res, asio::use_awaitable);
+      co_await http::async_read(stream, buffer, parser, asio::use_awaitable);
+      auto res = parser.release();
 
       decompress_inplace(res);
       response.status_code = res.result_int();
@@ -275,18 +284,21 @@ auto HttpClient::head(std::string_view path,
       co_await http::async_write(stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
-      http::response<http::string_body> res;
+      http::response_parser<http::string_body> parser;
+      parser.body_limit(pimpl_->response_body_limit);
+      parser.skip(true);
       beast::get_lowest_layer(stream).expires_after(
           pimpl_->config.connect_timeout);
 
       boost::system::error_code ec;
-      co_await http::async_read(stream, buffer, res,
+      co_await http::async_read(stream, buffer, parser,
                                 asio::redirect_error(asio::use_awaitable, ec));
 
       if (ec && ec != http::error::end_of_stream &&
           ec != http::error::partial_message) {
         throw boost::system::system_error(ec);
       }
+      auto res = parser.release();
 
       decompress_inplace(res);
       response.status_code = res.result_int();
@@ -310,17 +322,20 @@ auto HttpClient::head(std::string_view path,
       co_await http::async_write(stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
-      http::response<http::string_body> res;
+      http::response_parser<http::string_body> parser;
+      parser.body_limit(pimpl_->response_body_limit);
+      parser.skip(true);
       stream.expires_after(pimpl_->config.connect_timeout);
 
       boost::system::error_code ec;
-      co_await http::async_read(stream, buffer, res,
+      co_await http::async_read(stream, buffer, parser,
                                 asio::redirect_error(asio::use_awaitable, ec));
 
       if (ec && ec != http::error::end_of_stream &&
           ec != http::error::partial_message) {
         throw boost::system::system_error(ec);
       }
+      auto res = parser.release();
 
       decompress_inplace(res);
       response.status_code = res.result_int();
@@ -339,6 +354,17 @@ auto HttpClient::head(std::string_view path,
 
 void HttpClient::set_timeout(std::chrono::milliseconds timeout) {
   pimpl_->config.connect_timeout = timeout;
+}
+
+void HttpClient::set_response_body_limit(std::uint64_t bytes) {
+  if (bytes == 0) {
+    throw std::invalid_argument("HTTP response body limit must be positive");
+  }
+  pimpl_->response_body_limit = bytes;
+}
+
+auto HttpClient::response_body_limit() const -> std::uint64_t {
+  return pimpl_->response_body_limit;
 }
 
 auto HttpClient::is_connected() const -> bool {

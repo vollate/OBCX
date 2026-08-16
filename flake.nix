@@ -1,43 +1,44 @@
 {
   description = "C++ development environment for OBCX";
 
-  # Use the nixos-unstable channel for up-to-date packages,
-  # or change to "github:NixOS/nixpkgs/nixos-23.11" for stable.
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
   outputs =
-    { self, nixpkgs }:
+    { nixpkgs, ... }:
     let
-      # Define the systems you want to support
       supportedSystems = [
         "x86_64-linux"
         "aarch64-linux"
-        "aarch64-darwin"
-        "x86_64-darwin"
       ];
 
-      # Helper function to generate attributes for each system
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+      pkgsFor = system: import nixpkgs { inherit system; };
     in
     {
+      formatter = forAllSystems (
+        system:
+        let
+          pkgs = pkgsFor system;
+        in
+        pkgs.writeShellApplication {
+          name = "treefmt";
+          runtimeInputs = [
+            pkgs.clang-tools
+            pkgs.treefmt
+          ];
+          text = ''
+            exec ${pkgs.treefmt}/bin/treefmt "$@"
+          '';
+        }
+      );
+
       devShells = forAllSystems (
         system:
         let
-          pkgs = import nixpkgs { inherit system; };
-          inherit (pkgs) lib stdenv;
-
-          # Linux-only deps. liburing is the io_uring backend (kernel API,
-          # Linux-only). stdenv.cc.cc.lib carries the gcc runtime needed by
-          # libstdc++ users on Linux. Both must be omitted on Darwin.
-          linuxOnlyDeps = lib.optionals stdenv.isLinux (
-            with pkgs;
-            [
-              liburing
-              stdenv.cc.cc.lib
-            ]
-          );
+          pkgs = pkgsFor system;
+          stdenv = pkgs.gcc16Stdenv;
 
           obcxDependencies =
             (with pkgs; [
@@ -47,6 +48,7 @@
               zlib
               gtest
               nlohmann_json
+              openspec
               openssl
               spdlog
               sqlite
@@ -55,33 +57,34 @@
               libxml2
               re2
               zstd
-            ])
-            ++ linuxOnlyDeps;
+              liburing
+              stdenv.cc.cc.lib
+            ]);
         in
         {
-          default = pkgs.mkShell.override { stdenv = pkgs.clangStdenv; } {
+          default = pkgs.mkShell.override { inherit stdenv; } {
             nativeBuildInputs =
               (with pkgs; [
-                clang-tools
                 cmake
                 ninja
-                llvmPackages.bintools
+                git
+                gcc16
+                binutils
                 pkg-config
                 cmake-format
+                clang-tools
+                doxygen
                 ffmpeg
-              ])
-              ++ lib.optionals stdenv.isLinux (
-                with pkgs;
-                [
-                  # `perf` is part of the Linux kernel tooling; not available on
-                  # Darwin.
-                  perf
-                ]
-              );
+                perf
+                treefmt
+              ]);
 
             buildInputs = obcxDependencies;
 
-            shellHook = "";
+            shellHook = ''
+              export CC=gcc
+              export CXX=g++
+            '';
           };
         }
       );

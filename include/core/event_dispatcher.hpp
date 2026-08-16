@@ -23,10 +23,10 @@ class EventDispatcher {
 public:
   /**
    * @brief 构造函数
-   * @param worker_pool 工作线程池，用于在独立线程中执行事件处理器
+   * @param executor 用于启动非阻塞事件协程的 I/O executor
    */
-  explicit EventDispatcher(asio::thread_pool &worker_pool)
-      : worker_pool_(worker_pool) {}
+  explicit EventDispatcher(asio::any_io_executor executor)
+      : executor_(std::move(executor)) {}
 
   /**
    * @brief 注册一个事件处理器 (新版本，支持Bot引用)
@@ -82,9 +82,10 @@ public:
                        handlers_for_type.size());
 
             for (const auto &handler : handlers_for_type) {
-              // 将事件处理器投递到工作线程池执行，避免阻塞网络IO线程
+              // 事件处理器必须保持异步；同步阻塞/重计算由 actor runtime 的
+              // BlockingExecutor 显式承载。
               asio::co_spawn(
-                  worker_pool_,
+                  executor_,
                   [handler, bot, concrete_event]() -> asio::awaitable<void> {
                     co_await handler(bot, concrete_event);
                   },
@@ -100,7 +101,7 @@ public:
   }
 
 private:
-  asio::thread_pool &worker_pool_;
+  asio::any_io_executor executor_;
   std::map<std::type_index,
            std::vector<std::function<asio::awaitable<void>(IBot *, std::any)>>>
       handlers_;

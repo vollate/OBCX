@@ -6,11 +6,9 @@
 
 namespace obcx::core {
 
-QQBot::QQBot(adapter::onebot11::ProtocolAdapter adapter,
-             std::shared_ptr<TaskScheduler> task_scheduler)
+QQBot::QQBot(adapter::onebot11::ProtocolAdapter adapter)
     : IBot{std::make_unique<adapter::onebot11::ProtocolAdapter>(
-               std::move(adapter)),
-           std::move(task_scheduler)} {
+          std::move(adapter))} {
   OBCX_INFO("QQBot instance created, all core components initialized");
 }
 
@@ -46,10 +44,6 @@ void QQBot::stop() {
 
   if (connection_manager_) {
     connection_manager_->disconnect();
-  }
-
-  if (task_scheduler_) {
-    task_scheduler_->stop();
   }
 
   io_context_->stop();

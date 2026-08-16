@@ -11,9 +11,12 @@
 namespace obcx::network {
 
 WebSocketConnectionManager::WebSocketConnectionManager(
-    asio::io_context &ioc, adapter::onebot11::ProtocolAdapter &adapter)
+    asio::io_context &ioc, adapter::onebot11::ProtocolAdapter &adapter,
+    detail::ActionDeadlineFactory deadline_factory)
     : ioc_(ioc), adapter_(adapter), reconnect_timer_(ioc),
-      send_strand_(asio::make_strand(ioc)) {}
+      send_strand_(asio::make_strand(ioc)),
+      action_requests_(std::make_shared<detail::ActionRequestTracker>(
+          ioc.get_executor(), std::move(deadline_factory))) {}
 
 WebSocketConnectionManager::~WebSocketConnectionManager() {
   // Release our own resources while the referenced io_context is still alive
@@ -47,25 +50,8 @@ void WebSocketConnectionManager::disconnect() {
   is_running_ = false;
   is_connected_.store(false, std::memory_order_release);
 
-  // Drain pending requests so their completion handlers don't fire after we
-  // tear down strands/io_context.
-  {
-    std::scoped_lock lock(pending_requests_mutex_);
-    for (auto &[echo_id, request] : pending_requests_) {
-      if (request) {
-        request->timeout_timer.cancel();
-        if (request->completion_handler) {
-          try {
-            request->completion_handler(asio::error::operation_aborted, "");
-          } catch (...) {
-            // FIXME: Log the exception
-          }
-        }
-      }
-    }
-    pending_requests_.clear();
-    OBCX_DEBUG("Cleared all pending requests, total: 0");
-  }
+  action_requests_->cancel_all();
+  OBCX_DEBUG("Cleared all pending OneBot actions");
 
   if (ws_client_) {
     asio::co_spawn(ioc_, ws_client_->close(), asio::detached);
@@ -109,12 +95,11 @@ void WebSocketConnectionManager::do_connect() {
 
 void WebSocketConnectionManager::on_ws_message(const beast::error_code &ec,
                                                const std::string &message) {
-  OBCX_TRACE("Receive ws server message: {}", message);
   if (ec) {
     OBCX_ERROR("Connection disconnected, error: {}", ec.message());
-    {
-      is_connected_.store(false, std::memory_order_release);
-    }
+    is_connected_.store(false, std::memory_order_release);
+    action_requests_->fail_all(
+        std::make_exception_ptr(boost::system::system_error{ec}));
     schedule_reconnect();
     return;
   }
@@ -128,7 +113,7 @@ void WebSocketConnectionManager::on_ws_message(const beast::error_code &ec,
     return;
   }
 
-  OBCX_TRACE("WebSocket received raw message: {}", message);
+  OBCX_TRACE("WebSocket message received: bytes={}", message.size());
 
   try {
     nlohmann::json j = nlohmann::json::parse(message);
@@ -136,40 +121,11 @@ void WebSocketConnectionManager::on_ws_message(const beast::error_code &ec,
     if (j.contains("echo") && j.contains("retcode")) {
       uint64_t echo = j["echo"];
 
-      std::scoped_lock lock(pending_requests_mutex_);
-      OBCX_DEBUG("Looking for pending request with echo: {}", echo,
-                 pending_requests_.size());
-      auto it = pending_requests_.find(echo);
-      if (it != pending_requests_.end()) {
-        auto request = it->second;
-        pending_requests_.erase(it);
-
-        request->need_wait.store(false, std::memory_order_release);
-        request->timeout_timer.cancel();
-
-        if (request->completion_handler) {
-          OBCX_DEBUG("Calling completion handler for echo: {}", echo);
-          request->completion_handler(boost::system::error_code{}, message);
-        } else {
-          OBCX_ERROR("Completion handler is null for echo: {}", echo);
-        }
-        OBCX_DEBUG("API response handled for echo: {}", echo);
+      if (action_requests_->respond(echo, message)) {
+        OBCX_DEBUG("OneBot action response handled: echo={}", echo);
         return;
       }
-      OBCX_WARN("Received API response with unknown echo: {}", echo);
-      // Dump all pending echo IDs to help diagnose unmatched-echo bugs.
-#ifdef __OBCX_DEBUG_COMPILATION
-      std::stringstream pending_echos;
-      bool first = true;
-      for (const auto &[id, req] : pending_requests_) {
-        if (!first) {
-          pending_echos << ", ";
-        }
-        first = false;
-        pending_echos << id;
-      }
-      OBCX_DEBUG("Current pending requests: {}", pending_echos.str());
-#endif
+      OBCX_WARN("Received OneBot action response with unknown echo: {}", echo);
     }
   } catch (const nlohmann::json::exception &e) {
     OBCX_WARN("Failed to parse WebSocket message JSON: {}", e.what());
@@ -206,35 +162,7 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
     throw std::runtime_error("No available WebSocket client");
   }
 
-  OBCX_DEBUG("Using coroutine mode for API request");
-
-  std::optional<std::string> response_result;
-  std::optional<boost::system::error_code> response_error;
-  std::mutex result_mutex;
-
-  auto request = std::make_shared<PendingRequest>(ioc_);
-
-  request->completion_handler =
-      [&result_mutex, &response_result, &response_error,
-       request](boost::system::error_code ec, std::string response) -> void {
-    std::scoped_lock lock(result_mutex);
-    if (ec) {
-      response_error = ec;
-    } else {
-      response_result = std::move(response);
-    }
-    request->timeout_timer.cancel();
-  };
-
-  request->timeout_timer.expires_after(action_timeout_);
-
-  {
-    std::scoped_lock lock(pending_requests_mutex_);
-    pending_requests_[echo_id] = request;
-    OBCX_DEBUG("Added pending request (coroutine) with echo: {}", echo_id,
-               pending_requests_.size());
-  }
-
+  auto request = action_requests_->start(echo_id, action_timeout_);
   try {
     co_await asio::co_spawn(
         send_strand_,
@@ -243,80 +171,33 @@ auto WebSocketConnectionManager::send_action_and_wait_async(
           co_await ws_client_->send(action_payload);
         },
         asio::use_awaitable);
-
-    OBCX_DEBUG("WebSocket message sent (coroutine): {}", echo_id);
-
-    if (request->need_wait.load(std::memory_order_acquire)) {
-      try {
-        co_await request->timeout_timer.async_wait(asio::use_awaitable);
-        // Reaching here means the timer expired without being cancelled by an
-        // incoming response, i.e. the API call genuinely timed out.
-        OBCX_DEBUG("API request timeout for echo: {}", echo_id);
-        response_error = asio::error::timed_out;
-      } catch (const boost::system::system_error &e) {
-        if (e.code() == asio::error::operation_aborted) {
-          // Timer cancellation is the normal path: the matching echo response
-          // arrived and on_ws_message cancelled the timer.
-          OBCX_DEBUG("Response received, canceling timeout timer for echo: {}",
-                     echo_id);
-        } else {
-          throw;
-        }
-      }
-    }
-
-    {
-      std::scoped_lock lock(pending_requests_mutex_);
-      pending_requests_.erase(echo_id);
-      OBCX_DEBUG("Cleaning up pending request (coroutine) for echo: {}",
-                 echo_id, pending_requests_.size());
-    }
-
-    {
-      std::scoped_lock lock(result_mutex);
-      if (response_error) {
-        if (response_error == asio::error::timed_out) {
-          OBCX_ERROR("API request timed out (coroutine) for echo: {}", echo_id);
-          throw std::runtime_error("API request timeout");
-        }
-        throw boost::system::system_error(*response_error);
-      }
-
-      if (response_result) {
-        OBCX_DEBUG("API request successful (coroutine) for echo: {}", echo_id,
-                   response_result->length());
-        co_return *response_result;
-      }
-
-      throw std::runtime_error(
-          std::string("Unknown error: no result and no error"));
-    }
-
+    OBCX_DEBUG("OneBot action sent: echo={}", echo_id);
   } catch (...) {
-    request->timeout_timer.cancel();
-    {
-      std::scoped_lock lock(pending_requests_mutex_);
-      pending_requests_.erase(echo_id);
-    }
-    throw;
+    static_cast<void>(
+        action_requests_->fail(echo_id, std::current_exception()));
   }
+
+  auto outcome = co_await request->wait();
+  switch (outcome.status) {
+  case detail::ActionTerminalStatus::Response:
+    OBCX_DEBUG("OneBot action completed: echo={} response_bytes={}", echo_id,
+               outcome.response.size());
+    co_return std::move(outcome.response);
+  case detail::ActionTerminalStatus::Timeout:
+    OBCX_ERROR("OneBot action timed out: echo={}", echo_id);
+    throw std::runtime_error("API request timeout");
+  case detail::ActionTerminalStatus::TransportFailure:
+  case detail::ActionTerminalStatus::Cancelled:
+    if (outcome.failure) {
+      std::rethrow_exception(outcome.failure);
+    }
+    throw boost::system::system_error{asio::error::operation_aborted};
+  }
+  throw std::runtime_error("OneBot action completed with an invalid state");
 }
 
 auto WebSocketConnectionManager::is_connected() const -> bool {
   return is_connected_.load(std::memory_order_acquire);
-}
-
-void WebSocketConnectionManager::handle_timeout(uint64_t echo_id) {
-  std::scoped_lock lock(pending_requests_mutex_);
-  auto it = pending_requests_.find(echo_id);
-  if (it != pending_requests_.end()) {
-    auto request = it->second;
-    pending_requests_.erase(it);
-
-    if (request->completion_handler) {
-      request->completion_handler(asio::error::timed_out, "");
-    }
-  }
 }
 
 } // namespace obcx::network

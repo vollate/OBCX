@@ -2,6 +2,7 @@
 
 #include "common/message_type.hpp"
 #include "interfaces/protocol_adapter.hpp"
+#include "interfaces/telegram_bot.hpp"
 
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -420,6 +421,15 @@ public:
       const std::optional<int64_t> &topic_id = std::nullopt,
       const std::optional<std::string> &reply_to_message_id = std::nullopt,
       const std::optional<uint64_t> &echo = std::nullopt) -> std::string;
+
+  auto serialize_send_media_group_request_with_entities(
+      std::string_view chat_id,
+      const std::vector<std::pair<std::string, std::string>> &media,
+      std::string_view caption, const std::optional<int64_t> &topic_id,
+      const std::optional<std::string> &reply_to_message_id,
+      const std::optional<uint64_t> &echo,
+      const std::vector<core::TelegramTextEntity> &caption_entities)
+      -> std::string;
 
   /**
    * @brief 将"编辑消息文本"动作序列化为Telegram API兼容的JSON字符串。

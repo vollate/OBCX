@@ -1,10 +1,13 @@
 #include "common/cli_handler.hpp"
 #include "common/logger.hpp"
 
+#include <array>
+#include <cerrno>
 #include <fmt/format.h>
-#include <iostream>
+#include <poll.h>
 #include <spdlog/common.h>
 #include <string_view>
+#include <unistd.h>
 
 namespace obcx::common {
 
@@ -42,10 +45,68 @@ auto CliHandler::process_command(const std::string &line) -> bool {
 }
 
 void CliHandler::run() {
-  std::string line;
-  while (!ctx_.should_stop.load(std::memory_order_acquire) &&
-         std::getline(std::cin, line)) {
-    if (!process_command(line)) {
+  constexpr int kStopPollIntervalMs = 100;
+  std::array<char, 4096> chunk{};
+  std::string buffered_input;
+  pollfd input{
+      .fd = STDIN_FILENO,
+      .events = POLLIN,
+      .revents = 0,
+  };
+
+  const auto process_complete_lines = [&]() -> bool {
+    for (;;) {
+      const auto newline = buffered_input.find('\n');
+      if (newline == std::string::npos) {
+        return true;
+      }
+      auto line = buffered_input.substr(0, newline);
+      buffered_input.erase(0, newline + 1);
+      if (!line.empty() && line.back() == '\r') {
+        line.pop_back();
+      }
+      if (!process_command(line)) {
+        return false;
+      }
+    }
+  };
+
+  while (!ctx_.should_stop.load(std::memory_order_acquire)) {
+    input.revents = 0;
+    const auto ready = ::poll(&input, 1, kStopPollIntervalMs);
+    if (ready < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      OBCX_WARN("CLI input polling failed; stopping command input");
+      break;
+    }
+    if (ready == 0 || ctx_.should_stop.load(std::memory_order_acquire)) {
+      continue;
+    }
+
+    if ((input.revents & (POLLIN | POLLHUP)) != 0) {
+      const auto count = ::read(STDIN_FILENO, chunk.data(), chunk.size());
+      if (count > 0) {
+        buffered_input.append(chunk.data(), static_cast<std::size_t>(count));
+        if (!process_complete_lines()) {
+          return;
+        }
+        continue;
+      }
+      if (count < 0 && errno == EINTR) {
+        continue;
+      }
+      if (count < 0) {
+        OBCX_WARN("CLI input read failed; stopping command input");
+      } else if (!buffered_input.empty()) {
+        static_cast<void>(process_command(buffered_input));
+      }
+      break;
+    }
+
+    if ((input.revents & (POLLERR | POLLNVAL)) != 0) {
+      OBCX_WARN("CLI input became unavailable; stopping command input");
       break;
     }
   }
@@ -59,51 +120,6 @@ auto CliHandler::handle_exit(Context &ctx,
     ctx.stop_cv.notify_one();
   }
   return false; // Stop the CLI loop
-}
-
-auto CliHandler::handle_reload(Context &ctx,
-                               [[maybe_unused]] const std::string &args)
-    -> bool {
-  OBCX_INFO("Starting plugin reload...");
-
-  // Step 1: Clear all event handlers from bots to prevent dangling
-  // function pointers after plugin unload
-  {
-    std::scoped_lock lock(ctx.bots_mutex);
-    for (auto &bot : ctx.bots) {
-      bot->clear_event_handlers();
-    }
-  }
-
-  // Step 2: Shutdown and unload all plugins
-  ctx.plugin_manager.shutdown_all_plugins();
-  ctx.plugin_manager.unload_all_plugins();
-
-  // Step 3: Reload configuration
-  ctx.config_loader.reload_config();
-
-  // Step 4: Update bot_configs from reloaded config
-  ctx.bot_configs = ctx.config_loader.get_bot_configs();
-
-  // Step 5: Load and initialize plugins based on new bot configs
-  for (const auto &config : ctx.bot_configs) {
-    if (!config.enabled) {
-      continue;
-    }
-    for (const auto &plugin_name : config.plugins) {
-      if (!ctx.plugin_manager.load_plugin(plugin_name)) {
-        OBCX_WARN("Failed to load plugin: {}", plugin_name);
-        continue;
-      }
-      if (!ctx.plugin_manager.initialize_plugin(plugin_name)) {
-        OBCX_WARN("Failed to initialize plugin: {}", plugin_name);
-        continue;
-      }
-    }
-  }
-
-  OBCX_INFO("Plugin reload completed");
-  return true; // Continue the CLI loop
 }
 
 void CliHandler::output(Context &ctx, const std::string &msg) {
@@ -126,6 +142,29 @@ auto CliHandler::handle_log_level([[maybe_unused]] Context &ctx,
               level_str);
   }
   return true; // Continue the CLI loop
+}
+
+auto CliHandler::handle_reload(Context &ctx,
+                               [[maybe_unused]] const std::string &args)
+    -> bool {
+  if (!ctx.reload_cb) {
+    output(ctx, "reload_unavailable: actor runtime reload is unavailable");
+    return true;
+  }
+
+  switch (ctx.reload_cb()) {
+  case ReloadRequestStatus::Accepted:
+    output(ctx, "ACTOR RELOAD STARTED: wait for the highlighted ACTOR RELOAD "
+                "SUCCEEDED/FAILED result");
+    break;
+  case ReloadRequestStatus::Busy:
+    output(ctx, "reload_busy: an actor runtime reload is already running");
+    break;
+  case ReloadRequestStatus::Unavailable:
+    output(ctx, "reload_unavailable: actor runtime reload is unavailable");
+    break;
+  }
+  return true;
 }
 
 } // namespace obcx::common

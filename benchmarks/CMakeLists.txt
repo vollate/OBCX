@@ -1,0 +1,17 @@
+add_executable(actor_scheduler_v2_stress actor_scheduler_v2_stress.cpp)
+target_link_libraries(actor_scheduler_v2_stress PRIVATE obcx_core)
+target_compile_features(actor_scheduler_v2_stress PRIVATE cxx_std_26)
+
+add_executable(actor_routing_context_benchmark
+  actor_routing_context_benchmark.cpp)
+target_link_libraries(actor_routing_context_benchmark PRIVATE obcx_core)
+target_compile_features(actor_routing_context_benchmark PRIVATE cxx_std_26)
+
+add_executable(blocking_executor_benchmark blocking_executor_benchmark.cpp)
+target_link_libraries(blocking_executor_benchmark PRIVATE obcx_core)
+target_compile_features(blocking_executor_benchmark PRIVATE cxx_std_26)
+
+add_executable(bridge_forwarding_business_benchmark
+  bridge_forwarding_business_benchmark.cpp)
+target_link_libraries(bridge_forwarding_business_benchmark PRIVATE obcx_core)
+target_compile_features(bridge_forwarding_business_benchmark PRIVATE cxx_std_26)

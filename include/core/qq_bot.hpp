@@ -1,6 +1,7 @@
 #pragma once
 
 #include "interfaces/bot.hpp"
+#include "interfaces/qq_bot.hpp"
 #include "onebot11/adapter/protocol_adapter.hpp"
 
 #include <boost/asio/awaitable.hpp>
@@ -12,10 +13,9 @@ namespace obcx::core {
 /**
  * @brief QQBot 类，继承自 Bot 基类，实现 QQ 机器人功能
  */
-class QQBot : public IBot {
+class QQBot : public IBot, public IQQBot {
 public:
-  QQBot(adapter::onebot11::ProtocolAdapter adapter,
-        std::shared_ptr<TaskScheduler> task_scheduler = nullptr);
+  explicit QQBot(adapter::onebot11::ProtocolAdapter adapter);
   ~QQBot() override;
 
   QQBot(const QQBot &) = delete;
@@ -80,7 +80,7 @@ public:
    * @return 合并转发内容的JSON响应
    */
   auto get_forward_msg(std::string_view forward_id)
-      -> asio::awaitable<std::string>;
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 获取好友列表
@@ -250,7 +250,7 @@ public:
   auto get_login_info() -> asio::awaitable<std::string> override;
 
   /**
-   * @brief 获取插件运行状态
+   * @brief 获取运行状态
    * @return 状态信息的JSON响应
    */
   auto get_status() -> asio::awaitable<std::string> override;
@@ -285,7 +285,7 @@ public:
    * @return 包含下载URL的JSON响应
    */
   auto get_group_file_url(std::string_view group_id, std::string_view file_id)
-      -> asio::awaitable<std::string>;
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 获取私聊文件下载URL
@@ -294,7 +294,7 @@ public:
    * @return 包含下载URL的JSON响应
    */
   auto get_private_file_url(std::string_view user_id, std::string_view file_id)
-      -> asio::awaitable<std::string>;
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 群组戳一戳
@@ -303,7 +303,7 @@ public:
    * @return 操作结果的JSON响应
    */
   auto group_poke(std::string_view group_id, std::string_view user_id)
-      -> asio::awaitable<std::string>;
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 发送群合并转发消息
@@ -377,14 +377,6 @@ public:
    * @return 连接状态
    */
   [[nodiscard]] auto is_connected() const -> bool override;
-
-  /**
-   * @brief 获取任务调度器的引用，用于执行重负载任务
-   * @return TaskScheduler& 任务调度器引用
-   */
-  auto get_task_scheduler() -> TaskScheduler & override {
-    return *task_scheduler_;
-  }
 
 private:
   /**

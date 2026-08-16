@@ -2,6 +2,7 @@
 
 #include "common/message_type.hpp"
 #include "interfaces/connection_manager.hpp"
+#include "interfaces/telegram_bot.hpp"
 #include "network/http_client.hpp"
 #include "telegram/adapter/protocol_adapter.hpp"
 
@@ -12,6 +13,27 @@
 #include <optional>
 
 namespace obcx::network {
+
+struct TelegramMultipartRequest {
+  std::string body;
+  std::string content_type;
+};
+
+[[nodiscard]] auto build_telegram_media_group_multipart(
+    std::string_view chat_id,
+    const std::vector<core::TelegramMediaUpload> &media,
+    std::string_view caption,
+    std::optional<int64_t> message_thread_id = std::nullopt,
+    std::optional<std::string> reply_to_message_id = std::nullopt)
+    -> TelegramMultipartRequest;
+
+[[nodiscard]] auto build_telegram_media_group_multipart_with_entities(
+    std::string_view chat_id,
+    const std::vector<core::TelegramMediaUpload> &media,
+    std::string_view caption, std::optional<int64_t> message_thread_id,
+    std::optional<std::string> reply_to_message_id,
+    const std::vector<core::TelegramTextEntity> &caption_entities)
+    -> TelegramMultipartRequest;
 
 /**
  * @brief Telegram Bot API连接管理器
@@ -71,6 +93,23 @@ public:
       std::string_view filename, std::string_view mime_type,
       std::string_view caption,
       std::optional<int64_t> message_thread_id = std::nullopt)
+      -> asio::awaitable<std::string>;
+
+  /** Upload a complete Telegram media group with attach:// multipart parts. */
+  auto upload_media_group_multipart(
+      std::string_view chat_id,
+      const std::vector<core::TelegramMediaUpload> &media,
+      std::string_view caption,
+      std::optional<int64_t> message_thread_id = std::nullopt,
+      std::optional<std::string> reply_to_message_id = std::nullopt)
+      -> asio::awaitable<std::string>;
+
+  auto upload_media_group_multipart_with_entities(
+      std::string_view chat_id,
+      const std::vector<core::TelegramMediaUpload> &media,
+      std::string_view caption, std::optional<int64_t> message_thread_id,
+      std::optional<std::string> reply_to_message_id,
+      const std::vector<core::TelegramTextEntity> &caption_entities)
       -> asio::awaitable<std::string>;
 
 private:

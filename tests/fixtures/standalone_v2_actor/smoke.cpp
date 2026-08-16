@@ -1,0 +1,106 @@
+#include "core/actor_manager.hpp"
+#include "core/native_actor_scheduler.hpp"
+
+#include "common/config_loader.hpp"
+
+#include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/thread_pool.hpp>
+
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <future>
+#include <utility>
+
+int main(int argc, char **argv) {
+  using namespace std::chrono_literals;
+  using namespace obcx::core;
+
+  if (argc != 2) {
+    return 1;
+  }
+  const std::filesystem::path actor_path = argv[1];
+  {
+    ActorManager manager;
+    if (!manager.load_actor_from_path(actor_path)) {
+      return 2;
+    }
+    auto actor = manager.get_actor_shared("sdk_v2_fixture");
+    if (!actor) {
+      return 3;
+    }
+    const auto *contract = manager.get_actor_contract("sdk_v2_fixture");
+    if (contract == nullptr || contract->commands.size() != 1 ||
+        contract->commands.front().name != "sdk_ping" ||
+        contract->commands.front().request_type !=
+            "obcx::sdk_fixture::events::SdkCommand" ||
+        !contract->commands.front().matcher ||
+        contract->commands.front().matcher->kind != "re2" ||
+        contract->commands.front().matcher->pattern !=
+            R"(^(?:sdk_ping|sdk_alias)$)" ||
+        contract->commands.front().matcher->mode != "full") {
+      return 8;
+    }
+
+    const auto config_path =
+        std::filesystem::temp_directory_path() /
+        ("obcx-sdk-v2-smoke-" +
+         std::to_string(
+             std::chrono::steady_clock::now().time_since_epoch().count()) +
+         ".toml");
+    {
+      std::ofstream config(config_path);
+      config << "[actors.sdk_v2_fixture.config]\nlabel = \"generation-a\"\n";
+    }
+    auto built =
+        obcx::common::ConfigLoader::build_snapshot(config_path.string());
+    if (!built) {
+      return 4;
+    }
+    auto blocking_executor = std::make_shared<BlockingExecutor>(1);
+    boost::asio::thread_pool actor_io_pool{1};
+    auto services = std::make_shared<ActorServices>();
+    services->register_service<obcx::common::ActorConfigService>(
+        std::make_shared<obcx::common::ActorConfigService>(built.snapshot));
+    services->register_service<BlockingExecutor>(blocking_executor);
+    services->register_service<boost::asio::any_io_executor>(
+        std::make_shared<boost::asio::any_io_executor>(
+            actor_io_pool.get_executor()));
+
+    NativeActorScheduler scheduler(
+        NativeActorSchedulerOptions{.worker_count = 2}, services);
+    scheduler.register_actor(std::move(actor));
+    MessageEnvelope message;
+    message.id = "standalone-sdk";
+    message.type = "obcx::sdk_fixture::events::SdkSmoke";
+    std::promise<ActorResult> completion;
+    auto future = completion.get_future();
+    if (!scheduler.enqueue(ActorInvocation{.actor_id = "sdk_v2_fixture",
+                                           .partition_key = "same",
+                                           .message = std::move(message)},
+                           [&completion](ActorResult result) {
+                             completion.set_value(std::move(result));
+                           })) {
+      return 5;
+    }
+    if (future.wait_for(5s) != std::future_status::ready) {
+      return 6;
+    }
+    const auto result = future.get();
+    scheduler.shutdown();
+    actor_io_pool.join();
+    blocking_executor->shutdown();
+    if (!result.ok() || result.emitted.size() != 1 ||
+        result.emitted.front().type != "SdkV2Handled" ||
+        result.emitted.front().causation_id != "standalone-sdk" ||
+        result.emitted.front().payload.value("label", "") != "generation-a") {
+      return 7;
+    }
+    std::filesystem::remove(config_path);
+  }
+
+  const auto unload_probe = actor_path.string() + ".unload-probe";
+  std::filesystem::rename(actor_path, unload_probe);
+  std::filesystem::rename(unload_probe, actor_path);
+  return 0;
+}

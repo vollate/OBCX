@@ -5,14 +5,14 @@
 #include <spdlog/spdlog.h>
 #include <string>
 
-#include "tui/tui_sink.hpp"
-
 #ifdef OBCX_DEBUG_TRACE
 #include <fmt/color.h>
 #include <fmt/format.h>
 #endif
 
 namespace obcx::common {
+
+class tui_sink_mt;
 
 /**
  * @brief Logger manager, providing a unified logging interface.
@@ -23,6 +23,7 @@ public:
    * @brief Initializes the logging system.
    * @param level The logging level.
    * @param log_file The path to the log file (optional).
+   * @param use_tui Whether to attach the terminal UI sink.
    */
   static void initialize(spdlog::level::level_enum level = spdlog::level::info,
                          const std::string &log_file = "", bool use_tui = true);
@@ -100,80 +101,3 @@ private:
 #endif
 
 } // namespace obcx::common
-
-/*
- * Plugin-specific logging macros - allow plugins to use their own logger name
- * Usage: PLUGIN_INFO(get_name(), "message")
- */
-
-#ifdef OBCX_DEBUG_TRACE
-#define PLUGIN_LOG_IMPL(__plugin_name, __level, __fmt_str, ...)                \
-  do {                                                                         \
-    auto __logger = obcx::common::Logger::get(__plugin_name);                  \
-    if (__logger && __logger->should_log(spdlog::level::__level)) {            \
-      __logger->log(                                                           \
-          spdlog::level::__level,                                              \
-          fmt::format("{} " __fmt_str,                                         \
-                      fmt::styled(fmt::format("[{}:{}]", __FILE__, __LINE__),  \
-                                  fmt::fg(fmt::color::dark_orange)),           \
-                      ##__VA_ARGS__));                                         \
-    }                                                                          \
-  } while (false)
-
-#define PLUGIN_TRACE(__plugin_name, __fmt, ...)                                \
-  PLUGIN_LOG_IMPL(__plugin_name, trace, __fmt, ##__VA_ARGS__)
-#define PLUGIN_DEBUG(__plugin_name, __fmt, ...)                                \
-  PLUGIN_LOG_IMPL(__plugin_name, debug, __fmt, ##__VA_ARGS__)
-#define PLUGIN_INFO(__plugin_name, __fmt, ...)                                 \
-  PLUGIN_LOG_IMPL(__plugin_name, info, __fmt, ##__VA_ARGS__)
-#define PLUGIN_WARN(__plugin_name, __fmt, ...)                                 \
-  PLUGIN_LOG_IMPL(__plugin_name, warn, __fmt, ##__VA_ARGS__)
-#define PLUGIN_ERROR(__plugin_name, __fmt, ...)                                \
-  PLUGIN_LOG_IMPL(__plugin_name, err, __fmt, ##__VA_ARGS__)
-#define PLUGIN_CRITICAL(__plugin_name, __fmt, ...)                             \
-  PLUGIN_LOG_IMPL(__plugin_name, critical, __fmt, ##__VA_ARGS__)
-
-#else
-#define PLUGIN_TRACE(__plugin_name, ...)                                       \
-  do {                                                                         \
-    auto __logger = obcx::common::Logger::get(__plugin_name);                  \
-    if (__logger)                                                              \
-      __logger->trace(__VA_ARGS__);                                            \
-  } while (false)
-
-#define PLUGIN_DEBUG(__plugin_name, ...)                                       \
-  do {                                                                         \
-    auto __logger = obcx::common::Logger::get(__plugin_name);                  \
-    if (__logger)                                                              \
-      __logger->debug(__VA_ARGS__);                                            \
-  } while (false)
-
-#define PLUGIN_INFO(__plugin_name, ...)                                        \
-  do {                                                                         \
-    auto __logger = obcx::common::Logger::get(__plugin_name);                  \
-    if (__logger)                                                              \
-      __logger->info(__VA_ARGS__);                                             \
-  } while (false)
-
-#define PLUGIN_WARN(__plugin_name, ...)                                        \
-  do {                                                                         \
-    auto __logger = obcx::common::Logger::get(__plugin_name);                  \
-    if (__logger)                                                              \
-      __logger->warn(__VA_ARGS__);                                             \
-  } while (false)
-
-#define PLUGIN_ERROR(__plugin_name, ...)                                       \
-  do {                                                                         \
-    auto __logger = obcx::common::Logger::get(__plugin_name);                  \
-    if (__logger)                                                              \
-      __logger->error(__VA_ARGS__);                                            \
-  } while (false)
-
-#define PLUGIN_CRITICAL(__plugin_name, ...)                                    \
-  do {                                                                         \
-    auto __logger = obcx::common::Logger::get(__plugin_name);                  \
-    if (__logger)                                                              \
-      __logger->critical(__VA_ARGS__);                                         \
-  } while (false)
-
-#endif

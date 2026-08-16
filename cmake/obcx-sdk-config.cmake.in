@@ -2,8 +2,16 @@
 
 include(CMakeFindDependencyMacro)
 
+# Make the installed actor helper available via include(OBCXActor) after
+# find_package(obcx-sdk).
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
+
 # Public dependencies required by obcx_core
-find_dependency(Boost COMPONENTS thread locale)
+if("@BOOST_SYSTEM_TARGET@" STREQUAL "Boost::system")
+  find_dependency(Boost CONFIG COMPONENTS system)
+else()
+  find_dependency(Boost CONFIG)
+endif()
 find_dependency(nlohmann_json CONFIG)
 find_dependency(spdlog CONFIG)
 find_dependency(fmt CONFIG)
@@ -11,6 +19,44 @@ find_dependency(OpenSSL)
 find_dependency(ZLIB)
 find_dependency(tomlplusplus CONFIG)
 find_dependency(ftxui CONFIG)
+find_dependency(Threads)
+find_dependency(re2 CONFIG)
+
+# Optional provider probes must not use find_dependency(): that macro forwards
+# the consumer's REQUIRED flag, turning a quiet probe into an immediate fatal
+# error before the portable fallback can run.
+find_package(unofficial-sqlite3 CONFIG QUIET)
+if(NOT TARGET unofficial::sqlite3::sqlite3)
+  find_dependency(SQLite3)
+endif()
+
+find_package(unofficial-brotli CONFIG QUIET)
+if(NOT TARGET unofficial::brotli::brotlidec)
+  find_dependency(PkgConfig)
+  pkg_check_modules(BROTLIDEC REQUIRED IMPORTED_TARGET libbrotlidec)
+endif()
+
+find_package(zstd CONFIG QUIET)
+if(NOT TARGET zstd::libzstd)
+  if(TARGET zstd::libzstd_static)
+    add_library(zstd::libzstd INTERFACE IMPORTED)
+    target_link_libraries(zstd::libzstd INTERFACE zstd::libzstd_static)
+  elseif(TARGET zstd::libzstd_shared)
+    add_library(zstd::libzstd INTERFACE IMPORTED)
+    target_link_libraries(zstd::libzstd INTERFACE zstd::libzstd_shared)
+  endif()
+endif()
+if(NOT TARGET zstd::libzstd)
+  find_dependency(PkgConfig)
+  pkg_check_modules(LIBZSTD REQUIRED IMPORTED_TARGET libzstd)
+  add_library(zstd::libzstd INTERFACE IMPORTED)
+  target_link_libraries(zstd::libzstd INTERFACE PkgConfig::LIBZSTD)
+endif()
+
+if(@OBCX_ENABLE_IO_URING@)
+  find_dependency(PkgConfig)
+  pkg_check_modules(LIBURING REQUIRED IMPORTED_TARGET liburing)
+endif()
 
 # Include the exported targets
 include("${CMAKE_CURRENT_LIST_DIR}/obcx-sdk-targets.cmake")

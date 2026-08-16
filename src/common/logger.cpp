@@ -1,4 +1,5 @@
 #include "common/logger.hpp"
+#include "tui/tui_sink.hpp"
 
 #include <algorithm>
 #include <cstdlib>

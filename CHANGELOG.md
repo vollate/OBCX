@@ -7,6 +7,60 @@
 
 ---
 
+## [Unreleased] (2026-07-14)
+
+### Breaking
+
+- **C++26 reflected actors**: actor packages now require GCC 16.1+, C++26,
+  `-freflection`, and `__cpp_impl_reflection >= 202506L`; there is no C++20 or
+  alternate-compiler authoring path.
+- **Generated input contracts**: every actor library must use
+  `ReflectedActor<Derived>` and export schema-1 `obcx_get_actor_contract` input
+  metadata. Pre-cutover ABI-2 actor binaries without the contract are rejected
+  before construction.
+- **Canonical message identity**: pipeline inputs and actor message identities
+  use fully qualified reflected C++ names. Short names such as
+  `RawMessageEvent` and `MessageStored` are no longer accepted.
+- **Actor-only runtime**: `IActorV2`, `ActorTask`, actor pipelines, and the
+  native work-stealing scheduler are now the only supported extension and
+  dispatch contract.
+- **Legacy extension removal**: removed the plugin SDK/runtime/configuration,
+  V1 actor ABI, fixed-shard scheduler, runtime engine selection, and
+  in-process fallback behavior. Existing binaries and manifests must be
+  repackaged as canonical ABI 2 actors.
+
+### Added
+
+- Typed `handle` overload discovery, exact reflected dispatch, ADL JSON
+  decoding, typed `ActorResult::emit`, and compile-time signature diagnostics.
+- Actor-aware validation and `obcx --validate-config`, both of which inspect
+  contracts before workers, services, bots, actor construction, or ingress.
+- Branch-local routing cycle detection, configurable hop limits, bounded
+  route traces, and copy-on-write route snapshots for fan-out.
+- Canonical `actor.toml` schema, validation, dependency generation, installed
+  SDK CMake helper, and clean external actor test.
+- Actor registry schemas, deterministic index generation, bridge and
+  message-store entries, and artifact resolution tests.
+- Source/install absence audit and clean cross-repository conformance gate.
+- Isolated Release verification, continuous installed-pipeline soak, atomic
+  deployment rollback rehearsal, and deterministic coordinated artifact
+  preparation tools.
+
+### Changed
+
+- Bridge, message-store, local checkout layout, template, examples, runtime
+  entry source, documentation, and package tooling now use actor terminology.
+- Bridge protocol-specific access now uses installed `IQQBot` and
+  `ITelegramBot` capability interfaces rather than concrete implementation
+  headers.
+- Installed executables use a relocatable runtime-library search path so an
+  installed OBCX prefix starts without `LD_LIBRARY_PATH`.
+
+See [the actor-only breaking-change notice](docs/actor-only-breaking-change.md)
+for the supported package and runtime setup.
+
+---
+
 ## [Unreleased] (2026-04-21)
 
 ### 新增

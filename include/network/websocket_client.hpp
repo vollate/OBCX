@@ -1,11 +1,11 @@
 #pragma once
 
+#include "network/detail/websocket_write_queue.hpp"
+
 #include <boost/asio.hpp>
-#include <boost/asio/experimental/channel.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <functional>
-#include <future>
 #include <memory>
 #include <string>
 
@@ -62,24 +62,9 @@ public:
 
 private:
   /**
-   * @brief 写入队列中的条目
-   */
-  struct WriteRequest {
-    std::string message;
-    std::promise<void> promise;
-
-    WriteRequest(std::string msg) : message(std::move(msg)) {}
-  };
-
-  /**
    * @brief 启动写入器协程
    */
   void start_writer();
-
-  /**
-   * @brief 写入器协程 - 负责从队列中取出消息并逐一发送
-   */
-  auto writer_coro() -> asio::awaitable<void>;
 
   /**
    * @brief 停止写入器协程
@@ -92,11 +77,7 @@ private:
   MessageHandler on_message_;
   beast::flat_buffer buffer_;
 
-  // 写入队列相关
-  using Channel = asio::experimental::channel<void(
-      boost::system::error_code, std::shared_ptr<WriteRequest>)>;
-  Channel channel_;
-  std::exception_ptr writer_error_;
+  std::shared_ptr<detail::WebsocketWriteQueue> write_queue_;
 };
 
 } // namespace obcx::network

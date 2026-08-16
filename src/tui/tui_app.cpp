@@ -4,6 +4,7 @@
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/event.hpp>
 #include <ftxui/component/screen_interactive.hpp>
+#include <ftxui/dom/direction.hpp>
 #include <ftxui/dom/elements.hpp>
 
 #include <algorithm>
@@ -41,17 +42,6 @@ auto level_decorator(spdlog::level::level_enum level) -> ftxui::Decorator {
     return ftxui::color(ftxui::Color::Red) | ftxui::bold;
   }
   return ftxui::color(level_color(level));
-}
-
-auto compute_log_visible_rows(int log_pane_size) -> int {
-  if (log_pane_size > 2) {
-    return std::max(log_pane_size - 2, 1);
-  }
-  return std::max(ftxui::Terminal::Size().dimy * 7 / 10 - 2, 1);
-}
-
-auto log_max_offset(int total, int visible_rows) -> int {
-  return std::max(0, total - visible_rows);
 }
 
 } // namespace
@@ -143,89 +133,54 @@ void TuiApp::run() {
     }
   });
 
-  int log_pane_size = 0; // populated by ResizableSplit on first draw
+  const auto initial_terminal = ftxui::Terminal::Size();
+  layout_ = split_state_.snapshot(initial_terminal.dimx, initial_terminal.dimy);
 
-  // Virtualized log pane: only renders rows currently on-screen.
-  auto log_pane = ftxui::Renderer([this, &log_pane_size]() -> ftxui::Element {
-    auto total = static_cast<int>(tui_sink_->line_count());
-    auto version = tui_sink_->version();
+  // Virtualized log pane: wrap retained entries, but only materialize rows in
+  // the current viewport.
+  auto log_pane = ftxui::Renderer([this]() -> ftxui::Element {
+    const int content_width = std::max(1, layout_.log_content_width);
+    log_visible_rows_ = std::max(1, layout_.log_content_height);
 
-    if (total == 0) {
-      log_scroll_offset_ = 0;
-      log_follow_tail_ = true;
-      last_log_version_ = version;
-      log_visible_rows_ = compute_log_visible_rows(log_pane_size);
-      log_scrollbar_track_height_ = log_visible_rows_;
-      log_scrollbar_thumb_top_ = 0;
-      log_scrollbar_thumb_height_ = log_scrollbar_track_height_;
-      log_scrollbar_x_ = ftxui::Terminal::Size().dimx - 2;
-      return ftxui::text("(no log output yet)") | ftxui::dim |
-             ftxui::yflex_grow;
-    }
+    const bool reflowing = log_cache_.needs_rebuild(content_width);
+    const auto anchor =
+        reflowing && !log_viewport_.following_tail()
+            ? log_viewport_.capture_anchor(log_cache_, log_visible_rows_)
+            : std::nullopt;
+    const auto snapshot =
+        tui_sink_->snapshot_from(reflowing ? 0 : log_cache_.next_sequence());
+    const auto sync = log_cache_.sync(snapshot, content_width);
+    log_viewport_.apply_sync(log_cache_, sync, log_visible_rows_, anchor);
 
-    log_visible_rows_ = compute_log_visible_rows(log_pane_size);
-    int visible_rows = log_visible_rows_;
-    int max_offset = log_max_offset(total, visible_rows);
-
-    if (version < last_log_version_) {
-      last_log_version_ = version;
-    }
-
-    if (version > last_log_version_) {
-      auto appended = static_cast<int>(std::min<uint64_t>(
-          version - last_log_version_, static_cast<uint64_t>(max_offset)));
-      if (log_follow_tail_) {
-        log_scroll_offset_ = 0;
-      } else {
-        log_scroll_offset_ += appended;
-      }
-      last_log_version_ = version;
-    }
-
-    log_scroll_offset_ = std::clamp(log_scroll_offset_, 0, max_offset);
-    log_follow_tail_ = log_scroll_offset_ == 0;
-
-    // Compute the visible window. offset=0 means viewing the latest line at
-    // the bottom; positive offsets scroll up into history.
-    int end_idx = total - log_scroll_offset_;
-    int start_idx = std::max(0, end_idx - visible_rows);
-
-    auto lines = tui_sink_->get_lines_range(
-        static_cast<std::size_t>(start_idx),
-        static_cast<std::size_t>(end_idx - start_idx));
+    const auto total = log_cache_.total_rows();
+    const auto end = total - static_cast<std::size_t>(log_viewport_.offset());
+    const auto start = end > static_cast<std::size_t>(log_visible_rows_)
+                           ? end - static_cast<std::size_t>(log_visible_rows_)
+                           : std::size_t{0};
+    const auto rows = log_cache_.rows_range(start, end - start);
 
     ftxui::Elements log_elements;
-    log_elements.reserve(lines.size());
-    for (const auto &line : lines) {
-      log_elements.push_back(ftxui::text(line.stripped_text) |
-                             level_decorator(line.level));
+    log_elements.reserve(static_cast<std::size_t>(log_visible_rows_));
+    if (total == 0) {
+      log_elements.push_back(ftxui::text("(no log output yet)") | ftxui::dim);
+    } else {
+      for (const auto &row : rows) {
+        log_elements.push_back(ftxui::text(row.text) |
+                               level_decorator(row.level));
+      }
     }
-    while (static_cast<int>(log_elements.size()) < visible_rows) {
+    while (static_cast<int>(log_elements.size()) < log_visible_rows_) {
       log_elements.push_back(ftxui::text(""));
     }
 
-    log_scrollbar_track_height_ = visible_rows;
-    if (max_offset == 0) {
-      log_scrollbar_thumb_height_ = visible_rows;
-      log_scrollbar_thumb_top_ = 0;
-    } else {
-      log_scrollbar_thumb_height_ =
-          std::clamp((visible_rows * visible_rows) / total, 1, visible_rows);
-      int movable = std::max(1, visible_rows - log_scrollbar_thumb_height_);
-      float progress_from_top = 1.f - static_cast<float>(log_scroll_offset_) /
-                                          static_cast<float>(max_offset);
-      log_scrollbar_thumb_top_ =
-          std::clamp(static_cast<int>(std::lround(progress_from_top * movable)),
-                     0, movable);
-    }
-    log_scrollbar_x_ = std::max(0, ftxui::Terminal::Size().dimx - 2);
-
+    log_scrollbar_ = tui_layout::calculate_scrollbar(total, log_visible_rows_,
+                                                     log_viewport_.offset());
     ftxui::Elements scrollbar;
-    scrollbar.reserve(static_cast<std::size_t>(visible_rows));
-    for (int row = 0; row < visible_rows; ++row) {
-      bool in_thumb =
-          row >= log_scrollbar_thumb_top_ &&
-          row < log_scrollbar_thumb_top_ + log_scrollbar_thumb_height_;
+    scrollbar.reserve(static_cast<std::size_t>(log_visible_rows_));
+    for (int row = 0; row < log_visible_rows_; ++row) {
+      const bool in_thumb =
+          row >= log_scrollbar_.thumb_top &&
+          row < log_scrollbar_.thumb_top + log_scrollbar_.thumb_height;
       scrollbar.push_back(ftxui::text(" ") |
                           ftxui::bgcolor(in_thumb ? ftxui::Color::GrayLight
                                                   : ftxui::Color::GrayDark));
@@ -244,9 +199,11 @@ void TuiApp::run() {
         ftxui::Elements console_elements;
         {
           std::scoped_lock lock(console_mutex);
-          console_elements.reserve(console_lines_.size());
           for (const auto &line : console_lines_) {
-            console_elements.push_back(ftxui::text(line));
+            for (const auto &row : tui_layout::wrap_text(
+                     line, std::max(1, layout_.console_content_width))) {
+              console_elements.push_back(ftxui::text(row));
+            }
           }
         }
         console_elements.push_back(input_with_enter->Render());
@@ -278,50 +235,59 @@ void TuiApp::run() {
                ftxui::borderStyled(ftxui::Color::Green);
       });
 
-  auto container =
-      ftxui::ResizableSplitTop(log_bordered, console_bordered, &log_pane_size);
-
-  // Set initial split ratio (70/30)
-  bool size_initialized = false;
-
-  auto inner = ftxui::Renderer(container, [&]() -> ftxui::Element {
-    auto element = container->Render();
-    if (!size_initialized) {
-      log_pane_size = ftxui::Terminal::Size().dimy * 7 / 10;
-      size_initialized = true;
-    }
-    return element;
+  auto container = ftxui::ResizableSplit({
+      .main = log_bordered,
+      .back = console_bordered,
+      .direction = ftxui::Direction::Up,
+      .main_size = &split_state_.main_size(),
+      .separator_func = []() -> ftxui::Element {
+        return ftxui::separatorHeavy() | ftxui::color(ftxui::Color::GrayLight);
+      },
   });
 
-  // Root: handle all mouse events here using mouse.y vs log_pane_size
-  // to route scroll and click events to the correct pane.
+  // Update all geometry before child renderers consume it. SplitState observes
+  // FTXUI mouse changes and translates absolute rows back into a ratio.
+  auto inner = ftxui::Renderer(container, [&]() -> ftxui::Element {
+    const auto terminal = ftxui::Terminal::Size();
+    layout_ = split_state_.snapshot(terminal.dimx, terminal.dimy);
+    return container->Render();
+  });
+
+  // Root input handling consumes the same layout snapshot as rendering.
   auto root = ftxui::CatchEvent(inner, [&](ftxui::Event event) -> bool {
     auto scroll_log_to = [this](int offset) -> void {
-      auto total = static_cast<int>(tui_sink_->line_count());
-      auto max_offset = log_max_offset(total, log_visible_rows_);
-      log_scroll_offset_ = std::clamp(offset, 0, max_offset);
-      log_follow_tail_ = log_scroll_offset_ == 0;
+      log_viewport_.scroll_to(offset, log_cache_.total_rows(),
+                              log_visible_rows_);
     };
 
-    auto scroll_log_by = [&](int delta) -> void {
-      scroll_log_to(log_scroll_offset_ + delta);
+    auto scroll_log_by = [this](int delta) -> void {
+      log_viewport_.scroll_by(delta, log_cache_.total_rows(),
+                              log_visible_rows_);
     };
 
     auto log_offset_from_thumb_top = [this](int thumb_top) -> int {
-      auto total = static_cast<int>(tui_sink_->line_count());
-      auto max_offset = log_max_offset(total, log_visible_rows_);
-      int movable = log_scrollbar_track_height_ - log_scrollbar_thumb_height_;
+      const int max_offset = tui_layout::max_scroll_offset(
+          log_cache_.total_rows(), log_visible_rows_);
+      const int movable =
+          log_scrollbar_.track_height - log_scrollbar_.thumb_height;
       if (max_offset <= 0 || movable <= 0) {
         return 0;
       }
       thumb_top = std::clamp(thumb_top, 0, movable);
-      float progress_from_top =
-          static_cast<float>(thumb_top) / static_cast<float>(movable);
+      const double progress_from_top = static_cast<double>(thumb_top) / movable;
       return static_cast<int>(
-          std::lround((1.f - progress_from_top) * max_offset));
+          std::lround((1.0 - progress_from_top) * max_offset));
     };
 
     if (!event.is_mouse()) {
+      if (event == ftxui::Event::ArrowUpCtrl) {
+        split_state_.resize_by(-1, layout_.terminal_height);
+        return true;
+      }
+      if (event == ftxui::Event::ArrowDownCtrl) {
+        split_state_.resize_by(1, layout_.terminal_height);
+        return true;
+      }
       if (event == ftxui::Event::PageUp) {
         scroll_log_by(std::max(1, log_visible_rows_ - 1));
         return true;
@@ -331,8 +297,8 @@ void TuiApp::run() {
         return true;
       }
       if (event == ftxui::Event::Home) {
-        auto total = static_cast<int>(tui_sink_->line_count());
-        scroll_log_to(log_max_offset(total, log_visible_rows_));
+        scroll_log_to(tui_layout::max_scroll_offset(log_cache_.total_rows(),
+                                                    log_visible_rows_));
         return true;
       }
       if (event == ftxui::Event::End) {
@@ -343,10 +309,13 @@ void TuiApp::run() {
     }
 
     auto &mouse = event.mouse();
-    bool in_log_pane = mouse.y < log_pane_size;
-    bool on_log_scrollbar =
-        in_log_pane && mouse.x >= std::max(0, log_scrollbar_x_ - 1) &&
-        mouse.y >= 1 && mouse.y < 1 + log_scrollbar_track_height_;
+    const bool in_log_pane = mouse.y >= 0 && mouse.y < layout_.log_pane_height;
+    const bool in_console_pane =
+        mouse.y > layout_.separator_y && mouse.y < layout_.terminal_height;
+    const bool on_log_scrollbar =
+        in_log_pane && mouse.x == layout_.log_scrollbar_x &&
+        mouse.y >= layout_.log_content_top &&
+        mouse.y < layout_.log_content_top + log_scrollbar_.track_height;
 
     if (log_scrollbar_dragging_) {
       if (mouse.button == ftxui::Mouse::Left &&
@@ -366,36 +335,37 @@ void TuiApp::run() {
     if (mouse.button == ftxui::Mouse::WheelUp) {
       if (in_log_pane) {
         scroll_log_by(3);
-      } else {
+      } else if (in_console_pane) {
         console_scroll_offset_ += 3;
+      } else {
+        return false;
       }
       return true;
     }
     if (mouse.button == ftxui::Mouse::WheelDown) {
       if (in_log_pane) {
         scroll_log_by(-3);
+      } else if (in_console_pane) {
+        console_scroll_offset_ = std::max(0, console_scroll_offset_ - 3);
       } else {
-        console_scroll_offset_ -= 3;
-        if (console_scroll_offset_ < 0) {
-          console_scroll_offset_ = 0;
-        }
+        return false;
       }
       return true;
     }
 
     if (on_log_scrollbar && mouse.button == ftxui::Mouse::Left &&
         mouse.motion == ftxui::Mouse::Pressed) {
-      int track_y = std::clamp(mouse.y - 1, 0,
-                               std::max(0, log_scrollbar_track_height_ - 1));
-      if (track_y >= log_scrollbar_thumb_top_ &&
-          track_y < log_scrollbar_thumb_top_ + log_scrollbar_thumb_height_) {
+      int track_y = std::clamp(mouse.y - layout_.log_content_top, 0,
+                               std::max(0, log_scrollbar_.track_height - 1));
+      if (track_y >= log_scrollbar_.thumb_top &&
+          track_y < log_scrollbar_.thumb_top + log_scrollbar_.thumb_height) {
         log_scrollbar_drag_start_y_ = mouse.y;
-        log_scrollbar_drag_start_thumb_top_ = log_scrollbar_thumb_top_;
+        log_scrollbar_drag_start_thumb_top_ = log_scrollbar_.thumb_top;
       } else {
-        int movable = std::max(0, log_scrollbar_track_height_ -
-                                      log_scrollbar_thumb_height_);
+        int movable = std::max(0, log_scrollbar_.track_height -
+                                      log_scrollbar_.thumb_height);
         int thumb_top =
-            std::clamp(track_y - log_scrollbar_thumb_height_ / 2, 0, movable);
+            std::clamp(track_y - log_scrollbar_.thumb_height / 2, 0, movable);
         scroll_log_to(log_offset_from_thumb_top(thumb_top));
         log_scrollbar_drag_start_y_ = mouse.y;
         log_scrollbar_drag_start_thumb_top_ = thumb_top;
@@ -404,7 +374,7 @@ void TuiApp::run() {
       return true;
     }
 
-    if (!in_log_pane && mouse.button == ftxui::Mouse::Left &&
+    if (in_console_pane && mouse.button == ftxui::Mouse::Left &&
         mouse.motion == ftxui::Mouse::Pressed) {
       input_component->TakeFocus();
       return false; // let the event propagate to the input component

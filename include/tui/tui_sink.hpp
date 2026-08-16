@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <deque>
 #include <mutex>
 #include <string>
@@ -11,9 +12,17 @@
 namespace obcx::common {
 
 struct LogLine {
+  uint64_t sequence{0};
   std::string text;
   std::string stripped_text; // ANSI 已去除的缓存
   spdlog::level::level_enum level;
+};
+
+struct LogSnapshot {
+  uint64_t version{0};
+  uint64_t first_sequence{0};
+  uint64_t next_sequence{0};
+  std::vector<LogLine> lines;
 };
 
 /// 高性能 ANSI 转义序列去除（手写状态机，无正则）
@@ -76,6 +85,24 @@ public:
     return lines_.size();
   }
 
+  /// Return retained metadata and entries whose sequence is at least `from`.
+  auto snapshot_from(uint64_t from) -> LogSnapshot {
+    std::scoped_lock lock(lines_mutex_);
+    const uint64_t first_sequence =
+        lines_.empty() ? next_sequence_ : lines_.front().sequence;
+    const uint64_t begin_sequence = std::max(from, first_sequence);
+    const auto begin_offset = static_cast<std::size_t>(
+        std::min(begin_sequence, next_sequence_) - first_sequence);
+    const auto begin =
+        lines_.begin() + static_cast<std::ptrdiff_t>(begin_offset);
+    return LogSnapshot{
+        .version = version_.load(std::memory_order_relaxed),
+        .first_sequence = first_sequence,
+        .next_sequence = next_sequence_,
+        .lines = {begin, lines_.end()},
+    };
+  }
+
   /// 版本号，每次写入递增
   [[nodiscard]] auto version() const -> uint64_t {
     return version_.load(std::memory_order_relaxed);
@@ -96,7 +123,8 @@ protected:
     std::string stripped = strip_ansi(line);
 
     std::scoped_lock lock(lines_mutex_);
-    lines_.push_back(LogLine{.text = std::move(line),
+    lines_.push_back(LogLine{.sequence = next_sequence_++,
+                             .text = std::move(line),
                              .stripped_text = std::move(stripped),
                              .level = msg.level});
     while (lines_.size() > max_lines_) {
@@ -111,9 +139,13 @@ private:
   std::size_t max_lines_;
   std::deque<LogLine> lines_;
   std::mutex lines_mutex_;
+  uint64_t next_sequence_{0};
   std::atomic<uint64_t> version_{0};
 };
 
-using tui_sink_mt = tui_sink<std::mutex>;
+class tui_sink_mt final : public tui_sink<std::mutex> {
+public:
+  using tui_sink<std::mutex>::tui_sink;
+};
 
 } // namespace obcx::common

@@ -3,27 +3,42 @@ add_library(
         common/logger.cpp
         common/cli_handler.cpp
         tui/tui_app.cpp
+        tui/tui_layout.cpp
         common/component_manager.cpp
         common/json_utils.cpp
         common/message_type.cpp
         common/config_loader.cpp
-        common/plugin_manager.cpp
-        interfaces/plugin.cpp
         interfaces/bot.cpp
         interfaces/connection_manager.cpp
         network/compression.cpp
         network/http_client.cpp
         network/http_client_sync.cpp
         network/websocket_client.cpp
+        network/websocket_write_queue.cpp
         network/proxy_http_client.cpp
         network/proxy_tunnel.cpp
         onebot11/network/http/connection_manager.cpp
+        onebot11/network/websocket/action_request_tracker.cpp
         onebot11/network/websocket/connection_manager.cpp
         onebot11/adapter/protocol_adapter.cpp
         onebot11/adapter/message_converter.cpp
         onebot11/adapter/event_converter.cpp
         telegram/adapter/protocol_adapter.cpp
         telegram/network/http/connection_manager.cpp
+        core/actor_runtime_reload_controller.cpp
+        core/actor_manager.cpp
+        core/actor_package_stager.cpp
+        core/actor_work_stealing_executor.cpp
+        core/command_coordinator.cpp
+        core/command_matcher.cpp
+        core/command_platform_adapter.cpp
+        core/message_event_ingress.cpp
+        core/native_actor_scheduler.cpp
+        core/db_manager.cpp
+        core/orchestrator.cpp
+        core/process_staging_uuid.cpp
+        core/runtime_thread_budget.cpp
+        core/runtime_generation.cpp
         core/qq_bot.cpp
         core/tg_bot.cpp)
 
@@ -46,13 +61,17 @@ target_link_libraries(
         Threads::Threads
         OpenSSL::SSL
         OpenSSL::Crypto
+        ${OBCX_SQLITE_TARGET}
         tomlplusplus::tomlplusplus
         ftxui::screen
         ftxui::dom
         ftxui::component
         re2::re2)
 
-target_compile_features(obcx_core PUBLIC cxx_std_20)
+target_compile_features(obcx_core PUBLIC cxx_std_26)
+target_compile_options(obcx_core PUBLIC -freflection)
+target_compile_definitions(obcx_core PRIVATE
+    OBCX_PATCHELF_EXECUTABLE="${OBCX_PATCHELF_EXECUTABLE}")
 
 # ============================================================================
 # Boost.Asio io_uring backend
@@ -89,12 +108,43 @@ install(TARGETS obcx_core
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/obcx)
 
-# Install public headers
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/obcx
-    FILES_MATCHING
-        PATTERN "*.hpp"
-        PATTERN "*.h")
+# Install the actor-package SDK surface. Runtime application, protocol, and
+# transport implementation headers are intentionally not exported.
+install(FILES
+    ${CMAKE_SOURCE_DIR}/include/common/config_loader.hpp
+    ${CMAKE_SOURCE_DIR}/include/common/json_utils.hpp
+    ${CMAKE_SOURCE_DIR}/include/common/logger.hpp
+    ${CMAKE_SOURCE_DIR}/include/common/message_type.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/obcx/common)
+
+install(FILES
+    ${CMAKE_SOURCE_DIR}/include/core/actor.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor_commands.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor_messages.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/reflected_actor.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor_asio.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor_manager.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor_task.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor_work_stealing_executor.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/blocking_executor.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/bot_registry.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/command_platform_adapter.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/db_manager.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/event_dispatcher.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/native_actor_scheduler.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/obcx/core)
+
+install(FILES
+    ${CMAKE_SOURCE_DIR}/include/interfaces/bot.hpp
+    ${CMAKE_SOURCE_DIR}/include/interfaces/connection_manager.hpp
+    ${CMAKE_SOURCE_DIR}/include/interfaces/protocol_adapter.hpp
+    ${CMAKE_SOURCE_DIR}/include/interfaces/qq_bot.hpp
+    ${CMAKE_SOURCE_DIR}/include/interfaces/telegram_bot.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/obcx/interfaces)
+
+install(FILES
+    ${CMAKE_SOURCE_DIR}/include/network/http_client.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/obcx/network)
 
 # Install the generated version.hpp
 install(FILES ${CMAKE_BINARY_DIR}/generated/obcx/version.hpp
@@ -122,8 +172,10 @@ install(FILES
     ${CMAKE_BINARY_DIR}/obcx-sdk-config-version.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/obcx-sdk)
 
-# Install the plugin helper module alongside the SDK
-install(FILES ${CMAKE_SOURCE_DIR}/cmake/OBCXPlugin.cmake
+# Install build helper modules alongside the SDK
+install(FILES
+    ${CMAKE_SOURCE_DIR}/cmake/OBCXActor.cmake
+    ${CMAKE_SOURCE_DIR}/cmake/actor_metadata.py
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/obcx-sdk)
 
-add_subdirectory(plugin)
+add_subdirectory(app)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "interfaces/bot.hpp"
+#include "interfaces/telegram_bot.hpp"
 #include "telegram/adapter/protocol_adapter.hpp"
 
 #include <boost/asio/awaitable.hpp>
@@ -11,25 +12,13 @@
 namespace obcx::core {
 
 /**
- * @brief Telegram媒体文件信息结构体
- */
-struct MediaFileInfo {
-  std::string file_id;        // Telegram文件ID（用于下载）
-  std::string file_unique_id; // Telegram文件唯一ID（用于去重）
-  std::string file_type;      // 文件类型: photo, video, audio, voice, document,
-                              // sticker, animation, video_note
-  std::optional<int64_t> file_size;     // 文件大小（字节）
-  std::optional<std::string> mime_type; // MIME类型
-  std::optional<std::string> file_name; // 文件名（仅document类型）
-};
-
-/**
  * @brief TelegramBot 类，继承自 Bot 基类，实现 Telegram 机器人功能
  */
-class TGBot : public IBot {
+class TGBot : public IBot,
+              public ITelegramBot,
+              public ITelegramMediaGroupUploader {
 public:
-  TGBot(adapter::telegram::ProtocolAdapter adapter,
-        std::shared_ptr<TaskScheduler> task_scheduler = nullptr);
+  explicit TGBot(adapter::telegram::ProtocolAdapter adapter);
   ~TGBot() override;
 
   TGBot(const TGBot &) = delete;
@@ -81,7 +70,7 @@ public:
    */
   auto send_topic_message(std::string_view group_id, int64_t topic_id,
                           const common::Message &message)
-      -> asio::awaitable<std::string>;
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 发送照片到群组
@@ -92,7 +81,13 @@ public:
    */
   auto send_group_photo(std::string_view group_id, std::string_view photo_data,
                         std::string_view caption = "")
-      -> asio::awaitable<std::string>;
+      -> asio::awaitable<std::string> override;
+
+  auto send_group_photo_with_entities(
+      std::string_view group_id, std::string_view photo_data,
+      std::string_view caption,
+      const std::vector<TelegramTextEntity> &caption_entities)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 通过multipart上传原始图片字节到Telegram
@@ -125,7 +120,29 @@ public:
       std::string_view caption = "",
       std::optional<int64_t> topic_id = std::nullopt,
       std::optional<std::string> reply_to_message_id = std::nullopt)
-      -> asio::awaitable<std::string>;
+      -> asio::awaitable<std::string> override;
+
+  auto send_media_group_with_entities(
+      std::string_view chat_id,
+      const std::vector<std::pair<std::string, std::string>> &media,
+      std::string_view caption, std::optional<int64_t> topic_id,
+      std::optional<std::string> reply_to_message_id,
+      const std::vector<TelegramTextEntity> &caption_entities)
+      -> asio::awaitable<std::string> override;
+
+  auto send_media_group_uploads(
+      std::string_view chat_id, const std::vector<TelegramMediaUpload> &media,
+      std::string_view caption = "",
+      std::optional<int64_t> topic_id = std::nullopt,
+      std::optional<std::string> reply_to_message_id = std::nullopt)
+      -> asio::awaitable<std::string> override;
+
+  auto send_media_group_uploads_with_entities(
+      std::string_view chat_id, const std::vector<TelegramMediaUpload> &media,
+      std::string_view caption, std::optional<int64_t> topic_id,
+      std::optional<std::string> reply_to_message_id,
+      const std::vector<TelegramTextEntity> &caption_entities)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 撤回消息
@@ -146,7 +163,11 @@ public:
   auto edit_message_text(std::string_view chat_id, std::string_view message_id,
                          std::string_view text,
                          std::string_view parse_mode = "")
-      -> asio::awaitable<std::string>;
+      -> asio::awaitable<std::string> override;
+
+  auto set_commands(
+      const std::vector<std::pair<std::string, std::string>> &commands)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 获取消息详情
@@ -415,8 +436,6 @@ public:
    */
   [[nodiscard]] auto is_connected() const -> bool override;
 
-  auto get_task_scheduler() -> TaskScheduler & override;
-
   /**
    * @brief 从Telegram消息数据中提取所有媒体文件信息
    * @param message_data Telegram消息的JSON数据
@@ -431,7 +450,7 @@ public:
    * @return 下载链接的awaitable，失败时返回nullopt
    */
   auto get_media_download_url(const MediaFileInfo &media_info)
-      -> asio::awaitable<std::optional<std::string>>;
+      -> asio::awaitable<std::optional<std::string>> override;
 
   /**
    * @brief 批量获取多个媒体文件的下载链接
@@ -439,7 +458,10 @@ public:
    * @return 下载链接列表的awaitable，失败的项目为nullopt
    */
   auto get_media_download_urls(const std::vector<MediaFileInfo> &media_list)
-      -> asio::awaitable<std::vector<std::optional<std::string>>>;
+      -> asio::awaitable<std::vector<std::optional<std::string>>> override;
+
+  auto download_file_content(std::string_view download_url)
+      -> asio::awaitable<std::string> override;
 
   /**
    * @brief 获取连接管理器实例（用于媒体下载）

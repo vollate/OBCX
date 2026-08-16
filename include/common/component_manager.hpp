@@ -1,15 +1,10 @@
 #pragma once
 
 #include "common/config_loader.hpp"
-#include "core/task_scheduler.hpp"
 #include "interfaces/connection_manager.hpp"
 
 #include <memory>
 #include <string>
-
-namespace obcx::common {
-class PluginManager;
-}
 
 namespace obcx::core {
 class IBot;
@@ -21,9 +16,7 @@ class ComponentManager {
 public:
   static auto instance() -> ComponentManager &;
 
-  static auto create_bot(
-      const obcx::common::BotConfig &config,
-      const std::shared_ptr<::obcx::core::TaskScheduler> &task_scheduler)
+  static auto create_bot(const obcx::common::BotConfig &config)
       -> std::unique_ptr<::obcx::core::IBot>;
 
   static auto get_connection_type(const std::string &type,
@@ -34,8 +27,7 @@ public:
       -> obcx::common::ConnectionConfig;
 
   static auto setup_bot(::obcx::core::IBot &bot,
-                        const obcx::common::BotConfig &config,
-                        obcx::common::PluginManager &plugin_manager) -> bool;
+                        const obcx::common::BotConfig &config) -> bool;
 
 private:
   ComponentManager() = default;
