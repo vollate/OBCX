@@ -6,6 +6,48 @@
 
 namespace obcx::adapter::telegram {
 
+namespace {
+
+struct FormattedTelegramText {
+  std::string text;
+  std::vector<core::TelegramTextEntity> entities;
+};
+
+auto format_telegram_text(const common::Message &message)
+    -> FormattedTelegramText {
+  FormattedTelegramText result;
+  std::size_t offset = 0;
+  for (const auto &segment : message) {
+    if (segment.type != "text" || !segment.data.contains("text") ||
+        !segment.data["text"].is_string()) {
+      continue;
+    }
+    const auto text = segment.data["text"].get<std::string>();
+    const auto length = core::telegram_utf16_code_units(text);
+    if (length != 0 &&
+        segment.data.value("telegram_style", std::string{}) == "italic") {
+      result.entities.push_back(core::TelegramTextEntity{
+          .type = "italic", .offset = offset, .length = length});
+    }
+    result.text += text;
+    offset += length;
+  }
+  return result;
+}
+
+void apply_telegram_caption(nlohmann::json &json,
+                            const FormattedTelegramText &caption) {
+  if (caption.text.empty()) {
+    return;
+  }
+  json["caption"] = caption.text;
+  if (!caption.entities.empty()) {
+    json["caption_entities"] = caption.entities;
+  }
+}
+
+} // namespace
+
 auto ProtocolAdapter::parse_event(std::string_view json_str)
     -> std::optional<common::Event> {
   try {
@@ -517,16 +559,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["animation"] = segment.data.at("file");
         }
 
-        std::string caption;
-        for (const auto &caption_segment : message) {
-          if (caption_segment.type == "text") {
-            caption += caption_segment.data.at("text");
-          }
-        }
-
-        if (!caption.empty()) {
-          json["caption"] = caption;
-        }
+        apply_telegram_caption(json, format_telegram_text(message));
 
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
@@ -559,16 +592,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["video"] = segment.data.at("file");
         }
 
-        std::string caption;
-        for (const auto &caption_segment : message) {
-          if (caption_segment.type == "text") {
-            caption += caption_segment.data.at("text");
-          }
-        }
-
-        if (!caption.empty()) {
-          json["caption"] = caption;
-        }
+        apply_telegram_caption(json, format_telegram_text(message));
 
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
@@ -647,16 +671,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["photo"] = segment.data.at("file");
         }
 
-        std::string caption;
-        for (const auto &caption_segment : message) {
-          if (caption_segment.type == "text") {
-            caption += caption_segment.data.at("text");
-          }
-        }
-
-        if (!caption.empty()) {
-          json["caption"] = caption;
-        }
+        apply_telegram_caption(json, format_telegram_text(message));
 
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
@@ -699,16 +714,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["duration"] = segment.data.at("duration");
         }
 
-        std::string caption;
-        for (const auto &caption_segment : message) {
-          if (caption_segment.type == "text") {
-            caption += caption_segment.data.at("text");
-          }
-        }
-
-        if (!caption.empty()) {
-          json["caption"] = caption;
-        }
+        apply_telegram_caption(json, format_telegram_text(message));
 
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
@@ -747,16 +753,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["duration"] = segment.data.at("duration");
         }
 
-        std::string caption;
-        for (const auto &caption_segment : message) {
-          if (caption_segment.type == "text") {
-            caption += caption_segment.data.at("text");
-          }
-        }
-
-        if (!caption.empty()) {
-          json["caption"] = caption;
-        }
+        apply_telegram_caption(json, format_telegram_text(message));
 
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
@@ -791,16 +788,7 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
           json["document"] = segment.data.at("file");
         }
 
-        std::string caption;
-        for (const auto &caption_segment : message) {
-          if (caption_segment.type == "text") {
-            caption += caption_segment.data.at("text");
-          }
-        }
-
-        if (!caption.empty()) {
-          json["caption"] = caption;
-        }
+        apply_telegram_caption(json, format_telegram_text(message));
 
         if (reply_to_message_id.has_value()) {
           json["reply_to_message_id"] = reply_to_message_id.value();
@@ -825,16 +813,11 @@ auto ProtocolAdapter::serialize_send_topic_message_request(
     json["message_thread_id"] = topic_id.value();
   }
 
-  std::string text;
-  for (const auto &segment : message) {
-    if (segment.type == "text") {
-      text += segment.data.at("text");
-    }
-    // TODO: non-text/non-media segments are silently dropped here; richer
-    // segment kinds (e.g. mentions, links) need explicit handling.
+  const auto formatted = format_telegram_text(message);
+  json["text"] = formatted.text;
+  if (!formatted.entities.empty()) {
+    json["entities"] = formatted.entities;
   }
-
-  json["text"] = text;
 
   if (reply_to_message_id.has_value()) {
     json["reply_to_message_id"] = reply_to_message_id.value();
@@ -1229,6 +1212,18 @@ auto ProtocolAdapter::serialize_send_media_group_request(
     std::string_view caption, const std::optional<int64_t> &topic_id,
     const std::optional<std::string> &reply_to_message_id,
     const std::optional<uint64_t> &echo) -> std::string {
+  return serialize_send_media_group_request_with_entities(
+      chat_id, media, caption, topic_id, reply_to_message_id, echo, {});
+}
+
+auto ProtocolAdapter::serialize_send_media_group_request_with_entities(
+    std::string_view chat_id,
+    const std::vector<std::pair<std::string, std::string>> &media,
+    std::string_view caption, const std::optional<int64_t> &topic_id,
+    const std::optional<std::string> &reply_to_message_id,
+    const std::optional<uint64_t> &echo,
+    const std::vector<core::TelegramTextEntity> &caption_entities)
+    -> std::string {
   nlohmann::json json;
   json["method"] = "sendMediaGroup";
   json["chat_id"] = chat_id;
@@ -1252,6 +1247,9 @@ auto ProtocolAdapter::serialize_send_media_group_request(
 
     if (first && !caption.empty()) {
       media_item["caption"] = caption;
+      if (!caption_entities.empty()) {
+        media_item["caption_entities"] = caption_entities;
+      }
       first = false;
     } else {
       first = false;

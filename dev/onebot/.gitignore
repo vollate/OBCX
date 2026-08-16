@@ -1,0 +1,4 @@
+/QQ/
+/llonebot/
+/config/*.toml
+!/config/*.example.toml

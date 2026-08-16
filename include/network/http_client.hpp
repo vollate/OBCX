@@ -6,6 +6,7 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/beast.hpp>
 #include <boost/beast/ssl.hpp>
+#include <cstdint>
 #include <memory>
 
 namespace obcx::network {
@@ -44,6 +45,9 @@ public:
  */
 class HttpClient {
 public:
+  static constexpr std::uint64_t kDefaultResponseBodyLimit =
+      8ULL * 1024ULL * 1024ULL;
+
   /**
    * @brief 构造函数
    * @param ioc IO上下文
@@ -120,6 +124,15 @@ public:
    * @param timeout 超时时间
    */
   void set_timeout(std::chrono::milliseconds timeout);
+
+  /**
+   * @brief Set the maximum response body accepted by this client.
+   * @param bytes Positive finite limit in bytes
+   */
+  void set_response_body_limit(std::uint64_t bytes);
+
+  /** @return Maximum response body accepted by this client, in bytes. */
+  [[nodiscard]] auto response_body_limit() const -> std::uint64_t;
 
   /**
    * @brief 检查连接是否可用

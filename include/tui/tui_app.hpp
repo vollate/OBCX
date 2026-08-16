@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/cli_handler.hpp"
+#include "tui/tui_layout.hpp"
 #include "tui/tui_sink.hpp"
 
 #include <atomic>
@@ -52,17 +53,15 @@ private:
   std::atomic_bool running_{true};
   std::atomic_bool shutdown_started_{false};
   std::atomic_bool shutdown_complete_{false};
-  int log_scroll_offset_{0};
+  tui_layout::WrappedLogCache log_cache_;
+  tui_layout::LogViewport log_viewport_;
+  tui_layout::SplitState split_state_;
+  tui_layout::LayoutSnapshot layout_;
+  tui_layout::ScrollbarMetrics log_scrollbar_;
   int log_visible_rows_{1};
-  int log_scrollbar_track_height_{1};
-  int log_scrollbar_thumb_top_{0};
-  int log_scrollbar_thumb_height_{1};
-  int log_scrollbar_x_{0};
-  bool log_follow_tail_{true};
   bool log_scrollbar_dragging_{false};
   int log_scrollbar_drag_start_y_{0};
   int log_scrollbar_drag_start_thumb_top_{0};
-  uint64_t last_log_version_{0};
   int console_scroll_offset_{0};
 };
 

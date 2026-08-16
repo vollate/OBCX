@@ -1,5 +1,5 @@
 #include "common/component_manager.hpp"
-#include "common/plugin_manager.hpp"
+#include "common/logger.hpp"
 #include "core/qq_bot.hpp"
 #include "core/tg_bot.hpp"
 #include "interfaces/bot.hpp"
@@ -20,17 +20,15 @@ auto obcx::common::ComponentManager::instance()
   return instance;
 }
 
-auto obcx::common::ComponentManager::create_bot(
-    const BotConfig &config,
-    const std::shared_ptr<::obcx::core::TaskScheduler> &task_scheduler)
+auto obcx::common::ComponentManager::create_bot(const BotConfig &config)
     -> std::unique_ptr<::obcx::core::IBot> {
   if (config.type == "qq") {
     return std::make_unique<::obcx::core::QQBot>(
-        ::obcx::adapter::onebot11::ProtocolAdapter{}, task_scheduler);
+        ::obcx::adapter::onebot11::ProtocolAdapter{});
   }
   if (config.type == "telegram") {
     return std::make_unique<::obcx::core::TGBot>(
-        ::obcx::adapter::telegram::ProtocolAdapter{}, task_scheduler);
+        ::obcx::adapter::telegram::ProtocolAdapter{});
   }
 
   OBCX_ERROR("Unknown bot type: {}", config.type);
@@ -173,36 +171,8 @@ auto ComponentManager::create_connection_config(const toml::table &conn_table)
 }
 
 auto ComponentManager::setup_bot(::obcx::core::IBot &bot,
-                                 const BotConfig &config,
-                                 PluginManager &plugin_manager) -> bool {
+                                 const BotConfig &config) -> bool {
   try {
-    auto sorted_plugins =
-        plugin_manager.sort_plugins_by_priority_and_dependencies(
-            config.plugins);
-
-    if (!sorted_plugins.empty()) {
-      std::string order_info;
-      for (size_t i = 0; i < sorted_plugins.size(); ++i) {
-        order_info += sorted_plugins[i];
-        if (i < sorted_plugins.size() - 1) {
-          order_info += " -> ";
-        }
-      }
-      OBCX_INFO("Plugin initialization order: {}", order_info);
-    }
-
-    for (const auto &plugin_name : sorted_plugins) {
-      if (!plugin_manager.load_plugin(plugin_name)) {
-        OBCX_WARN("Failed to load plugin: {}", plugin_name);
-        continue;
-      }
-
-      if (!plugin_manager.initialize_plugin(plugin_name)) {
-        OBCX_WARN("Failed to initialize plugin: {}", plugin_name);
-        continue;
-      }
-    }
-
     auto connection_config = create_connection_config(config.connection);
     std::string conn_type =
         config.connection.get("type")->value_or<std::string>("http");

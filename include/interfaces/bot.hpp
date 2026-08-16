@@ -8,7 +8,6 @@ class MainApplication;
 
 #include "common/message_type.hpp"
 #include "core/event_dispatcher.hpp"
-#include "core/task_scheduler.hpp"
 #include "interfaces/connection_manager.hpp"
 #include "interfaces/protocol_adapter.hpp"
 
@@ -28,8 +27,7 @@ class IBot {
   friend class common::MainApplication;
 
 public:
-  explicit IBot(std::unique_ptr<adapter::BaseProtocolAdapter> adapter,
-                std::shared_ptr<TaskScheduler> task_scheduler = nullptr);
+  explicit IBot(std::unique_ptr<adapter::BaseProtocolAdapter> adapter);
   IBot(const IBot &) = delete;
   auto operator=(const IBot &) -> IBot & = delete;
   IBot(IBot &&) = delete;
@@ -268,7 +266,7 @@ public:
   virtual auto get_login_info() -> asio::awaitable<std::string> = 0;
 
   /**
-   * @brief 获取插件运行状态
+   * @brief 获取运行状态
    * @return 状态信息的JSON响应
    */
   virtual auto get_status() -> asio::awaitable<std::string> = 0;
@@ -363,26 +361,9 @@ public:
    */
   [[nodiscard]] virtual auto is_connected() const -> bool = 0;
 
-  /**
-   * @brief 获取任务调度器的引用，用于执行重负载任务
-   * @return TaskScheduler& 任务调度器引用
-   */
-  virtual auto get_task_scheduler() -> TaskScheduler & = 0;
-
-  /**
-   * @brief 便捷方法：在线程池中执行重负载任务
-   * @tparam Func 可调用对象类型
-   * @param task 要执行的任务
-   * @return asio::awaitable<T> 可等待的协程对象
-   */
-  template <typename Func> auto run_heavy_task(Func task) {
-    return get_task_scheduler().run_heavy_task(std::move(task));
-  }
-
 protected:
   std::shared_ptr<asio::io_context> io_context_;
   std::unique_ptr<adapter::BaseProtocolAdapter> adapter_;
-  std::shared_ptr<TaskScheduler> task_scheduler_;
   std::unique_ptr<EventDispatcher> dispatcher_;
   std::unique_ptr<network::IConnectionManager> connection_manager_;
   common::ConnectionConfig conection_config_;

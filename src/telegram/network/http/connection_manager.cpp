@@ -7,11 +7,129 @@
 #include <boost/asio/detached.hpp>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
+#include <cctype>
+#include <stdexcept>
+
 using obcx::network::ProxyConfig;
 
 namespace obcx::network {
 
 using json = nlohmann::json;
+
+namespace {
+
+constexpr std::string_view kMultipartBoundary = "----OBCXBoundary7MA4YWxk";
+
+void append_multipart_field(std::string &body, std::string_view name,
+                            std::string_view value) {
+  body += "--";
+  body += kMultipartBoundary;
+  body += "\r\nContent-Disposition: form-data; name=\"";
+  body += name;
+  body += "\"\r\n\r\n";
+  body += value;
+  body += "\r\n";
+}
+
+auto safe_multipart_filename(std::string filename) -> std::string {
+  if (filename.empty()) {
+    return "image.bin";
+  }
+  std::ranges::replace_if(
+      filename,
+      [](const char ch) { return ch == '\r' || ch == '\n' || ch == '"'; }, '_');
+  return filename;
+}
+
+void append_multipart_file(std::string &body, std::string_view field_name,
+                           const core::TelegramMediaUpload &file) {
+  body += "--";
+  body += kMultipartBoundary;
+  body += "\r\nContent-Disposition: form-data; name=\"";
+  body += field_name;
+  body += "\"; filename=\"";
+  body += safe_multipart_filename(file.filename);
+  body += "\"\r\nContent-Type: ";
+  body += file.mime_type.empty() ? "application/octet-stream" : file.mime_type;
+  body += "\r\n\r\n";
+  body += file.data;
+  body += "\r\n";
+}
+
+auto telegram_http_error(const HttpResponse &response) -> std::runtime_error {
+  return std::runtime_error(fmt::format("HTTP request failed: {}: {}",
+                                        response.status_code, response.body));
+}
+
+} // namespace
+
+auto build_telegram_media_group_multipart(
+    std::string_view chat_id,
+    const std::vector<core::TelegramMediaUpload> &media,
+    std::string_view caption, std::optional<int64_t> message_thread_id,
+    std::optional<std::string> reply_to_message_id)
+    -> TelegramMultipartRequest {
+  return build_telegram_media_group_multipart_with_entities(
+      chat_id, media, caption, message_thread_id,
+      std::move(reply_to_message_id), {});
+}
+
+auto build_telegram_media_group_multipart_with_entities(
+    std::string_view chat_id,
+    const std::vector<core::TelegramMediaUpload> &media,
+    std::string_view caption, std::optional<int64_t> message_thread_id,
+    std::optional<std::string> reply_to_message_id,
+    const std::vector<core::TelegramTextEntity> &caption_entities)
+    -> TelegramMultipartRequest {
+  if (media.size() < 2 || media.size() > 10) {
+    throw std::invalid_argument(
+        "Telegram media group multipart requires 2 to 10 files");
+  }
+
+  nlohmann::json input_media = nlohmann::json::array();
+  std::size_t total_data_size = 0;
+  for (std::size_t i = 0; i < media.size(); ++i) {
+    const auto &file = media[i];
+    if (file.data.empty()) {
+      throw std::invalid_argument("Telegram multipart media file is empty");
+    }
+    nlohmann::json item = {
+        {"type", file.type.empty() ? "photo" : file.type},
+        {"media", fmt::format("attach://media_{}", i)},
+    };
+    if (i == 0 && !caption.empty()) {
+      item["caption"] = caption;
+      if (!caption_entities.empty()) {
+        item["caption_entities"] = caption_entities;
+      }
+    }
+    input_media.push_back(std::move(item));
+    total_data_size += file.data.size();
+  }
+
+  TelegramMultipartRequest request;
+  request.body.reserve(total_data_size + 2048);
+  append_multipart_field(request.body, "chat_id", chat_id);
+  if (message_thread_id.has_value()) {
+    append_multipart_field(request.body, "message_thread_id",
+                           std::to_string(*message_thread_id));
+  }
+  if (reply_to_message_id.has_value()) {
+    append_multipart_field(request.body, "reply_to_message_id",
+                           *reply_to_message_id);
+  }
+  append_multipart_field(request.body, "media", input_media.dump());
+  for (std::size_t i = 0; i < media.size(); ++i) {
+    append_multipart_file(request.body, fmt::format("media_{}", i), media[i]);
+  }
+  request.body += "--";
+  request.body += kMultipartBoundary;
+  request.body += "--\r\n";
+  request.content_type = std::string("multipart/form-data; boundary=") +
+                         std::string(kMultipartBoundary);
+  return request;
+}
 
 TelegramConnectionManager::TelegramConnectionManager(
     asio::io_context &ioc, adapter::telegram::ProtocolAdapter &adapter)
@@ -111,8 +229,7 @@ auto TelegramConnectionManager::send_action_and_wait_async(
         co_await http_client_->post(api_path, body, headers);
 
     if (!response.is_success()) {
-      throw std::runtime_error(fmt::format(
-          "HTTP request failed: {}", std::to_string(response.status_code)));
+      throw telegram_http_error(response);
     }
 
     co_return response.body;
@@ -231,20 +348,18 @@ auto TelegramConnectionManager::upload_photo_multipart(
     throw std::runtime_error("HTTP client not initialized");
   }
 
-  static constexpr std::string_view kBoundary = "----OBCXBoundary7MA4YWxk";
-
   std::string body;
   body.reserve(image_data.size() + 512);
 
   body += "--";
-  body += kBoundary;
+  body += kMultipartBoundary;
   body += "\r\nContent-Disposition: form-data; name=\"chat_id\"\r\n\r\n";
   body += chat_id;
   body += "\r\n";
 
   if (message_thread_id.has_value()) {
     body += "--";
-    body += kBoundary;
+    body += kMultipartBoundary;
     body += "\r\nContent-Disposition: form-data; "
             "name=\"message_thread_id\"\r\n\r\n";
     body += std::to_string(*message_thread_id);
@@ -253,14 +368,14 @@ auto TelegramConnectionManager::upload_photo_multipart(
 
   if (!caption.empty()) {
     body += "--";
-    body += kBoundary;
+    body += kMultipartBoundary;
     body += "\r\nContent-Disposition: form-data; name=\"caption\"\r\n\r\n";
     body += caption;
     body += "\r\n";
   }
 
   body += "--";
-  body += kBoundary;
+  body += kMultipartBoundary;
   body += "\r\nContent-Disposition: form-data; name=\"photo\"; filename=\"";
   body += filename;
   body += "\"\r\nContent-Type: ";
@@ -270,21 +385,58 @@ auto TelegramConnectionManager::upload_photo_multipart(
   body += "\r\n";
 
   body += "--";
-  body += kBoundary;
+  body += kMultipartBoundary;
   body += "--\r\n";
 
   std::map<std::string, std::string> headers;
-  headers["Content-Type"] =
-      std::string("multipart/form-data; boundary=") + std::string(kBoundary);
+  headers["Content-Type"] = std::string("multipart/form-data; boundary=") +
+                            std::string(kMultipartBoundary);
 
   std::string api_path = "/bot" + config_.access_token + "/sendPhoto";
   HttpResponse response = co_await http_client_->post(api_path, body, headers);
 
   if (!response.is_success()) {
-    throw std::runtime_error(fmt::format("HTTP request failed: {}",
-                                         std::to_string(response.status_code)));
+    throw telegram_http_error(response);
   }
 
+  co_return response.body;
+}
+
+auto TelegramConnectionManager::upload_media_group_multipart(
+    std::string_view chat_id,
+    const std::vector<core::TelegramMediaUpload> &media,
+    std::string_view caption, std::optional<int64_t> message_thread_id,
+    std::optional<std::string> reply_to_message_id)
+    -> asio::awaitable<std::string> {
+  co_return co_await upload_media_group_multipart_with_entities(
+      chat_id, media, caption, message_thread_id,
+      std::move(reply_to_message_id), {});
+}
+
+auto TelegramConnectionManager::upload_media_group_multipart_with_entities(
+    std::string_view chat_id,
+    const std::vector<core::TelegramMediaUpload> &media,
+    std::string_view caption, std::optional<int64_t> message_thread_id,
+    std::optional<std::string> reply_to_message_id,
+    const std::vector<core::TelegramTextEntity> &caption_entities)
+    -> asio::awaitable<std::string> {
+  if (!http_client_) {
+    throw std::runtime_error("HTTP client not initialized");
+  }
+  auto request = build_telegram_media_group_multipart_with_entities(
+      chat_id, media, caption, message_thread_id, reply_to_message_id,
+      caption_entities);
+
+  std::map<std::string, std::string> headers;
+  headers["Content-Type"] = request.content_type;
+
+  const std::string api_path =
+      "/bot" + config_.access_token + "/sendMediaGroup";
+  HttpResponse response =
+      co_await http_client_->post(api_path, request.body, headers);
+  if (!response.is_success()) {
+    throw telegram_http_error(response);
+  }
   co_return response.body;
 }
 

@@ -1,0 +1,371 @@
+From 44182f3fead57456636f4bbef861b774c42c899e Mon Sep 17 00:00:00 2001
+From: Vollate <uint44t@gmail.com>
+Date: Wed, 15 Jul 2026 18:59:42 +0800
+Subject: [PATCH 1/2] feat: adopt C++26 reflected actor dispatch
+
+---
+ CMakeLists.txt                  |  5 +--
+ README.md                       | 11 ++++---
+ actor.toml                      |  6 +++-
+ include/message_store_actor.hpp | 17 ++++++-----
+ src/message_store_actor.cpp     | 54 +++++++++++++++++----------------
+ tests/message_store_smoke.cpp   | 11 ++++---
+ 6 files changed, 58 insertions(+), 46 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 1d0b6b0745166d9890479c771d25f7d10ee7b255..ed4f706b60c3ee86f98c376f706599e015240306 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,4 +1,4 @@
+-cmake_minimum_required(VERSION 3.20)
++cmake_minimum_required(VERSION 3.25)
+ 
+ project(obcx_actor_message_store VERSION 0.1.0 LANGUAGES CXX)
+ 
+@@ -22,6 +22,7 @@ if(BUILD_TESTING)
+   target_include_directories(message_store_smoke PRIVATE
+     ${CMAKE_CURRENT_SOURCE_DIR}/include)
+   target_link_libraries(message_store_smoke PRIVATE obcx::obcx_core)
+-  target_compile_features(message_store_smoke PRIVATE cxx_std_20)
++  target_compile_features(message_store_smoke PRIVATE cxx_std_26)
++  target_compile_options(message_store_smoke PRIVATE -freflection)
+   add_test(NAME message_store_smoke COMMAND message_store_smoke)
+ endif()
+diff --git a/README.md b/README.md
+index 5a26d3205d1b8e53d3b2fc26513b8fb030e4411c..ae0148d6eedfbdc0411a7ad6684ec5951a3fabf3 100644
+--- a/README.md
++++ b/README.md
+@@ -4,7 +4,8 @@ Standalone received-message actor for OBCX.
+ 
+ ## Scope
+ 
+-- Consumes `RawMessageEvent`.
++- Consumes `obcx::core::events::RawMessageEvent` through generated reflected
++  dispatch.
+ - Persists received platform messages through `DbManager`.
+ - Uses actor-owned per-platform tables such as
+   `message_store_qq_messages` and `message_store_telegram_messages`.
+@@ -12,9 +13,11 @@ Standalone received-message actor for OBCX.
+   id so chat-scoped ids remain distinct.
+ - Encodes non-canonical namespace and platform identifiers losslessly before
+   using them in SQL table names.
+-- Emits `MessageStored`.
+-- Emits `MessageStoreFailed` for validation or DB failures.
+-- Rejects bridge-owned events such as `MessageForwarded`.
++- Emits `obcx::message_store::events::MessageStored` with typed emit.
++- Emits `obcx::message_store::events::MessageStoreFailed` for validation or
++  DB failures.
++- Rejects bridge-owned events such as `bridge::events::MessageForwarded` with
++  `unsupported_message_type` before handler entry.
+ 
+ Bridge mapping, media-group, retry, recall, and reply state belong to the
+ bridge actor repository.
+diff --git a/actor.toml b/actor.toml
+index 3f10e742c3576d085798c2c4845e3328b782f59d..ea2af2edac6974629c6ac3c91accfc720ea6afd7 100644
+--- a/actor.toml
++++ b/actor.toml
+@@ -11,7 +11,7 @@ name = "message_store"
+ target = "message_store_actor"
+ kind = "shared-library"
+ entrypoint = "obcx_create_actor_v2"
+-platforms = ["linux-x86_64"]
++platforms = ["linux-x86_64", "linux-arm64"]
+ 
+ [dependencies]
+ packages = ["sqlite3"]
+@@ -21,6 +21,10 @@ actors = []
+ obcx = ">=1.1.0,<2.0.0"
+ actor_abi_min = 2
+ actor_abi_max = 2
++cpp_standard = 26
++compiler = "gcc>=16.1"
++reflection_macro = 202506
++input_contract_schema = 1
+ 
+ [publication]
+ repository = "https://github.com/Onebot-CXX/obcx-actor-message-store"
+diff --git a/include/message_store_actor.hpp b/include/message_store_actor.hpp
+index ec57c68bcb2bbe1857790d85d522a6648a1a6679..e990cf938cdd24559bb26406e39776cbf8099050 100644
+--- a/include/message_store_actor.hpp
++++ b/include/message_store_actor.hpp
+@@ -1,7 +1,8 @@
+ #pragma once
+ 
+-#include "core/actor.hpp"
++#include "core/actor_messages.hpp"
+ #include "core/db_manager.hpp"
++#include "core/reflected_actor.hpp"
+ 
+ #include <chrono>
+ #include <cstdint>
+@@ -59,17 +60,17 @@ private:
+   MessageStoreOptions options_;
+ };
+ 
+-class MessageStoreActor final : public core::IActorV2 {
++class MessageStoreActor final : public core::ReflectedActor<MessageStoreActor> {
+ public:
++  static constexpr std::string_view actor_name = "message_store";
++  static constexpr std::string_view actor_version = "0.1.0";
++
+   MessageStoreActor();
+   explicit MessageStoreActor(std::shared_ptr<MessageStore> store);
+ 
+-  [[nodiscard]] auto get_name() const -> std::string override;
+-  [[nodiscard]] auto get_version() const -> std::string override;
+-
+-  auto handle_message(const core::MessageEnvelope &message,
+-                      core::ActorContext &context)
+-      -> core::ActorTask<core::ActorResult> override;
++  auto handle(const core::events::RawMessageEvent &event,
++              const core::MessageEnvelope &message,
++              core::ActorContext &context) -> core::ActorResult;
+ 
+ private:
+   auto resolve_store(core::ActorContext &context)
+diff --git a/src/message_store_actor.cpp b/src/message_store_actor.cpp
+index 088edd1ca6f0e4400d0fb39f6f99207aea029667..f87f40157ef7188451507bba1757df776d1fae78 100644
+--- a/src/message_store_actor.cpp
++++ b/src/message_store_actor.cpp
+@@ -364,7 +364,8 @@ auto build_message_stored_event(const core::MessageEnvelope &input,
+   core::MessageEnvelope emitted;
+   emitted.id = "stored:" + stored.source_platform + ":" + stored.source_bot +
+                ":" + stored.conversation_id + ":" + stored.message_id;
+-  emitted.type = "MessageStored";
++  emitted.type = core::canonical_message_type_name<
++      obcx::message_store::events::MessageStored>();
+   emitted.source_platform = stored.source_platform;
+   emitted.source_bot = stored.source_bot;
+   emitted.conversation_id = stored.conversation_id;
+@@ -393,7 +394,7 @@ auto build_store_failed_event(const core::MessageEnvelope &input,
+     -> core::MessageEnvelope {
+   core::MessageEnvelope emitted;
+   emitted.id = "message_store_failed:" + input.id;
+-  emitted.type = "MessageStoreFailed";
++  emitted.type = "obcx::message_store::events::MessageStoreFailed";
+   emitted.source_platform = input.source_platform;
+   emitted.source_bot = input.source_bot;
+   emitted.conversation_id = input.conversation_id;
+@@ -661,12 +662,6 @@ MessageStoreActor::MessageStoreActor() = default;
+ MessageStoreActor::MessageStoreActor(std::shared_ptr<MessageStore> store)
+     : store_(std::move(store)) {}
+ 
+-auto MessageStoreActor::get_name() const -> std::string {
+-  return "message_store";
+-}
+-
+-auto MessageStoreActor::get_version() const -> std::string { return "0.1.0"; }
+-
+ auto MessageStoreActor::resolve_store(core::ActorContext &context)
+     -> std::shared_ptr<MessageStore> {
+   std::scoped_lock lock(store_mutex_);
+@@ -691,33 +686,40 @@ auto MessageStoreActor::resolve_store(core::ActorContext &context)
+   return store_;
+ }
+ 
+-auto MessageStoreActor::handle_message(const core::MessageEnvelope &message,
+-                                       core::ActorContext &context)
+-    -> core::ActorTask<core::ActorResult> {
++auto MessageStoreActor::handle(const core::events::RawMessageEvent &event,
++                               const core::MessageEnvelope &message,
++                               core::ActorContext &context)
++    -> core::ActorResult {
++  (void)event;
+   try {
+     auto store = resolve_store(context);
+     context.register_service<MessageStore>(store);
+ 
+-    if (message.type == "RawMessageEvent") {
+-      auto stored = store->upsert_raw_message(message);
+-      auto result = core::ActorResult::success();
+-      result.emit(build_message_stored_event(message, stored));
+-      co_return result;
+-    }
+-
+-    auto result = core::ActorResult::failed(
+-        "unsupported_message_type", "message_store accepts RawMessageEvent",
+-        false);
+-    result.emit(build_store_failed_event(
+-        message, "unsupported_message_type",
+-        "message_store accepts RawMessageEvent", false));
+-    co_return result;
++    auto stored = store->upsert_raw_message(message);
++    auto emitted = build_message_stored_event(message, stored);
++    auto result = core::ActorResult::success();
++    result.emit(obcx::message_store::events::MessageStored{
++                    .payload = emitted.payload},
++                message,
++                core::ActorEmitOptions{
++                    .id = emitted.id,
++                    .source_platform = emitted.source_platform,
++                    .source_bot = emitted.source_bot,
++                    .conversation_id = emitted.conversation_id,
++                    .correlation_id = emitted.correlation_id,
++                    .causation_id = emitted.causation_id,
++                    .headers = emitted.headers,
++                    .replace_headers = true,
++                });
++    result.emitted.back().timestamp = emitted.timestamp;
++    result.emitted.back().raw = std::move(emitted.raw);
++    return result;
+   } catch (const std::exception &error) {
+     auto result =
+         core::ActorResult::failed("message_store_error", error.what(), true);
+     result.emit(build_store_failed_event(message, "message_store_error",
+                                          error.what(), true));
+-    co_return result;
++    return result;
+   }
+ }
+ 
+diff --git a/tests/message_store_smoke.cpp b/tests/message_store_smoke.cpp
+index 66360340f01e388f917273315fbee1ff6a714f76..4cc7c8a0e9e7fa4fb9ba66f976706e38fbb4e40b 100644
+--- a/tests/message_store_smoke.cpp
++++ b/tests/message_store_smoke.cpp
+@@ -52,7 +52,7 @@ auto raw_message(const std::string &message_id, const std::string &platform,
+                  const std::string &bot) -> obcx::core::MessageEnvelope {
+   obcx::core::MessageEnvelope envelope;
+   envelope.id = "raw-" + platform + "-" + message_id;
+-  envelope.type = "RawMessageEvent";
++  envelope.type = "obcx::core::events::RawMessageEvent";
+   envelope.source_platform = platform;
+   envelope.source_bot = bot;
+   envelope.conversation_id = "group:group-1";
+@@ -72,7 +72,7 @@ auto raw_message(const std::string &message_id, const std::string &platform,
+ auto forwarded_message() -> obcx::core::MessageEnvelope {
+   obcx::core::MessageEnvelope envelope;
+   envelope.id = "forwarded-1";
+-  envelope.type = "MessageForwarded";
++  envelope.type = "bridge::events::MessageForwarded";
+   envelope.source_platform = "qq";
+   envelope.source_bot = "qq-main";
+   envelope.payload = {
+@@ -250,9 +250,10 @@ auto main() -> int {
+     require(duplicate.ok(), "duplicate QQ message should upsert");
+     require(telegram.ok(), "Telegram message should persist");
+     require(!rejected.ok(), "MessageForwarded should be rejected");
+-    require(rejected.emitted.size() == 1 &&
+-                rejected.emitted[0].type == "MessageStoreFailed",
+-            "MessageForwarded rejection should emit MessageStoreFailed");
++    require(rejected.failure->code == "unsupported_message_type",
++            "MessageForwarded rejection should use reflected dispatch code");
++    require(rejected.emitted.empty(),
++            "generated dispatch rejection must not expose message contents");
+ 
+     auto store = context.get_service<obcx::message_store_actor::MessageStore>();
+     require(store != nullptr, "actor should register MessageStore service");
+-- 
+2.54.0
+
+
+From d3511ae5950a0e6454458eb763b9947165397d2a Mon Sep 17 00:00:00 2001
+From: Vollate <uint44t@gmail.com>
+Date: Sun, 19 Jul 2026 20:00:21 +0800
+Subject: [PATCH 2/2] docs: document current message-store contract
+
+---
+ README.md | 69 ++++++++++++++++++++++++++++++++++++++++++++++---------
+ 1 file changed, 58 insertions(+), 11 deletions(-)
+
+diff --git a/README.md b/README.md
+index ae0148d6eedfbdc0411a7ad6684ec5951a3fabf3..23db017622fee58874b2f2de804934c3c0eb8557 100644
+--- a/README.md
++++ b/README.md
+@@ -1,21 +1,34 @@
+ # OBCX message_store Actor
+ 
+-Standalone received-message actor for OBCX.
++`obcx-actor-message-store` is the standalone persistence actor for received
++OBCX messages. It consumes `obcx::core::events::RawMessageEvent` through
++generated reflected dispatch and emits
++`obcx::message_store::events::MessageStored` or
++`obcx::message_store::events::MessageStoreFailed`.
+ 
+-## Scope
++## Package Contract
+ 
+-- Consumes `obcx::core::events::RawMessageEvent` through generated reflected
+-  dispatch.
+-- Persists received platform messages through `DbManager`.
++- Actor id: `onebot-cxx.message-store`
++- Actor name and version: `message_store` `0.1.0`
++- ABI: `2`
++- CMake target and artifact: `message_store_actor`, `message_store.so`
++- Platforms: Linux x86_64 and arm64
++- Canonical metadata: `actor.toml`
++
++The supported baseline is CMake 3.30+, GCC 16.1+, C++26, `-freflection`, and
++`__cpp_impl_reflection >= 202506L`. `OBCX_ACTOR_EXPORT_V2` exports the numeric
++ABI generation, lifecycle functions, actor identity, and generated schema-1
++input contract.
++
++## Storage Behavior
++
++- Persists messages through the core-injected `DbManager` service.
+ - Uses actor-owned per-platform tables such as
+   `message_store_qq_messages` and `message_store_telegram_messages`.
+ - Keys messages by platform, bot instance, conversation, and platform message
+   id so chat-scoped ids remain distinct.
+ - Encodes non-canonical namespace and platform identifiers losslessly before
+   using them in SQL table names.
+-- Emits `obcx::message_store::events::MessageStored` with typed emit.
+-- Emits `obcx::message_store::events::MessageStoreFailed` for validation or
+-  DB failures.
+ - Rejects bridge-owned events such as `bridge::events::MessageForwarded` with
+   `unsupported_message_type` before handler entry.
+ 
+@@ -27,14 +40,48 @@ database used namespace spellings that collapse to the same old sanitized
+ name (for example `ns-prod` and `ns_prod`), startup rejects the ambiguous
+ namespace and requires an explicit data-mapping migration.
+ 
+-## Build
++## Runtime Configuration
++
++The actor config selects a `DbManager` instance with `db` and isolates its
++tables with `db_namespace`:
++
++```toml
++[db.instances.main]
++type = "sqlite"
++path = "data/obcx.sqlite3"
++
++[actors.message_store]
++library = "message_store"
++enabled = true
++partition = "source_platform:conversation_id"
++db = "main"
++db_namespace = "message_store"
++
++[pipelines.message]
++source = "obcx::core::events::RawMessageEvent"
++
++[[pipelines.message.stages]]
++name = "persist"
++actor = "message_store"
++input = "obcx::core::events::RawMessageEvent"
++output = ["obcx::message_store::events::MessageStored", "obcx::message_store::events::MessageStoreFailed"]
++mode = "await"
++```
++
++## Build And Install
+ 
+ Install or point CMake at an OBCX SDK prefix, then build:
+ 
+ ```bash
+ cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/obcx-sdk-prefix
+ cmake --build build
+-ctest --test-dir build --output-on-failure
++ctest --test-dir build -R '^message_store_smoke$' --output-on-failure
++cmake --install build --prefix /path/to/actor-prefix
+ ```
+ 
+-The actor dynamic library is written to `build/actors/message_store.*`.
++The build artifact is `build/actors/message_store.so`. Installation writes:
++
++```text
++lib/obcx/actors/message_store.so
++share/obcx/actors/onebot-cxx.message-store/actor.toml
++```
+-- 
+2.54.0
+

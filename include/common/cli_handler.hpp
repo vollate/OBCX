@@ -1,16 +1,10 @@
 #pragma once
 
-#include "common/config_loader.hpp"
-#include "common/plugin_manager.hpp"
-#include "interfaces/bot.hpp"
-
 #include <atomic>
 #include <condition_variable>
 #include <functional>
-#include <mutex>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 namespace obcx::common {
 
@@ -34,6 +28,13 @@ public:
    */
   using OutputCallback = std::function<void(const std::string &)>;
 
+  enum class ReloadRequestStatus {
+    Accepted,
+    Busy,
+    Unavailable,
+  };
+  using ReloadCallback = std::function<ReloadRequestStatus()>;
+
   /**
    * \if CHINESE
    * @brief CLI上下文，包含命令处理所需的各种引用
@@ -43,15 +44,11 @@ public:
    * \endif
    */
   struct Context {
-    PluginManager &plugin_manager;
-    ConfigLoader &config_loader;
-    std::vector<BotConfig> &bot_configs;
-    std::vector<std::unique_ptr<core::IBot>> &bots;
-    std::mutex &bots_mutex;
     std::atomic_bool &should_stop;
     std::condition_variable &stop_cv;
     OutputCallback output_cb = nullptr;
     std::function<void()> shutdown_cb = nullptr;
+    ReloadCallback reload_cb = nullptr;
   };
 
   /**
@@ -133,16 +130,6 @@ private:
 
   /**
    * \if CHINESE
-   * @brief 处理reload命令
-   * \endif
-   * \if ENGLISH
-   * @brief Handle reload command
-   * \endif
-   */
-  static auto handle_reload(Context &ctx, const std::string &args) -> bool;
-
-  /**
-   * \if CHINESE
    * @brief 处理log_level命令
    * \endif
    * \if ENGLISH
@@ -150,6 +137,7 @@ private:
    * \endif
    */
   static auto handle_log_level(Context &ctx, const std::string &args) -> bool;
+  static auto handle_reload(Context &ctx, const std::string &args) -> bool;
 
   Context ctx_;
   std::unordered_map<std::string, CommandHandler> handlers_;

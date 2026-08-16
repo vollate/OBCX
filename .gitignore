@@ -51,20 +51,33 @@ _deps
 .cache/
 .tasks
 .claude/
+.codex/
 .codex
+.pi/
 
 # Build dir
 cmake-build*/
 build/
+build-*/
+.worktrees/
 __pycache__/
+benchmarks/evidence/
 
 # Doc
-docs/
+docs/*
+!docs/actor-only-breaking-change.md
+!docs/api/
+docs/api/*
+!docs/api/README.md
+!docs/roadmaps/
+!docs/roadmaps/actor-runtime-v2-native-coroutine-roadmap.md
+!docs/architecture/
+!docs/architecture/native-actor-coroutine-runtime-adr.md
 
 # OSX's shit
 .DS_Store
 
-*.db
+*.db*
 *.zip
 logs/
 *.core
@@ -74,6 +87,9 @@ vcpkg.json
 .direnv/
 
 # Local config
+local_actor/
+actors.toml
+# Retired local checkouts/config are ignored but never parsed by the build.
 local_plugin/
 plugins.toml
 config.toml

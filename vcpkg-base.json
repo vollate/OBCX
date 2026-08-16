@@ -15,6 +15,7 @@
     "gtest",
     "nlohmann-json",
     "openssl",
+    "sqlite3",
     "spdlog",
     "tomlplusplus"
   ]

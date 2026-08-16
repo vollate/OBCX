@@ -10,11 +10,9 @@
 
 namespace obcx::core {
 
-TGBot::TGBot(adapter::telegram::ProtocolAdapter adapter,
-             std::shared_ptr<TaskScheduler> task_scheduler)
+TGBot::TGBot(adapter::telegram::ProtocolAdapter adapter)
     : IBot{std::make_unique<adapter::telegram::ProtocolAdapter>(
-               std::move(adapter)),
-           std::move(task_scheduler)} {
+          std::move(adapter))} {
   OBCX_INFO("TelegramBot instance created, all core components initialized");
 }
 
@@ -57,10 +55,6 @@ void TGBot::stop() {
 
   if (connection_manager_) {
     connection_manager_->disconnect();
-  }
-
-  if (task_scheduler_) {
-    task_scheduler_->stop();
   }
 
   io_context_->stop();
@@ -126,6 +120,24 @@ auto TGBot::send_group_message(std::string_view group_id,
                                                                      echo_id);
 }
 
+auto TGBot::set_commands(
+    const std::vector<std::pair<std::string, std::string>> &commands)
+    -> asio::awaitable<std::string> {
+  ensure_connection_manager();
+  const auto echo_id = generate_echo_id();
+  nlohmann::json request{
+      {"method", "setMyCommands"},
+      {"commands", nlohmann::json::array()},
+      {"echo", echo_id},
+  };
+  for (const auto &[command, description] : commands) {
+    request["commands"].push_back(
+        {{"command", command}, {"description", description}});
+  }
+  co_return co_await connection_manager_->send_action_and_wait_async(
+      request.dump(), echo_id);
+}
+
 auto TGBot::send_topic_message(std::string_view group_id, int64_t topic_id,
                                const common::Message &message)
     -> asio::awaitable<std::string> {
@@ -141,6 +153,15 @@ auto TGBot::send_group_photo(std::string_view group_id,
                              std::string_view photo_data,
                              std::string_view caption)
     -> asio::awaitable<std::string> {
+  co_return co_await send_group_photo_with_entities(group_id, photo_data,
+                                                    caption, {});
+}
+
+auto TGBot::send_group_photo_with_entities(
+    std::string_view group_id, std::string_view photo_data,
+    std::string_view caption,
+    const std::vector<TelegramTextEntity> &caption_entities)
+    -> asio::awaitable<std::string> {
   auto echo_id = generate_echo_id();
 
   nlohmann::json request;
@@ -149,6 +170,9 @@ auto TGBot::send_group_photo(std::string_view group_id,
   request["photo"] = photo_data;
   if (!caption.empty()) {
     request["caption"] = caption;
+  }
+  if (!caption_entities.empty()) {
+    request["caption_entities"] = caption_entities;
   }
   request["echo"] = echo_id;
 
@@ -181,12 +205,52 @@ auto TGBot::send_media_group(
     std::string_view caption, std::optional<int64_t> topic_id,
     std::optional<std::string> reply_to_message_id)
     -> asio::awaitable<std::string> {
+  co_return co_await send_media_group_with_entities(
+      chat_id, media, caption, topic_id, std::move(reply_to_message_id), {});
+}
+
+auto TGBot::send_media_group_with_entities(
+    std::string_view chat_id,
+    const std::vector<std::pair<std::string, std::string>> &media,
+    std::string_view caption, std::optional<int64_t> topic_id,
+    std::optional<std::string> reply_to_message_id,
+    const std::vector<TelegramTextEntity> &caption_entities)
+    -> asio::awaitable<std::string> {
+  ensure_connection_manager();
   auto echo_id = generate_echo_id();
-  auto payload = get_telegram_adapter().serialize_send_media_group_request(
-      chat_id, media, caption, topic_id, reply_to_message_id, echo_id);
+  auto payload =
+      get_telegram_adapter().serialize_send_media_group_request_with_entities(
+          chat_id, media, caption, topic_id, reply_to_message_id, echo_id,
+          caption_entities);
 
   co_return co_await connection_manager_->send_action_and_wait_async(payload,
                                                                      echo_id);
+}
+
+auto TGBot::send_media_group_uploads(
+    std::string_view chat_id, const std::vector<TelegramMediaUpload> &media,
+    std::string_view caption, std::optional<int64_t> topic_id,
+    std::optional<std::string> reply_to_message_id)
+    -> asio::awaitable<std::string> {
+  co_return co_await send_media_group_uploads_with_entities(
+      chat_id, media, caption, topic_id, std::move(reply_to_message_id), {});
+}
+
+auto TGBot::send_media_group_uploads_with_entities(
+    std::string_view chat_id, const std::vector<TelegramMediaUpload> &media,
+    std::string_view caption, std::optional<int64_t> topic_id,
+    std::optional<std::string> reply_to_message_id,
+    const std::vector<TelegramTextEntity> &caption_entities)
+    -> asio::awaitable<std::string> {
+  ensure_connection_manager();
+  auto *tg_conn_mgr = dynamic_cast<network::TelegramConnectionManager *>(
+      connection_manager_.get());
+  if (!tg_conn_mgr) {
+    throw std::runtime_error(
+        std::string("ConnectionManager is not TelegramConnectionManager type"));
+  }
+  co_return co_await tg_conn_mgr->upload_media_group_multipart_with_entities(
+      chat_id, media, caption, topic_id, reply_to_message_id, caption_entities);
 }
 
 auto TGBot::delete_message(std::string_view message_id)
@@ -452,11 +516,6 @@ auto TGBot::get_updates(int offset, int limit) -> asio::awaitable<std::string> {
                                                                      echo_id);
 }
 
-auto TGBot::get_task_scheduler() -> TaskScheduler & {
-  ensure_connection_manager();
-  return *task_scheduler_;
-}
-
 auto TGBot::generate_echo_id() -> uint64_t {
   static std::atomic<uint64_t> counter{0};
   return counter.fetch_add(1);
@@ -610,6 +669,21 @@ auto TGBot::get_media_download_urls(
   }
 
   co_return results;
+}
+
+auto TGBot::download_file_content(std::string_view download_url)
+    -> asio::awaitable<std::string> {
+  ensure_connection_manager();
+
+  auto *telegram_connection =
+      dynamic_cast<network::TelegramConnectionManager *>(
+          connection_manager_.get());
+  if (!telegram_connection) {
+    throw std::runtime_error(
+        "ConnectionManager is not TelegramConnectionManager type");
+  }
+
+  co_return co_await telegram_connection->download_file_content(download_url);
 }
 
 auto TGBot::get_connection_manager() const -> network::IConnectionManager * {

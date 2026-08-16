@@ -1,0 +1,92 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 30,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "actor-dev",
+      "displayName": "Actor development",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/actor-dev",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "OBCX_BUILD_TESTS": "ON",
+        "OBCX_BUILD_BENCHMARKS": "OFF"
+      }
+    },
+    {
+      "name": "actor-release",
+      "displayName": "Actor-only release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/actor-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "OBCX_BUILD_TESTS": "ON",
+        "OBCX_BUILD_BENCHMARKS": "ON"
+      }
+    },
+    {
+      "name": "actor-conformance",
+      "displayName": "Actor package cross-repository conformance",
+      "inherits": "actor-release",
+      "binaryDir": "${sourceDir}/build/actor-conformance",
+      "cacheVariables": {
+        "OBCX_ENABLE_CROSS_REPO_ACTOR_TESTS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "actor-dev",
+      "configurePreset": "actor-dev"
+    },
+    {
+      "name": "actor-release",
+      "configurePreset": "actor-release"
+    },
+    {
+      "name": "actor-conformance",
+      "configurePreset": "actor-conformance"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "actor-fast",
+      "configurePreset": "actor-dev",
+      "filter": {
+        "exclude": {
+          "label": "(compile-contract|contract|architecture|installed-sdk|conformance|slow)"
+        }
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "actor-full",
+      "configurePreset": "actor-dev",
+      "filter": {
+        "exclude": {
+          "label": "(conformance|slow)"
+        }
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "actor-dev",
+      "inherits": "actor-full"
+    },
+    {
+      "name": "actor-conformance",
+      "configurePreset": "actor-conformance",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

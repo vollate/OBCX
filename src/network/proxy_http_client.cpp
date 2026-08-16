@@ -72,9 +72,12 @@ auto ProxyHttpClient::post(std::string_view path, std::string_view body,
       co_await http::async_write(ssl_stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
-      http::response<http::string_body> res;
+      http::response_parser<http::string_body> parser;
+      parser.body_limit(response_body_limit());
       beast::get_lowest_layer(ssl_stream).expires_after(get_timeout());
-      co_await http::async_read(ssl_stream, buffer, res, asio::use_awaitable);
+      co_await http::async_read(ssl_stream, buffer, parser,
+                                asio::use_awaitable);
+      auto res = parser.release();
 
       decompress_inplace(res);
       response.status_code = static_cast<unsigned int>(res.result_int());
@@ -86,10 +89,12 @@ auto ProxyHttpClient::post(std::string_view path, std::string_view body,
       co_await http::async_write(tunnel_stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
-      http::response<http::string_body> res;
+      http::response_parser<http::string_body> parser;
+      parser.body_limit(response_body_limit());
       tunnel_stream.expires_after(get_timeout());
-      co_await http::async_read(tunnel_stream, buffer, res,
+      co_await http::async_read(tunnel_stream, buffer, parser,
                                 asio::use_awaitable);
+      auto res = parser.release();
 
       decompress_inplace(res);
       response.status_code = static_cast<unsigned int>(res.result_int());
@@ -145,9 +150,12 @@ auto ProxyHttpClient::get(std::string_view path,
       co_await http::async_write(ssl_stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
-      http::response<http::string_body> res;
+      http::response_parser<http::string_body> parser;
+      parser.body_limit(response_body_limit());
       beast::get_lowest_layer(ssl_stream).expires_after(get_timeout());
-      co_await http::async_read(ssl_stream, buffer, res, asio::use_awaitable);
+      co_await http::async_read(ssl_stream, buffer, parser,
+                                asio::use_awaitable);
+      auto res = parser.release();
 
       decompress_inplace(res);
       response.status_code = static_cast<unsigned int>(res.result_int());
@@ -159,10 +167,12 @@ auto ProxyHttpClient::get(std::string_view path,
       co_await http::async_write(tunnel_stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
-      http::response<http::string_body> res;
+      http::response_parser<http::string_body> parser;
+      parser.body_limit(response_body_limit());
       tunnel_stream.expires_after(get_timeout());
-      co_await http::async_read(tunnel_stream, buffer, res,
+      co_await http::async_read(tunnel_stream, buffer, parser,
                                 asio::use_awaitable);
+      auto res = parser.release();
 
       decompress_inplace(res);
       response.status_code = static_cast<unsigned int>(res.result_int());
@@ -218,17 +228,20 @@ auto ProxyHttpClient::head(std::string_view path,
       co_await http::async_write(ssl_stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
-      http::response<http::string_body> res;
+      http::response_parser<http::string_body> parser;
+      parser.body_limit(response_body_limit());
+      parser.skip(true);
       beast::get_lowest_layer(ssl_stream).expires_after(get_timeout());
 
       boost::system::error_code ec;
-      co_await http::async_read(ssl_stream, buffer, res,
+      co_await http::async_read(ssl_stream, buffer, parser,
                                 asio::redirect_error(asio::use_awaitable, ec));
 
       if (ec && ec != http::error::end_of_stream &&
           ec != http::error::partial_message) {
         throw boost::system::system_error(ec);
       }
+      auto res = parser.release();
 
       decompress_inplace(res);
       response.status_code = static_cast<unsigned int>(res.result_int());
@@ -240,17 +253,20 @@ auto ProxyHttpClient::head(std::string_view path,
       co_await http::async_write(tunnel_stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
-      http::response<http::string_body> res;
+      http::response_parser<http::string_body> parser;
+      parser.body_limit(response_body_limit());
+      parser.skip(true);
       tunnel_stream.expires_after(get_timeout());
 
       boost::system::error_code ec;
-      co_await http::async_read(tunnel_stream, buffer, res,
+      co_await http::async_read(tunnel_stream, buffer, parser,
                                 asio::redirect_error(asio::use_awaitable, ec));
 
       if (ec && ec != http::error::end_of_stream &&
           ec != http::error::partial_message) {
         throw boost::system::system_error(ec);
       }
+      auto res = parser.release();
 
       decompress_inplace(res);
       response.status_code = static_cast<unsigned int>(res.result_int());
@@ -395,13 +411,15 @@ auto ProxyHttpClient::send_http_request(
       }
 
       beast::flat_buffer buffer;
-      http::response<http::string_body> res;
+      http::response_parser<http::string_body> parser;
+      parser.body_limit(response_body_limit());
       boost::system::error_code read_ec;
-      http::read(ssl_stream, buffer, res, read_ec);
+      http::read(ssl_stream, buffer, parser, read_ec);
       if (read_ec) {
         throw std::runtime_error(fmt::format(
             "SSL failed to read HTTP response: {}", read_ec.message()));
       }
+      auto res = parser.release();
 
       HttpResponse result;
       result.status_code = static_cast<unsigned int>(res.result_int());
@@ -414,8 +432,10 @@ auto ProxyHttpClient::send_http_request(
       http::write(tunnel_socket, req);
 
       beast::flat_buffer buffer;
-      http::response<http::string_body> res;
-      http::read(tunnel_socket, buffer, res);
+      http::response_parser<http::string_body> parser;
+      parser.body_limit(response_body_limit());
+      http::read(tunnel_socket, buffer, parser);
+      auto res = parser.release();
 
       HttpResponse result;
       result.status_code = static_cast<unsigned int>(res.result_int());

@@ -1,15 +1,15 @@
 # Doxyfile for OBCX Framework
 # Project information
 PROJECT_NAME           = "OBCX Framework"
-PROJECT_NUMBER         = 1.0
-PROJECT_BRIEF          = "OneBot C++ eXtension Framework"
+PROJECT_NUMBER         = 1.1
+PROJECT_BRIEF          = "OBCX Actor Runtime and SDK"
 PROJECT_LOGO           = 
 
 # Output directory
-OUTPUT_DIRECTORY       = docs
+OUTPUT_DIRECTORY       = docs/api/en
 
 # Input settings
-INPUT                  = include src examples
+INPUT                  = include
 FILE_PATTERNS          = *.hpp *.cpp *.h *.c *.md
 RECURSIVE              = YES
 EXCLUDE                = 
@@ -33,9 +33,11 @@ WARNINGS               = YES
 WARN_IF_UNDOCUMENTED   = YES
 WARN_IF_DOC_ERROR      = YES
 WARN_NO_PARAMDOC       = NO
+WARN_AS_ERROR          = NO
 
 # HTML output
 GENERATE_HTML          = YES
+OUTPUT_LANGUAGE        = English
 HTML_OUTPUT            = html
 HTML_FILE_EXTENSION    = .html
 HTML_HEADER            = 
@@ -46,7 +48,6 @@ HTML_EXTRA_FILES       =
 HTML_COLORSTYLE_HUE    = 220
 HTML_COLORSTYLE_SAT    = 100
 HTML_COLORSTYLE_GAMMA  = 80
-HTML_TIMESTAMP         = NO
 HTML_DYNAMIC_SECTIONS  = NO
 HTML_INDEX_NUM_ENTRIES = 100
 
@@ -78,7 +79,6 @@ EXPAND_AS_DEFINED      =
 SKIP_FUNCTION_MACROS   = YES
 
 # Diagram generation
-CLASS_DIAGRAMS         = YES
 HIDE_UNDOC_RELATIONS   = YES
 HAVE_DOT               = NO
 CLASS_GRAPH            = YES
@@ -99,4 +99,4 @@ MSCFILE_DIRS           =
 DIAFILE_DIRS           = 
 
 # Search engine
-SEARCHENGINE           = YES 
+SEARCHENGINE           = YES

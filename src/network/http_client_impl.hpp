@@ -19,6 +19,7 @@ struct HttpClient::Impl {
   common::ConnectionConfig config;
   std::optional<ssl::context> ssl_ctx;
   std::atomic<bool> connected{false};
+  std::uint64_t response_body_limit{HttpClient::kDefaultResponseBodyLimit};
 
   Impl(asio::io_context &io, common::ConnectionConfig cfg)
       : ioc(io), config(std::move(cfg)) {

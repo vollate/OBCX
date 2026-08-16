@@ -1,30 +1,18 @@
 #include "interfaces/bot.hpp"
 #include "core/event_dispatcher.hpp"
-#include "core/task_scheduler.hpp"
 
 #include <boost/asio/io_context.hpp>
 
 namespace obcx::core {
 
-IBot::IBot(std::unique_ptr<adapter::BaseProtocolAdapter> adapter,
-           std::shared_ptr<TaskScheduler> task_scheduler)
+IBot::IBot(std::unique_ptr<adapter::BaseProtocolAdapter> adapter)
     : io_context_(std::make_shared<asio::io_context>()),
       adapter_{std::move(adapter)},
-      task_scheduler_{task_scheduler ? std::move(task_scheduler)
-                                     : std::make_shared<TaskScheduler>()},
       dispatcher_{
-          std::make_unique<EventDispatcher>(task_scheduler_->get_io_context())},
+          std::make_unique<EventDispatcher>(io_context_->get_executor())},
       connection_manager_{nullptr} {}
 
 IBot::~IBot() {
-  // Stop the task scheduler first (if we're the sole owner). This must
-  // happen before we tear down the connection manager so any in-flight
-  // heavy task that touches the connection manager has already finished.
-  if (task_scheduler_ && task_scheduler_.use_count() == 1) {
-    task_scheduler_->stop();
-  }
-  task_scheduler_.reset();
-
   if (dispatcher_) {
     dispatcher_.reset();
   }

@@ -1,62 +1,58 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.30)
 
 set(OBCX_IN_NIX_SHELL OFF)
 if(NOT "$ENV{IN_NIX_SHELL}" STREQUAL "")
   set(OBCX_IN_NIX_SHELL ON)
 endif()
 
-if(OBCX_IN_NIX_SHELL)
-  if(APPLE)
-    set(CMAKE_OSX_SYSROOT "" CACHE STRING
-        "Cleared in IN_NIX_SHELL so the nix clang wrapper supplies its own pinned apple-sdk"
-        FORCE)
-    message(STATUS "Nix dev shell detected: CMAKE_OSX_SYSROOT cleared")
+project(OBCX VERSION 1.1.0 LANGUAGES CXX)
 
-    foreach(_LINKER_FLAG_VAR
-            CMAKE_EXE_LINKER_FLAGS
-            CMAKE_SHARED_LINKER_FLAGS
-            CMAKE_MODULE_LINKER_FLAGS)
-      if("${${_LINKER_FLAG_VAR}}" MATCHES "/opt/homebrew/opt/llvm")
-        string(REGEX REPLACE
-               "(^| )-L/opt/homebrew/opt/llvm/lib(/unwind)?( |$)"
-               " "
-               _CLEANED_LINKER_FLAGS
-               "${${_LINKER_FLAG_VAR}}")
-        string(REGEX REPLACE "(^| )-lunwind( |$)" " " _CLEANED_LINKER_FLAGS
-                             "${_CLEANED_LINKER_FLAGS}")
-        string(STRIP "${_CLEANED_LINKER_FLAGS}" _CLEANED_LINKER_FLAGS)
-        set(${_LINKER_FLAG_VAR}
-            "${_CLEANED_LINKER_FLAGS}"
-            CACHE STRING "Linker flags sanitized for Nix dev shell" FORCE)
-        message(STATUS "Removed Homebrew LLVM linker flags from ${_LINKER_FLAG_VAR}")
-      endif()
-    endforeach()
-    unset(_CLEANED_LINKER_FLAGS)
-    unset(_LINKER_FLAG_VAR)
-  endif()
-else()
-  if(APPLE AND NOT CMAKE_OSX_SYSROOT)
-    execute_process(
-      COMMAND xcrun --sdk macosx --show-sdk-path
-      OUTPUT_VARIABLE XCRUN_SDK_PATH
-      OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-    set(_CLT_SDK
-        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk")
-    if(EXISTS "${_CLT_SDK}" AND NOT "${XCRUN_SDK_PATH}" MATCHES
-                                 "CommandLineTools")
-      set(CMAKE_OSX_SYSROOT
-          "${_CLT_SDK}"
-          CACHE PATH "Use CommandLineTools SDK to match Homebrew LLVM sysroot"
-                FORCE)
-      message(
-        STATUS
-          "Overriding Xcode SDK with CommandLineTools SDK: ${CMAKE_OSX_SYSROOT}")
-    endif()
-    unset(_CLT_SDK)
-  endif()
+find_program(OBCX_PATCHELF_EXECUTABLE NAMES patchelf REQUIRED)
+
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  message(FATAL_ERROR
+    "OBCX reflected actor SDK supports Linux x86_64 and arm64 only")
+endif()
+if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|aarch64|arm64)$")
+  message(FATAL_ERROR
+    "OBCX reflected actor SDK supports Linux x86_64 and arm64 only; got "
+    "${CMAKE_SYSTEM_PROCESSOR}")
+endif()
+if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR
+   CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16.1)
+  message(FATAL_ERROR
+    "OBCX requires GCC 16.1 or newer with C++26 static reflection; got "
+    "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 endif()
 
-project(OBCX VERSION 1.1.0 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+include(CheckCXXSourceCompiles)
+set(_OBCX_SAVED_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
+string(APPEND CMAKE_REQUIRED_FLAGS " -std=c++26 -freflection")
+check_cxx_source_compiles([[
+#include <meta>
+#if !defined(__cpp_impl_reflection) || __cpp_impl_reflection < 202506L
+#error OBCX requires __cpp_impl_reflection >= 202506L
+#endif
+#if !defined(__cpp_expansion_statements) || __cpp_expansion_statements < 202506L
+#error OBCX requires __cpp_expansion_statements >= 202506L
+#endif
+namespace obcx_reflection_probe { struct Input {}; }
+static_assert(std::meta::identifier_of(^^obcx_reflection_probe::Input) == "Input");
+int main() { return 0; }
+]] OBCX_CXX26_REFLECTION_SUPPORTED)
+set(CMAKE_REQUIRED_FLAGS "${_OBCX_SAVED_REQUIRED_FLAGS}")
+unset(_OBCX_SAVED_REQUIRED_FLAGS)
+if(NOT OBCX_CXX26_REFLECTION_SUPPORTED)
+  message(FATAL_ERROR
+    "GCC cannot compile the OBCX C++26 reflection probe. Use GCC 16.1+ "
+    "with -std=c++26 -freflection and libstdc++ <meta> support.")
+endif()
+add_compile_options(-freflection)
 
 set(OBCX_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
 set(OBCX_VERSION_MINOR ${PROJECT_VERSION_MINOR})
@@ -67,24 +63,10 @@ configure_file(
   "${CMAKE_BINARY_DIR}/generated/obcx/version.hpp"
   @ONLY)
 
-if(WIN32)
-  if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(VCPKG_TRIPLET "x64-windows")
-  else()
-    set(VCPKG_TRIPLET "x86-windows")
-  endif()
-elseif(APPLE)
-  if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
-    set(VCPKG_TRIPLET "arm64-osx")
-  else()
-    set(VCPKG_TRIPLET "x64-osx")
-  endif()
-elseif(UNIX)
-  if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(VCPKG_TRIPLET "x64-linux")
-  else()
-    set(VCPKG_TRIPLET "x86-linux")
-  endif()
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+  set(VCPKG_TRIPLET "arm64-linux")
+else()
+  set(VCPKG_TRIPLET "x64-linux")
 endif()
 
 if(OBCX_IN_NIX_SHELL)
@@ -121,51 +103,59 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_definitions(__OBCX_DEBUG_COMPILATION)
 endif()
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
-  # For homebrew clang
-  if(APPLE)
-    set(CMAKE_THREAD_LIBS_INIT "-lpthread")
-    set(CMAKE_HAVE_THREADS_LIBRARY 1)
-    set(CMAKE_USE_WIN32_THREADS_INIT 0)
-    set(CMAKE_USE_PTHREADS_INIT 1)
-    set(THREADS_PREFER_PTHREAD_FLAG ON)
-  endif()
-  if(NOT APPLE)
-    set(CMAKE_LINKER_TYPE LLD)
-  endif()
-  message(STATUS "Using libc++ standard library with Clang")
-endif()
-
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-find_package(
-  Boost CONFIG REQUIRED
-  COMPONENTS thread
-  OPTIONAL_COMPONENTS system)
-if(TARGET Boost::system)
-  set(BOOST_SYSTEM_TARGET Boost::system)
-else()
+if(OBCX_IN_NIX_SHELL)
+  find_package(Boost CONFIG REQUIRED COMPONENTS thread)
+  # Boost.System is header-only in the Nix Boost package; do not probe for the
+  # vcpkg-style boost_system component config.
   set(BOOST_SYSTEM_TARGET Boost::headers)
+else()
+  find_package(
+    Boost CONFIG REQUIRED
+    COMPONENTS thread
+    OPTIONAL_COMPONENTS system)
+  if(TARGET Boost::system)
+    set(BOOST_SYSTEM_TARGET Boost::system)
+  else()
+    set(BOOST_SYSTEM_TARGET Boost::headers)
+  endif()
 endif()
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
-find_package(unofficial-brotli CONFIG)
-if(unofficial-brotli_FOUND)
-  set(BROTLIDEC_TARGET unofficial::brotli::brotlidec)
+if(OBCX_IN_NIX_SHELL)
+  find_package(SQLite3 REQUIRED)
+  set(OBCX_SQLITE_TARGET SQLite::SQLite3)
 else()
+  find_package(unofficial-sqlite3 CONFIG QUIET)
+  if(TARGET unofficial::sqlite3::sqlite3)
+    set(OBCX_SQLITE_TARGET unofficial::sqlite3::sqlite3)
+  else()
+    find_package(SQLite3 REQUIRED)
+    set(OBCX_SQLITE_TARGET SQLite::SQLite3)
+  endif()
+endif()
+if(OBCX_IN_NIX_SHELL)
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(BROTLIDEC REQUIRED IMPORTED_TARGET libbrotlidec)
   set(BROTLIDEC_TARGET PkgConfig::BROTLIDEC)
+else()
+  find_package(unofficial-brotli CONFIG QUIET)
+  if(unofficial-brotli_FOUND)
+    set(BROTLIDEC_TARGET unofficial::brotli::brotlidec)
+  else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(BROTLIDEC REQUIRED IMPORTED_TARGET libbrotlidec)
+    set(BROTLIDEC_TARGET PkgConfig::BROTLIDEC)
+  endif()
 endif()
 
 find_package(zstd CONFIG)
 if(zstd_FOUND)
-  if(TARGET zstd::libzstd_static)
+  if(TARGET zstd::libzstd)
+    set(ZSTD_TARGET zstd::libzstd)
+  elseif(TARGET zstd::libzstd_static)
     set(ZSTD_TARGET zstd::libzstd_static)
   else()
     set(ZSTD_TARGET zstd::libzstd_shared)
@@ -214,6 +204,7 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_BINARY_DIR}/generated)
 
 option(OBCX_BUILD_TESTS "Build tests" OFF)
+option(OBCX_BUILD_BENCHMARKS "Build repeatable benchmark executables" OFF)
 
 if(OBCX_BUILD_TESTS)
   enable_testing()
@@ -223,12 +214,16 @@ endif()
 add_subdirectory(src)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
-include(cmake/OBCXPluginLoader.cmake)
+include(cmake/OBCXActorLoader.cmake)
 
-if(EXISTS ${CMAKE_SOURCE_DIR}/plugins.toml)
-    obcx_load_plugins(${CMAKE_SOURCE_DIR}/plugins.toml)
+if(EXISTS "${CMAKE_SOURCE_DIR}/actors.toml")
+  obcx_load_actors("${CMAKE_SOURCE_DIR}/actors.toml")
 endif()
 
 if(OBCX_BUILD_TESTS)
   add_subdirectory(tests)
+endif()
+
+if(OBCX_BUILD_BENCHMARKS)
+  add_subdirectory(benchmarks)
 endif()

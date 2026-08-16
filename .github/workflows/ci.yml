@@ -10,6 +10,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  format:
+    name: format
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Restore pinned actor sources
+        run: sh packaging/actors/restore-sources.sh
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Check formatting
+        run: nix fmt -- --ci
+
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -17,14 +41,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: linux
+          - name: linux-x86_64-gcc16
             os: ubuntu-24.04
-          - name: macos-arm
-            os: macos-14 # Apple Silicon
+          - name: linux-arm64-gcc16
+            os: ubuntu-24.04-arm
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Evidence is tied to the feature branch's origin/main merge-base.
+          # Check out the PR head rather than GitHub's synthetic merge commit
+          # and retain origin/main so the verifier can compute that baseline.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Restore pinned actor sources
+        run: sh packaging/actors/restore-sources.sh
 
       - name: Install Nix
         uses: cachix/install-nix-action@v27
@@ -39,22 +72,48 @@ jobs:
           nix develop --command bash -c '
             echo "IN_NIX_SHELL=$IN_NIX_SHELL"
             test -n "$IN_NIX_SHELL"
-            echo "CC=$(command -v clang)"
-            echo "CXX=$(command -v clang++)"
+            echo "CC=$(command -v gcc)"
+            echo "CXX=$(command -v g++)"
+            g++ --version
+            printf '#include <meta>\n' | g++ -std=c++26 -freflection -x c++ -E - >/dev/null
             echo "CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH"
           '
+
+      - name: Validate actor registry
+        run: |
+          nix develop --command python3 \
+            actor-registry/generate_actor_index.py validate
+          nix develop --command python3 \
+            actor-registry/generate_actor_index.py generate --check
 
       - name: Configure
         run: |
           nix develop --command cmake -G Ninja -B build -S . \
             -DCMAKE_BUILD_TYPE=Release \
-            -DOBCX_BUILD_TESTS=ON
+            -DOBCX_BUILD_TESTS=ON \
+            -DOBCX_BUILD_BENCHMARKS=OFF \
+            -DOBCX_ENABLE_CROSS_REPO_ACTOR_TESTS=ON
 
       - name: Build
         run: nix develop --command cmake --build build --parallel
 
-      - name: Run tests
-        working-directory: build
+      - name: Install actor SDK
         run: |
-          nix develop --command ctest --output-on-failure --parallel 2 \
-            --exclude-regex "WsTimeoutTest\.|WebSocketQueueTest\."
+          nix develop --command cmake --install build \
+            --prefix build/actor-sdk-install
+
+      - name: Generate actor-only API documentation
+        run: |
+          nix develop --command python3 scripts/generate_api_docs.py
+
+      - name: Run full core tests
+        working-directory: build
+        run: >-
+          nix develop --command ctest --output-on-failure --parallel 2
+          -LE 'conformance|slow'
+
+      - name: Run standalone actor conformance
+        working-directory: build
+        run: >-
+          nix develop --command ctest --output-on-failure --parallel 2
+          -L conformance

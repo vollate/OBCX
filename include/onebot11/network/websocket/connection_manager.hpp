@@ -4,13 +4,12 @@
 #include "interfaces/connection_manager.hpp"
 #include "network/websocket_client.hpp"
 #include "onebot11/adapter/protocol_adapter.hpp"
+#include "onebot11/network/websocket/detail/action_request_tracker.hpp"
 
 #include <boost/asio.hpp>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <string>
-#include <unordered_map>
 
 namespace obcx::adapter {
 class ProtocolAdapter;
@@ -26,8 +25,9 @@ namespace obcx::network {
  */
 class WebSocketConnectionManager : public IConnectionManager {
 public:
-  WebSocketConnectionManager(asio::io_context &ioc,
-                             adapter::onebot11::ProtocolAdapter &adapter);
+  WebSocketConnectionManager(
+      asio::io_context &ioc, adapter::onebot11::ProtocolAdapter &adapter,
+      detail::ActionDeadlineFactory deadline_factory = {});
   ~WebSocketConnectionManager() override;
 
   WebSocketConnectionManager(const WebSocketConnectionManager &) = delete;
@@ -77,12 +77,6 @@ private:
    */
   void schedule_reconnect();
 
-  /**
-   * @brief 处理请求超时（协程模式）
-   * @param echo_id 请求的echo ID
-   */
-  void handle_timeout(uint64_t echo_id);
-
   asio::io_context &ioc_;
   adapter::onebot11::ProtocolAdapter &adapter_;
   EventCallback event_callback_;
@@ -99,20 +93,7 @@ private:
   std::chrono::milliseconds action_timeout_{30000};
   bool is_running_ = false;
 
-  // 用于存储等待响应的请求
-  struct PendingRequest {
-    // 协程模式：使用 completion handler
-    std::function<void(boost::system::error_code, std::string)>
-        completion_handler;
-    asio::steady_timer timeout_timer;
-    std::atomic<bool> need_wait = true;
-
-    PendingRequest(asio::io_context &ioc) : timeout_timer(ioc) {}
-  };
-
-  std::unordered_map<uint64_t, std::shared_ptr<PendingRequest>>
-      pending_requests_;
-  std::mutex pending_requests_mutex_;
+  std::shared_ptr<detail::ActionRequestTracker> action_requests_;
 
   // 连接状态跟踪
   std::atomic_bool is_connected_ = false;

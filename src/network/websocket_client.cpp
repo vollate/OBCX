@@ -6,11 +6,11 @@
 #include <boost/asio/error.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/system/errc.hpp>
+#include <utility>
 
 namespace obcx::network {
 
-WebsocketClient::WebsocketClient(asio::io_context &ioc)
-    : ws_(ioc), channel_(ioc, 100) {}
+WebsocketClient::WebsocketClient(asio::io_context &ioc) : ws_(ioc) {}
 
 auto WebsocketClient::run(std::string host, std::string port,
                           std::string access_token, MessageHandler on_message)
@@ -76,25 +76,11 @@ auto WebsocketClient::send(std::string message) -> asio::awaitable<void> {
     co_return;
   }
 
-  auto request = std::make_shared<WriteRequest>(std::move(message));
-  auto future = request->promise.get_future();
-
-  // async_send is safe here even if the channel (capacity 100) is full;
-  // it suspends the caller instead of dropping the message.
-  co_await channel_.async_send(boost::system::error_code{}, request,
-                               asio::use_awaitable);
-
-  try {
-    while (future.wait_for(std::chrono::milliseconds(1)) ==
-           std::future_status::timeout) {
-      co_await asio::steady_timer(co_await asio::this_coro::executor,
-                                  std::chrono::milliseconds(1))
-          .async_wait(asio::use_awaitable);
-    }
-  } catch (const std::exception &e) {
-    OBCX_ERROR("Error while waiting for write completion: {}", e.what());
-    throw;
+  const auto queue = write_queue_;
+  if (!queue) {
+    throw boost::system::system_error{asio::error::operation_aborted};
   }
+  co_await queue->send(std::move(message));
 }
 
 auto WebsocketClient::close() -> asio::awaitable<void> {
@@ -114,50 +100,29 @@ auto WebsocketClient::close() -> asio::awaitable<void> {
 }
 
 void WebsocketClient::start_writer() {
-  writer_error_ = nullptr;
-
+  auto queue = std::make_shared<detail::WebsocketWriteQueue>(
+      ws_.get_executor(), 100,
+      [this](const std::string &message) -> asio::awaitable<void> {
+        co_await ws_.async_write(asio::buffer(message), asio::use_awaitable);
+        OBCX_DEBUG("WebSocket message sent: bytes={}", message.size());
+      },
+      [this] {
+        beast::error_code error;
+        beast::get_lowest_layer(ws_).socket().cancel(error);
+      });
+  write_queue_ = queue;
   asio::co_spawn(
       ws_.get_executor(),
-      [this]() -> asio::awaitable<void> { co_await writer_coro(); },
+      [queue = std::move(queue)]() -> asio::awaitable<void> {
+        co_await queue->run();
+      },
       asio::detached);
 }
 
-auto WebsocketClient::writer_coro() -> asio::awaitable<void> {
-  while (ws_.is_open()) {
-    std::shared_ptr<WriteRequest> request = nullptr;
-    beast::error_code ec;
-
-    try {
-      request = co_await channel_.async_receive(asio::use_awaitable);
-    } catch (const boost::system::system_error &e) {
-      if (e.code() == asio::experimental::error::channel_closed) {
-        break;
-      }
-      throw;
-    }
-
-    if (request) {
-      try {
-        co_await ws_.async_write(asio::buffer(request->message),
-                                 asio::use_awaitable);
-
-        request->promise.set_value();
-
-        OBCX_DEBUG("Message sent successfully: {}", request->message);
-      } catch (const std::exception &e) {
-        OBCX_ERROR("Error writing message: {}", e.what());
-
-        try {
-          request->promise.set_exception(std::current_exception());
-        } catch (...) {
-        }
-
-        writer_error_ = std::current_exception();
-      }
-    }
+void WebsocketClient::stop_writer() {
+  if (auto queue = std::exchange(write_queue_, nullptr)) {
+    queue->stop();
   }
 }
-
-void WebsocketClient::stop_writer() { channel_.close(); }
 
 } // namespace obcx::network
