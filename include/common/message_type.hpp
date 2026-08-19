@@ -102,6 +102,10 @@ struct MessageSegment {
   void from_json(const json &j);
 };
 
+// ADL hooks used by nlohmann::json for Message and actor-operation DTOs.
+void to_json(json &j, const MessageSegment &segment);
+void from_json(const json &j, MessageSegment &segment);
+
 /**
  * \if CHINESE
  * @brief 消息类型

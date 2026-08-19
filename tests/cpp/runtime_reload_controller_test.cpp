@@ -1,6 +1,7 @@
 #include "common/config_loader.hpp"
 #include "core/actor_manager.hpp"
 #include "core/actor_runtime_reload_controller.hpp"
+#include "core/bot_operation_dispatcher.hpp"
 #include "core/bot_registry.hpp"
 #include "core/db_manager.hpp"
 #include "core/native_actor_scheduler.hpp"
@@ -223,7 +224,8 @@ protected:
         .staging_root = root_ / "staging",
         .configured_io_sources = 1,
         .db_manager = database_,
-        .bot_registry = registry_};
+        .bot_registry = registry_,
+        .bot_operation_client = operation_client_};
     if (active) {
       request.active_process_owned_fingerprint =
           active->process_owned_fingerprint();
@@ -235,13 +237,22 @@ protected:
     EXPECT_TRUE(built.ready())
         << (built.failure ? built.failure->code + ": " + built.failure->message
                           : "missing generation");
+    if (built.generation) {
+      EXPECT_EQ(built.generation->bot_operation_client(), operation_client_);
+      EXPECT_EQ(built.generation->services()
+                    ->get_service<obcx::bot::BotOperationClient>(),
+                operation_client_);
+    }
     return std::move(built.generation);
   }
 
   auto dependency_config_document(const std::string &rebuilt_actor,
                                   const std::string &private_actor) const
       -> std::string {
-    return "[db.instances.main]\n"
+    return "[bots.primary]\n"
+           "type = \"qq\"\n"
+           "enabled = true\n\n"
+           "[db.instances.main]\n"
            "type = \"sqlite\"\n"
            "path = \"" +
            (root_ / "private-runtime.sqlite3").string() +
@@ -255,6 +266,9 @@ protected:
            "\"\n"
            "enabled = true\n"
            "db = \"main\"\n\n"
+           "[actors.test_actor_v2.config]\n"
+           "label = \"reload\"\n"
+           "target_installation = \"primary\"\n\n"
            "[actors.private_dependency_actor]\n"
            "library = \"" +
            private_actor +
@@ -304,7 +318,8 @@ protected:
         .staging_root = root_ / "staging",
         .configured_io_sources = 1,
         .db_manager = database_,
-        .bot_registry = registry_};
+        .bot_registry = registry_,
+        .bot_operation_client = operation_client_};
     if (active) {
       request.active_process_owned_fingerprint =
           active->process_owned_fingerprint();
@@ -382,6 +397,8 @@ protected:
   obcx::core::RuntimeGenerationBuilder builder_;
   std::shared_ptr<obcx::core::DbManager> database_;
   std::shared_ptr<obcx::core::BotRegistry> registry_;
+  std::shared_ptr<obcx::bot::BotOperationClient> operation_client_ =
+      std::make_shared<obcx::core::QQTelegramOperationDispatcher>();
   std::shared_ptr<obcx::core::ActorRuntimeReloadController> controller_;
 };
 

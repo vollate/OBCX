@@ -39,6 +39,7 @@ auto HttpClient::post(std::string_view path, std::string_view body,
   OBCX_DEBUG("POST {} with body:\n{}", path, body);
 
   auto executor = co_await asio::this_coro::executor;
+  auto submission_state = HttpRequestSubmissionState::DefinitelyNotSubmitted;
 
   try {
     http::request<http::string_body> req{http::verb::post, std::string(path),
@@ -81,6 +82,7 @@ auto HttpClient::post(std::string_view path, std::string_view body,
 
       beast::get_lowest_layer(stream).expires_after(
           pimpl_->config.connect_timeout);
+      submission_state = HttpRequestSubmissionState::PossiblySubmitted;
       co_await http::async_write(stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
@@ -110,6 +112,7 @@ auto HttpClient::post(std::string_view path, std::string_view body,
       pimpl_->connected = true;
 
       stream.expires_after(pimpl_->config.connect_timeout);
+      submission_state = HttpRequestSubmissionState::PossiblySubmitted;
       co_await http::async_write(stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
@@ -133,7 +136,8 @@ auto HttpClient::post(std::string_view path, std::string_view body,
   } catch (const std::exception &e) {
     pimpl_->connected = false;
     OBCX_ERROR("HTTP POST request failed: {}", e.what());
-    throw HttpClientError(std::string("HTTP POST request failed: ") + e.what());
+    throw HttpClientError(std::string("HTTP POST request failed: ") + e.what(),
+                          submission_state);
   }
 }
 

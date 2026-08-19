@@ -291,6 +291,7 @@ auto ActorRuntimeReloadController::reload_reserved(
       active->process_owned_dependencies();
   request.db_manager = active->db_manager();
   request.bot_registry = active->bot_registry();
+  request.bot_operation_client = active->bot_operation_client();
   request.blocking_executor = active->blocking_executor();
   request.require_registered_bots = true;
 

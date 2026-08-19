@@ -436,12 +436,14 @@ TEST_F(HttpClientTimeoutTest, PostTimeoutWhenServerDoesNotRespond) {
 
   auto start_time = std::chrono::steady_clock::now();
 
-  EXPECT_THROW(
-      {
-        [[maybe_unused]] auto response =
-            run_awaitable(ioc_, client->post("/test", "{}"));
-      },
-      network::HttpClientError);
+  try {
+    [[maybe_unused]] auto response =
+        run_awaitable(ioc_, client->post("/test", "{}"));
+    FAIL() << "POST should time out after request submission";
+  } catch (const network::HttpClientError &error) {
+    EXPECT_EQ(error.submission_state(),
+              network::HttpRequestSubmissionState::PossiblySubmitted);
+  }
 
   auto end_time = std::chrono::steady_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -587,6 +589,35 @@ TEST_F(HttpClientTimeoutTest, DeprecatedSynchronousGetUsesConfiguredLimit) {
 
   EXPECT_THROW([[maybe_unused]] auto response = client->get_sync("/sync"),
                network::HttpClientError);
+}
+
+TEST(HttpClientSubmissionStateTest,
+     ProxyPostConnectionRefusedIsDefinitelyNotSubmitted) {
+  asio::io_context port_context;
+  tcp::acceptor reservation(port_context, {tcp::v4(), 0});
+  const auto refused_port = reservation.local_endpoint().port();
+  reservation.close();
+
+  asio::io_context ioc;
+  common::ConnectionConfig target;
+  target.host = "api.telegram.org";
+  target.port = 443;
+  target.use_ssl = true;
+  target.connect_timeout = SHORT_TIMEOUT;
+  network::ProxyConfig proxy_config;
+  proxy_config.type = network::ProxyType::SOCKS5;
+  proxy_config.host = "127.0.0.1";
+  proxy_config.port = refused_port;
+  network::ProxyHttpClient client(ioc, std::move(proxy_config), target);
+
+  try {
+    [[maybe_unused]] auto response =
+        run_awaitable(ioc, client.post("/bot-redacted/sendMessage", "{}"));
+    FAIL() << "POST through an unavailable proxy should fail";
+  } catch (const network::HttpClientError &error) {
+    EXPECT_EQ(error.submission_state(),
+              network::HttpRequestSubmissionState::DefinitelyNotSubmitted);
+  }
 }
 
 TEST(HttpClientResponseLimitTest, ProxyGetUsesConfiguredLimit) {

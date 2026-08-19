@@ -29,6 +29,8 @@ add_library(
         core/actor_manager.cpp
         core/actor_package_stager.cpp
         core/actor_work_stealing_executor.cpp
+        core/bot_operation_dispatcher.cpp
+        core/bot_operation_response_parser.cpp
         core/command_coordinator.cpp
         core/command_matcher.cpp
         core/command_platform_adapter.cpp
@@ -40,6 +42,7 @@ add_library(
         core/runtime_thread_budget.cpp
         core/runtime_generation.cpp
         core/qq_bot.cpp
+        core/qq_telegram_bot_endpoints.cpp
         core/tg_bot.cpp)
 
 include(GNUInstallDirs)
@@ -127,6 +130,12 @@ install(FILES
     ${CMAKE_SOURCE_DIR}/include/core/actor_task.hpp
     ${CMAKE_SOURCE_DIR}/include/core/actor_work_stealing_executor.hpp
     ${CMAKE_SOURCE_DIR}/include/core/blocking_executor.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/bot_operation_client.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/bot_operation_contract.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/bot_operation_types.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/bot_operations.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/onebot11_bot_operations.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/telegram_bot_operations.hpp
     ${CMAKE_SOURCE_DIR}/include/core/bot_registry.hpp
     ${CMAKE_SOURCE_DIR}/include/core/command_platform_adapter.hpp
     ${CMAKE_SOURCE_DIR}/include/core/db_manager.hpp

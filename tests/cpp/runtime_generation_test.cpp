@@ -1,6 +1,7 @@
 #include "common/config_loader.hpp"
 #include "core/actor_manager.hpp"
 #include "core/actor_messages.hpp"
+#include "core/bot_operation_dispatcher.hpp"
 #include "core/bot_registry.hpp"
 #include "core/command_coordinator.hpp"
 #include "core/db_manager.hpp"
@@ -129,7 +130,8 @@ protected:
            "\"\n"
            "enabled = true\n"
            "db = \"main\"\n\n"
-           "[actors.test_actor_v2.config]\n" +
+           "[actors.test_actor_v2.config]\n"
+           "target_installation = \"primary\"\n" +
            actor_config +
            "\n\n[pipelines.sdk]\n"
            "source = \"obcx::tests::events::SdkSmoke\"\n\n"
@@ -237,6 +239,8 @@ TEST_F(RuntimeGenerationTest,
   registry->register_bot("qq", "primary", bot);
 
   obcx::core::RuntimeGenerationBuilder builder;
+  auto operation_client =
+      std::make_shared<obcx::core::QQTelegramOperationDispatcher>();
   std::vector<std::shared_ptr<obcx::core::RuntimeGeneration>> generations;
   const std::array purposes = {
       obcx::core::RuntimeGenerationBuildPurpose::Startup,
@@ -246,6 +250,7 @@ TEST_F(RuntimeGenerationTest,
   std::uint64_t id = 1;
   for (const auto purpose : purposes) {
     auto build_request = request(purpose, id++, config, database, registry);
+    build_request.bot_operation_client = operation_client;
     build_request.require_registered_bots =
         purpose == obcx::core::RuntimeGenerationBuildPurpose::ReloadCandidate;
     if (!generations.empty()) {
@@ -264,9 +269,13 @@ TEST_F(RuntimeGenerationTest,
                 : "missing failure");
     EXPECT_EQ(result.generation->db_manager(), database);
     EXPECT_EQ(result.generation->bot_registry(), registry);
+    EXPECT_EQ(result.generation->bot_operation_client(), operation_client);
     EXPECT_EQ(
         result.generation->services()->get_service<obcx::core::BotRegistry>(),
         registry);
+    EXPECT_EQ(result.generation->services()
+                  ->get_service<obcx::bot::BotOperationClient>(),
+              operation_client);
     if (purpose == obcx::core::RuntimeGenerationBuildPurpose::Startup) {
       process_blocking_executor = result.generation->blocking_executor();
       ASSERT_NE(process_blocking_executor, nullptr);
@@ -627,9 +636,9 @@ TEST_F(RuntimeGenerationTest,
 TEST_F(RuntimeGenerationTest,
        AllBuildPurposesRejectInvalidActorConfigurationContracts) {
   const std::array invalid_actor_configs = {
-      std::string{"positive_limit = 0"},
-      std::string{"positive_limit = \"secret-value\""},
-      std::string{"retry_base = 20\nretry_max = 10"},
+      std::string{"label = \"a\"\npositive_limit = 0"},
+      std::string{"label = \"a\"\npositive_limit = \"secret-value\""},
+      std::string{"label = \"a\"\nretry_base = 20\nretry_max = 10"},
   };
   obcx::core::RuntimeGenerationBuilder builder;
   auto process_blocking_executor =
@@ -658,6 +667,47 @@ TEST_F(RuntimeGenerationTest,
                 std::string::npos);
     }
   }
+}
+
+TEST_F(RuntimeGenerationTest,
+       RequiredStringsAndBotInstallationsAreValidatedBeforeActivation) {
+  obcx::core::RuntimeGenerationBuilder builder;
+  std::uint64_t generation_id = 90;
+  const auto expect_invalid = [&](std::string name, std::string document,
+                                  std::string_view expected_key) {
+    const auto config = snapshot(std::move(name), document);
+    auto [database, registry] = services_for(config);
+    auto result = builder.build(request(
+        obcx::core::RuntimeGenerationBuildPurpose::ValidationOnly,
+        generation_id++, config, std::move(database), std::move(registry)));
+    ASSERT_TRUE(result.failure.has_value());
+    EXPECT_EQ(result.failure->code, "reload_actor_config_invalid");
+    EXPECT_NE(result.failure->message.find(expected_key), std::string::npos);
+  };
+
+  auto missing_label = valid_config(OBCX_TEST_ACTOR_V2_LIBRARY);
+  const auto label = missing_label.find("label = \"a\"\n");
+  ASSERT_NE(label, std::string::npos);
+  missing_label.erase(label, std::string{"label = \"a\"\n"}.size());
+  expect_invalid("missing-required-string.toml", std::move(missing_label),
+                 "label");
+
+  auto missing_installation = valid_config(OBCX_TEST_ACTOR_V2_LIBRARY);
+  const auto installation =
+      missing_installation.find("target_installation = \"primary\"\n");
+  ASSERT_NE(installation, std::string::npos);
+  missing_installation.erase(
+      installation, std::string{"target_installation = \"primary\"\n"}.size());
+  expect_invalid("missing-installation.toml", std::move(missing_installation),
+                 "target_installation");
+
+  auto wrong_surface = valid_config(OBCX_TEST_ACTOR_V2_LIBRARY);
+  const auto bot_type = wrong_surface.find("type = \"qq\"");
+  ASSERT_NE(bot_type, std::string::npos);
+  wrong_surface.replace(bot_type, std::string{"type = \"qq\""}.size(),
+                        "type = \"discord\"");
+  expect_invalid("wrong-installation-type.toml", std::move(wrong_surface),
+                 "target_installation");
 }
 
 TEST_F(RuntimeGenerationTest,

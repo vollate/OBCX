@@ -29,6 +29,7 @@ ProxyHttpClient::ProxyHttpClient(asio::io_context &ioc,
 auto ProxyHttpClient::post(std::string_view path, std::string_view body,
                            const std::map<std::string, std::string> &headers)
     -> asio::awaitable<HttpResponse> {
+  auto submission_state = HttpRequestSubmissionState::DefinitelyNotSubmitted;
   try {
     auto tunnel_stream = co_await connect_through_proxy_async();
 
@@ -69,6 +70,7 @@ auto ProxyHttpClient::post(std::string_view path, std::string_view body,
                                           asio::use_awaitable);
 
       beast::get_lowest_layer(ssl_stream).expires_after(get_timeout());
+      submission_state = HttpRequestSubmissionState::PossiblySubmitted;
       co_await http::async_write(ssl_stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
@@ -86,6 +88,7 @@ auto ProxyHttpClient::post(std::string_view path, std::string_view body,
 
     } else {
       tunnel_stream.expires_after(get_timeout());
+      submission_state = HttpRequestSubmissionState::PossiblySubmitted;
       co_await http::async_write(tunnel_stream, req, asio::use_awaitable);
 
       beast::flat_buffer buffer;
@@ -106,7 +109,8 @@ auto ProxyHttpClient::post(std::string_view path, std::string_view body,
 
   } catch (const std::exception &e) {
     OBCX_ERROR("ProxyHttpClient POST request failed: {}", e.what());
-    throw HttpClientError(std::string("HTTP POST request failed: ") + e.what());
+    throw HttpClientError(std::string("HTTP POST request failed: ") + e.what(),
+                          submission_state);
   }
 }
 

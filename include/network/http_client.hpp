@@ -29,13 +29,30 @@ struct HttpResponse {
   }
 };
 
+/** Whether an HTTP request could have reached the target application. */
+enum class HttpRequestSubmissionState : std::uint8_t {
+  DefinitelyNotSubmitted,
+  PossiblySubmitted,
+};
+
 /**
  * @brief HTTP客户端错误类型
  */
 class HttpClientError : public std::runtime_error {
 public:
-  explicit HttpClientError(std::string_view message)
-      : std::runtime_error(message.data()) {}
+  explicit HttpClientError(std::string_view message,
+                           HttpRequestSubmissionState submission_state =
+                               HttpRequestSubmissionState::PossiblySubmitted)
+      : std::runtime_error(std::string{message}),
+        submission_state_{submission_state} {}
+
+  [[nodiscard]] auto submission_state() const noexcept
+      -> HttpRequestSubmissionState {
+    return submission_state_;
+  }
+
+private:
+  HttpRequestSubmissionState submission_state_;
 };
 
 /**

@@ -20,6 +20,10 @@
 #include <string>
 #include <vector>
 
+namespace obcx::bot {
+class BotOperationClient;
+}
+
 namespace obcx::core {
 
 class ActorManager;
@@ -79,6 +83,8 @@ public:
       -> const std::shared_ptr<DbManager> &;
   [[nodiscard]] auto bot_registry() const noexcept
       -> const std::shared_ptr<BotRegistry> &;
+  [[nodiscard]] auto bot_operation_client() const noexcept
+      -> const std::shared_ptr<bot::BotOperationClient> &;
   [[nodiscard]] auto blocking_executor() const noexcept
       -> const std::shared_ptr<BlockingExecutor> &;
   [[nodiscard]] auto command_routing_table() const noexcept
@@ -111,6 +117,7 @@ private:
       common::ProcessOwnedConfigFingerprint process_owned_fingerprint,
       std::shared_ptr<DbManager> db_manager,
       std::shared_ptr<BotRegistry> bot_registry,
+      std::shared_ptr<bot::BotOperationClient> bot_operation_client,
       std::shared_ptr<BlockingExecutor> blocking_executor,
       std::filesystem::path staging_root);
 
@@ -135,6 +142,7 @@ private:
   std::shared_ptr<NativeActorScheduler> scheduler_;
   std::shared_ptr<DbManager> db_manager_;
   std::shared_ptr<BotRegistry> bot_registry_;
+  std::shared_ptr<bot::BotOperationClient> bot_operation_client_;
   std::shared_ptr<BlockingExecutor> blocking_executor_;
   std::shared_ptr<Orchestrator> orchestrator_;
   std::shared_ptr<const CommandRoutingTable> command_routing_table_;
@@ -157,6 +165,7 @@ struct RuntimeGenerationBuildRequest {
   std::size_t configured_io_sources = 1;
   std::shared_ptr<DbManager> db_manager;
   std::shared_ptr<BotRegistry> bot_registry;
+  std::shared_ptr<bot::BotOperationClient> bot_operation_client;
   std::shared_ptr<BlockingExecutor> blocking_executor;
   bool require_registered_bots = false;
   std::optional<common::ProcessOwnedConfigFingerprint>

@@ -16,3 +16,5 @@ obcx_add_python_unittest(actor_release_tools_test
                          "contract;actor-package;release;deployment")
 
 obcx_add_python_unittest(actor_architecture_test "architecture;actor-runtime")
+obcx_add_python_unittest(bot_operation_scope_test
+                         "architecture;actor-runtime;bot-operation")

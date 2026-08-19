@@ -2,6 +2,8 @@
 
 #include "common/logger.hpp"
 #include "core/actor_manager.hpp"
+#include "core/bot_operation_client.hpp"
+#include "core/bot_operation_dispatcher.hpp"
 #include "core/bot_registry.hpp"
 #include "core/command_coordinator.hpp"
 #include "core/db_manager.hpp"
@@ -148,6 +150,45 @@ auto validate_actor_configuration(const common::RuntimeConfigSnapshot &snapshot,
     }
     values.emplace(constraint.key, value);
   }
+  for (const auto &key : contract.required_string_configuration) {
+    if (!section) {
+      return actor + "." + key + " must be a non-empty string";
+    }
+    const auto configured = section->at_path(key);
+    const auto value = configured.value<std::string>();
+    if (!value || value->empty()) {
+      return actor + "." + key + " must be a non-empty string";
+    }
+  }
+
+  const auto bots = snapshot.get_bot_configs();
+  for (const auto &constraint : contract.bot_installation_configuration) {
+    if (!section) {
+      return actor + "." + constraint.key +
+             " must name an enabled configured bot";
+    }
+    const auto configured = section->at_path(constraint.key);
+    const auto installation = configured.value<std::string>();
+    if (!installation || installation->empty()) {
+      return actor + "." + constraint.key +
+             " must name an enabled configured bot";
+    }
+    const auto bot =
+        std::ranges::find(bots, *installation, &common::BotConfig::name);
+    if (bot == bots.end() || !bot->enabled) {
+      return actor + "." + constraint.key +
+             " must name an enabled configured bot";
+    }
+    if (std::ranges::find(constraint.expected_types, bot->type) ==
+        constraint.expected_types.end()) {
+      std::string expected;
+      for (const auto &type : constraint.expected_types) {
+        expected += expected.empty() ? type : " or " + type;
+      }
+      return actor + "." + constraint.key + " requires bot type " + expected;
+    }
+  }
+
   for (const auto &relation : contract.less_equal_configuration) {
     if (values.at(relation.lesser) > values.at(relation.greater)) {
       return actor + "." + relation.lesser + " must not exceed " + actor + "." +
@@ -207,6 +248,7 @@ RuntimeGeneration::RuntimeGeneration(
     common::ProcessOwnedConfigFingerprint process_owned_fingerprint,
     std::shared_ptr<DbManager> db_manager,
     std::shared_ptr<BotRegistry> bot_registry,
+    std::shared_ptr<bot::BotOperationClient> bot_operation_client,
     std::shared_ptr<BlockingExecutor> blocking_executor, fs::path staging_root)
     : staging_owner_(
           std::make_unique<StagingDirectoryOwner>(std::move(staging_root))),
@@ -221,6 +263,7 @@ RuntimeGeneration::RuntimeGeneration(
           std::move(scheduler_options), services_)),
       db_manager_(std::move(db_manager)),
       bot_registry_(std::move(bot_registry)),
+      bot_operation_client_(std::move(bot_operation_client)),
       blocking_executor_(std::move(blocking_executor)),
       orchestrator_(std::make_shared<Orchestrator>(scheduler_, services_)),
       staging_root_(staging_owner_->root()) {}
@@ -276,6 +319,11 @@ auto RuntimeGeneration::db_manager() const noexcept
 auto RuntimeGeneration::bot_registry() const noexcept
     -> const std::shared_ptr<BotRegistry> & {
   return bot_registry_;
+}
+
+auto RuntimeGeneration::bot_operation_client() const noexcept
+    -> const std::shared_ptr<bot::BotOperationClient> & {
+  return bot_operation_client_;
 }
 
 auto RuntimeGeneration::blocking_executor() const noexcept
@@ -606,6 +654,10 @@ auto RuntimeGenerationBuilder::build(RuntimeGenerationBuildRequest request)
     return failed("reload_process_service_missing",
                   "process-owned runtime services are missing");
   }
+  if (!request.bot_operation_client) {
+    request.bot_operation_client =
+        std::make_shared<QQTelegramOperationDispatcher>();
+  }
   if (request.purpose == RuntimeGenerationBuildPurpose::ReloadCandidate &&
       !request.blocking_executor) {
     return failed("reload_process_service_missing",
@@ -646,8 +698,8 @@ auto RuntimeGenerationBuilder::build(RuntimeGenerationBuildRequest request)
   auto generation = std::shared_ptr<RuntimeGeneration>(new RuntimeGeneration{
       request.generation_id, thread_budget, scheduler_options, request.snapshot,
       process_fingerprint, std::move(request.db_manager),
-      std::move(request.bot_registry), std::move(request.blocking_executor),
-      staging_root});
+      std::move(request.bot_registry), std::move(request.bot_operation_client),
+      std::move(request.blocking_executor), staging_root});
 
   ActorPackageStager stager;
   std::unordered_map<std::string, std::unordered_set<std::string>> actor_inputs;
@@ -732,6 +784,8 @@ auto RuntimeGenerationBuilder::build(RuntimeGenerationBuildRequest request)
       generation->db_manager_);
   generation->orchestrator_->register_service<BotRegistry>(
       generation->bot_registry_);
+  generation->orchestrator_->register_service<bot::BotOperationClient>(
+      generation->bot_operation_client_);
   generation->orchestrator_->register_service<common::ActorConfigService>(
       std::make_shared<common::ActorConfigService>(request.snapshot));
   generation->orchestrator_->register_service<boost::asio::any_io_executor>(

@@ -51,6 +51,12 @@ set(_expected_headers
     include/obcx/core/native_actor_scheduler.hpp
     include/obcx/core/reflected_actor.hpp
     include/obcx/core/blocking_executor.hpp
+    include/obcx/core/bot_operation_client.hpp
+    include/obcx/core/bot_operation_contract.hpp
+    include/obcx/core/bot_operation_types.hpp
+    include/obcx/core/bot_operations.hpp
+    include/obcx/core/onebot11_bot_operations.hpp
+    include/obcx/core/telegram_bot_operations.hpp
     include/obcx/interfaces/bot.hpp
     include/obcx/interfaces/connection_manager.hpp
     include/obcx/interfaces/protocol_adapter.hpp

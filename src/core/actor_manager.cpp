@@ -292,7 +292,8 @@ auto parse_actor_contract(const char *document,
   }
   for (const auto &[key, value] : configuration.items()) {
     (void)value;
-    if (key != "integers" && key != "less_equal") {
+    if (key != "integers" && key != "required_strings" &&
+        key != "bot_installations" && key != "less_equal") {
       error = "actor configuration contract contains an unsupported member '" +
               key + "'";
       return std::nullopt;
@@ -344,6 +345,74 @@ auto parse_actor_contract(const char *document,
                                                 .default_value = *default_value,
                                                 .minimum = minimum,
                                                 .maximum = maximum});
+    }
+  }
+
+  auto all_configuration_keys = configuration_keys;
+  if (configuration.contains("required_strings")) {
+    const auto &required_strings = configuration["required_strings"];
+    if (!required_strings.is_array()) {
+      error = "actor configuration contract required_strings must be an array";
+      return std::nullopt;
+    }
+    for (const auto &entry : required_strings) {
+      if (!entry.is_string()) {
+        error = "actor configuration contract required_strings entries must "
+                "be strings";
+        return std::nullopt;
+      }
+      auto key = entry.get<std::string>();
+      if (key.empty() || !all_configuration_keys.insert(key).second) {
+        error = "actor configuration contract contains an invalid or duplicate "
+                "required string key";
+        return std::nullopt;
+      }
+      contract.required_string_configuration.push_back(std::move(key));
+    }
+  }
+
+  if (configuration.contains("bot_installations")) {
+    const auto &installations = configuration["bot_installations"];
+    if (!installations.is_object()) {
+      error =
+          "actor configuration contract bot_installations must be an object";
+      return std::nullopt;
+    }
+    for (const auto &[key, expected_type_value] : installations.items()) {
+      if (key.empty() || !all_configuration_keys.insert(key).second) {
+        error = "actor configuration contract contains an invalid or duplicate "
+                "bot installation key";
+        return std::nullopt;
+      }
+      std::vector<std::string> expected_types;
+      if (expected_type_value.is_string()) {
+        expected_types.push_back(expected_type_value.get<std::string>());
+      } else if (expected_type_value.is_array() &&
+                 !expected_type_value.empty()) {
+        for (const auto &entry : expected_type_value) {
+          if (!entry.is_string()) {
+            error = "actor bot installation types must be strings";
+            return std::nullopt;
+          }
+          expected_types.push_back(entry.get<std::string>());
+        }
+      } else {
+        error = "actor bot installation constraints require a type or "
+                "non-empty type array";
+        return std::nullopt;
+      }
+      if (std::ranges::any_of(expected_types,
+                              [](const auto &type) { return type.empty(); })) {
+        error = "actor bot installation constraints require non-empty types";
+        return std::nullopt;
+      }
+      std::ranges::sort(expected_types);
+      if (std::ranges::adjacent_find(expected_types) != expected_types.end()) {
+        error = "actor bot installation constraints contain duplicate types";
+        return std::nullopt;
+      }
+      contract.bot_installation_configuration.push_back(
+          {.key = key, .expected_types = std::move(expected_types)});
     }
   }
 

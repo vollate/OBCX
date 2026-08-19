@@ -3,11 +3,13 @@
 #include "common/config_loader.hpp"
 #include "common/logger.hpp"
 #include "core/actor_runtime_reload_controller.hpp"
+#include "core/bot_operation_dispatcher.hpp"
 #include "core/bot_registry.hpp"
 #include "core/db_manager.hpp"
 #include "core/message_event_ingress.hpp"
 #include "core/orchestrator.hpp"
 #include "core/qq_bot.hpp"
+#include "core/qq_telegram_bot_endpoints.hpp"
 #include "core/runtime_generation.hpp"
 #include "core/runtime_thread_budget.hpp"
 #include "core/tg_bot.hpp"
@@ -282,6 +284,8 @@ public:
       return 1;
     }
     auto process_bot_registry = std::make_shared<core::BotRegistry>();
+    auto process_bot_operation_dispatcher =
+        std::make_shared<core::QQTelegramOperationDispatcher>();
 
     OBCX_INFO("OBCX Robot Framework starting...");
     OBCX_INFO("Configuration loaded from: {}", config_path);
@@ -297,7 +301,8 @@ public:
          .actor_search_directories = actor_directories,
          .configured_io_sources = std::max<size_t>(1, bot_configs.size()),
          .db_manager = process_db_manager,
-         .bot_registry = process_bot_registry});
+         .bot_registry = process_bot_registry,
+         .bot_operation_client = process_bot_operation_dispatcher});
     if (actor_runtime_build.status ==
         core::RuntimeGenerationBuildStatus::Failed) {
       const auto &failure = *actor_runtime_build.failure;
@@ -364,6 +369,18 @@ public:
       if (reload_controller && !bot_platform.empty()) {
         process_bot_registry->register_bot(bot_platform, bot_instance,
                                            bots[bot_index]);
+        try {
+          core::register_existing_bot_operation_endpoint(
+              *process_bot_operation_dispatcher, bot_instance, config.type,
+              bots[bot_index]);
+        } catch (const std::exception &error) {
+          process_bot_registry->unregister_bot(bot_platform, bot_instance);
+          bots[bot_index]->stop();
+          bots.pop_back();
+          OBCX_ERROR("Failed to register bot operation endpoint {}: {}",
+                     bot_instance, error.what());
+          continue;
+        }
         auto process_actor_event =
             [reload_controller, bot_platform, bot_instance](
                 std::string ingress_type, core::MessageEnvelope envelope)

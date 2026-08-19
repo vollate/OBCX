@@ -55,6 +55,13 @@ TEST(ActorManagerTest, DiscoversContractWithoutConstructingActor) {
   EXPECT_EQ(contract->commands.front().matcher->mode, "full");
   ASSERT_EQ(contract->integer_configuration.size(), 3);
   EXPECT_EQ(contract->integer_configuration.front().key, "positive_limit");
+  EXPECT_EQ(contract->required_string_configuration,
+            (std::vector<std::string>{"label"}));
+  ASSERT_EQ(contract->bot_installation_configuration.size(), 1U);
+  EXPECT_EQ(contract->bot_installation_configuration.front().key,
+            "target_installation");
+  EXPECT_EQ(contract->bot_installation_configuration.front().expected_types,
+            (std::vector<std::string>{"qq", "telegram"}));
   ASSERT_EQ(contract->less_equal_configuration.size(), 1);
   EXPECT_EQ(contract->less_equal_configuration.front().lesser, "retry_base");
   EXPECT_EQ(contract->less_equal_configuration.front().greater, "retry_max");

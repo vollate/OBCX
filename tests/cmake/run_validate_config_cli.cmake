@@ -18,9 +18,17 @@ file(COPY_FILE "${OBCX_TEST_ACTOR}"
 
 set(_valid "${_root}/valid.toml")
 file(WRITE "${_valid}" "
+[bots.primary]
+type = \"qq\"
+enabled = true
+
 [actors.test_actor_v2]
 library = \"test_actor_v2\"
 enabled = true
+
+[actors.test_actor_v2.config]
+label = \"validation\"
+target_installation = \"primary\"
 
 [pipelines.sdk]
 source = \"obcx::tests::events::SdkSmoke\"
@@ -53,9 +61,17 @@ endforeach()
 
 set(_unsupported "${_root}/unsupported.toml")
 file(WRITE "${_unsupported}" "
+[bots.primary]
+type = \"qq\"
+enabled = true
+
 [actors.test_actor_v2]
 library = \"${OBCX_TEST_ACTOR}\"
 enabled = true
+
+[actors.test_actor_v2.config]
+label = \"validation\"
+target_installation = \"primary\"
 
 [pipelines.sdk]
 source = \"wrong::Input\"

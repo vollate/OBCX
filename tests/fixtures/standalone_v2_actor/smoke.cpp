@@ -1,4 +1,5 @@
 #include "core/actor_manager.hpp"
+#include "core/bot_operation_contract.hpp"
 #include "core/native_actor_scheduler.hpp"
 
 #include "common/config_loader.hpp"
@@ -12,12 +13,64 @@
 #include <future>
 #include <utility>
 
+namespace {
+
+auto bot_operation_contract_smoke() -> bool {
+  const obcx::bot::BotInstallationRef installation{
+      .installation_id = "standalone-telegram",
+      .surface = obcx::bot::BotSurface::TelegramBotApi,
+  };
+  const obcx::bot::SendTelegramTopicMessageRequest request{
+      .target = {.group = {.installation = installation,
+                           .native_group_id = "-1001"},
+                 .topic_id = 7},
+      .message = {{.type = "text", .data = {{"text", "sdk smoke"}}}},
+  };
+  const auto request_document = nlohmann::json(request);
+  const auto decoded_request =
+      request_document.get<obcx::bot::SendTelegramTopicMessageRequest>();
+  if (nlohmann::json(decoded_request).dump() != request_document.dump()) {
+    return false;
+  }
+
+  const obcx::bot::BotMessageRef message{
+      .group = request.target.group,
+      .native_message_id = "42",
+  };
+  const auto result =
+      obcx::bot::BotOperationResult<obcx::bot::SendMessageResult>::success(
+          {.messages = {message}});
+  const auto result_document = nlohmann::json(result);
+  const auto decoded_result =
+      result_document
+          .get<obcx::bot::BotOperationResult<obcx::bot::SendMessageResult>>();
+  if (decoded_result != result ||
+      nlohmann::json(decoded_result).dump() != result_document.dump()) {
+    return false;
+  }
+
+  const obcx::bot::PokeOneBotGroupRequest poke{
+      .target = {.installation = {.installation_id = "standalone-onebot",
+                                  .surface = obcx::bot::BotSurface::OneBot11Qq},
+                 .native_group_id = "123"},
+      .user_id = "456",
+  };
+  return nlohmann::json(poke)
+             .get<obcx::bot::PokeOneBotGroupRequest>()
+             .user_id == "456";
+}
+
+} // namespace
+
 int main(int argc, char **argv) {
   using namespace std::chrono_literals;
   using namespace obcx::core;
 
   if (argc != 2) {
     return 1;
+  }
+  if (!bot_operation_contract_smoke()) {
+    return 9;
   }
   const std::filesystem::path actor_path = argv[1];
   {

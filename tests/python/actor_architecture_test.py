@@ -27,6 +27,35 @@ def reloadable_actor_sources() -> list[Path]:
     return sorted(sources)
 
 
+def migrated_bot_actor_sources() -> list[Path]:
+    roots = (
+        ROOT / "local_actor" / "obcx-actor-bridge" / "actor",
+        ROOT / "local_actor" / "obcx-actor-bridge" / "dependency",
+        ROOT / "local_actor" / "obcx-actor-bridge" / "include",
+        ROOT / "local_actor" / "chat_llm",
+    )
+    excluded = {".git", "build", "docs", "tests"}
+    sources: list[Path] = []
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file() or path.suffix not in {
+                ".cc",
+                ".cpp",
+                ".h",
+                ".hpp",
+            }:
+                continue
+            if any(
+                part in excluded or part.startswith("build-")
+                for part in path.parts
+            ):
+                continue
+            sources.append(path)
+    return sorted(set(sources))
+
+
 def production_scheduler_sources() -> list[Path]:
     roots = (
         ROOT / "include",
@@ -86,6 +115,37 @@ class ActorArchitectureTest(unittest.TestCase):
                     )
         self.assertEqual(findings, [], "\n" + "\n".join(findings))
         self.assertFalse((ROOT / "include" / "core" / "task_scheduler.hpp").exists())
+
+    def test_migrated_qq_telegram_actors_expose_no_live_bot_boundary(self) -> None:
+        banned = (
+            re.compile(
+                r"#\s*include\s*[<\"](?:core/bot_registry|"
+                r"interfaces/(?:bot|qq_bot|telegram_bot)|"
+                r"core/(?:qq_bot|tg_bot)|[^>\"]*connection_manager)\.hpp[>\"]"
+            ),
+            re.compile(r"\bBotRegistry\b"),
+            re.compile(r"\b(?:IBot|IQQBot|ITelegramBot)\b"),
+            re.compile(
+                r"\bdynamic_cast\s*<[^>]*"
+                r"(?:IBot|IQQBot|ITelegramBot|QQBot|TGBot)[^>]*>"
+            ),
+            re.compile(r"\bfind_bot\s*\("),
+            re.compile(r"\bget_service\s*<[^>]*BotRegistry[^>]*>"),
+        )
+        findings: list[str] = []
+        seen_operation_client: set[str] = set()
+        for path in migrated_bot_actor_sources():
+            content = path.read_text(encoding="utf-8")
+            relative = path.relative_to(ROOT)
+            if "BotOperationClient" in content:
+                seen_operation_client.add(relative.parts[1])
+            for pattern in banned:
+                for match in pattern.finditer(content):
+                    line = content.count("\n", 0, match.start()) + 1
+                    findings.append(f"{relative}:{line}: {match.group(0)}")
+        self.assertEqual(findings, [], "\n" + "\n".join(findings))
+        self.assertIn("obcx-actor-bridge", seen_operation_client)
+        self.assertIn("chat_llm", seen_operation_client)
 
     def test_blocking_executor_completion_has_no_polling_bridge(self) -> None:
         implementation = (

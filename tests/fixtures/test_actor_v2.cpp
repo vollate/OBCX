@@ -29,6 +29,10 @@ public:
          {{"positive_limit", {{"default", 5}, {"minimum", 1}}},
           {"retry_base", {{"default", 2}, {"minimum", 1}}},
           {"retry_max", {{"default", 10}, {"minimum", 1}}}}},
+        {"required_strings", obcx::common::json::array({"label"})},
+        {"bot_installations",
+         {{"target_installation",
+           obcx::common::json::array({"qq", "telegram"})}}},
         {"less_equal", obcx::common::json::array({obcx::common::json::array(
                            {"retry_base", "retry_max"})})},
     };

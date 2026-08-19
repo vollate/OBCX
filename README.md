@@ -164,6 +164,10 @@ source、stage 依赖和 `await`/`async` mode，但不会创建 scheduler worker
 
 Bridge 的 bot、媒体与群组映射选项可参考
 [actor-config.example.toml](local_actor/obcx-actor-bridge/actor-config.example.toml)；
+其中必须显式设置一组 `telegram_installation` 与
+`onebot11_installation`。当前仅 QQ/Telegram 的有限 typed operation 面、13 项
+allow-list、retry safety 与明确延后范围见
+[QQ/Telegram Bot Operation Boundary](docs/architecture/qq-telegram-bot-operations.md)。
 actor 依赖与数据库选择以本页的当前运行配置为准。
 
 ## 编写 standalone actor

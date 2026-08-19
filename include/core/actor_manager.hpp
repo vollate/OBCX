@@ -37,12 +37,20 @@ struct ActorInputContract {
     std::string greater;
   };
 
+  struct BotInstallationConfigurationConstraint {
+    std::string key;
+    std::vector<std::string> expected_types;
+  };
+
   std::uint32_t schema_version = 0;
   std::string actor;
   std::vector<std::string> accepted_inputs;
   std::unordered_set<std::string> accepted_input_set;
   std::vector<ActorCommandRegistration> commands;
   std::vector<IntegerConfigurationConstraint> integer_configuration;
+  std::vector<std::string> required_string_configuration;
+  std::vector<BotInstallationConfigurationConstraint>
+      bot_installation_configuration;
   std::vector<LessEqualConfigurationConstraint> less_equal_configuration;
 
   [[nodiscard]] auto accepts(const std::string &message_type) const -> bool {
