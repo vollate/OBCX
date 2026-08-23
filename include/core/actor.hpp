@@ -9,7 +9,9 @@
 #include <boost/asio/awaitable.hpp>
 
 #include <chrono>
+#include <concepts>
 #include <cstdint>
+#include <exception>
 #include <memory>
 #include <meta>
 #include <optional>
@@ -92,6 +94,55 @@ template <typename Message>
 }
 
 using ActorId = std::string;
+
+enum class ActorGenerationPurpose {
+  Startup,
+  ValidationOnly,
+  ReloadCandidate,
+};
+
+struct ActorGenerationInfo {
+  ActorGenerationPurpose purpose = ActorGenerationPurpose::Startup;
+  std::uint64_t generation_id = 0;
+};
+
+enum class ActorPreparationStatus : std::uint32_t {
+  Ready = 0,
+  Failed = 1,
+  RestartRequired = 2,
+};
+
+struct ActorPreparationResult {
+  ActorPreparationStatus status = ActorPreparationStatus::Ready;
+  std::string message;
+
+  [[nodiscard]] static auto ready() -> ActorPreparationResult { return {}; }
+
+  [[nodiscard]] static auto failed(std::string message)
+      -> ActorPreparationResult {
+    return {.status = ActorPreparationStatus::Failed,
+            .message = std::move(message)};
+  }
+
+  [[nodiscard]] static auto restart_required(std::string message)
+      -> ActorPreparationResult {
+    return {.status = ActorPreparationStatus::RestartRequired,
+            .message = std::move(message)};
+  }
+
+  [[nodiscard]] auto ok() const noexcept -> bool {
+    return status == ActorPreparationStatus::Ready;
+  }
+};
+
+// Additive C-ABI result used by the optional generation-preparation export.
+// The pointed-to diagnostic remains owned by the actor DSO and is copied by
+// the runtime before the call returns to application code.
+struct ActorPreparationExportResult {
+  std::uint32_t status =
+      static_cast<std::uint32_t>(ActorPreparationStatus::Ready);
+  const char *message = nullptr;
+};
 
 struct MessageEnvelope {
   std::string id;

@@ -59,6 +59,202 @@ foreach(_forbidden IN ITEMS "Runtime thread budget" "Starting bot"
   endif()
 endforeach()
 
+set(_valid_collection "${_root}/valid-collection.toml")
+file(WRITE "${_valid_collection}" "
+[bots.primary]
+type = \"qq\"
+enabled = true
+
+[actors.test_actor_v2]
+library = \"test_actor_v2\"
+enabled = true
+
+[actors.test_actor_v2.config]
+label = \"validation\"
+
+[[actors.test_actor_v2.config.target_installations]]
+id = \"primary-route\"
+target_installation = \"primary\"
+
+[pipelines.sdk]
+source = \"obcx::tests::events::SdkSmoke\"
+
+[[pipelines.sdk.stages]]
+name = \"handle\"
+actor = \"test_actor_v2\"
+input = \"obcx::tests::events::SdkSmoke\"
+")
+execute_process(
+  COMMAND "${OBCX_EXECUTABLE}" --validate-config "${_valid_collection}"
+  WORKING_DIRECTORY "${_root}"
+  OUTPUT_VARIABLE _valid_collection_stdout
+  ERROR_VARIABLE _valid_collection_stderr
+  RESULT_VARIABLE _valid_collection_result)
+if(NOT _valid_collection_result EQUAL 0)
+  message(FATAL_ERROR
+    "valid installation collection failed: ${_valid_collection_stdout}${_valid_collection_stderr}")
+endif()
+
+set(_invalid_collection "${_root}/invalid-collection.toml")
+file(WRITE "${_invalid_collection}" "
+[bots.primary]
+type = \"qq\"
+enabled = true
+
+[actors.test_actor_v2]
+library = \"test_actor_v2\"
+enabled = true
+
+[actors.test_actor_v2.config]
+label = \"validation\"
+
+[[actors.test_actor_v2.config.target_installations]]
+id = \"duplicate\"
+target_installation = \"primary\"
+
+[[actors.test_actor_v2.config.target_installations]]
+id = \"duplicate\"
+target_installation = \"primary\"
+
+[pipelines.sdk]
+source = \"obcx::tests::events::SdkSmoke\"
+
+[[pipelines.sdk.stages]]
+name = \"handle\"
+actor = \"test_actor_v2\"
+input = \"obcx::tests::events::SdkSmoke\"
+")
+execute_process(
+  COMMAND "${OBCX_EXECUTABLE}" --validate-config "${_invalid_collection}"
+  WORKING_DIRECTORY "${_root}"
+  OUTPUT_VARIABLE _invalid_collection_stdout
+  ERROR_VARIABLE _invalid_collection_stderr
+  RESULT_VARIABLE _invalid_collection_result)
+if(_invalid_collection_result EQUAL 0 OR
+   NOT "${_invalid_collection_stdout}${_invalid_collection_stderr}" MATCHES
+       "reload_actor_config_invalid")
+  message(FATAL_ERROR
+    "invalid installation collection was not rejected: ${_invalid_collection_stdout}${_invalid_collection_stderr}")
+endif()
+
+set(_bridge_valid "${_root}/bridge-multi-valid.toml")
+file(WRITE "${_bridge_valid}" "
+[bots.qq-a]
+type = \"qq\"
+enabled = true
+[bots.tg-a]
+type = \"telegram\"
+enabled = true
+[bots.qq-b]
+type = \"qq\"
+enabled = true
+[bots.tg-b]
+type = \"telegram\"
+enabled = true
+
+[actors.bridge]
+library = \"bridge\"
+enabled = true
+
+[actors.bridge.config]
+bridge_files_dir = \"/tmp/bridge\"
+legacy_state_pair = \"a\"
+[[actors.bridge.config.installation_pairs]]
+id = \"a\"
+telegram_installation = \"tg-a\"
+onebot11_installation = \"qq-a\"
+[[actors.bridge.config.installation_pairs]]
+id = \"b\"
+telegram_installation = \"tg-b\"
+onebot11_installation = \"qq-b\"
+
+[[actors.bridge.config.legacy_mapping_routes]]
+pair = \"a\"
+telegram_group_id = \"old-tg\"
+qq_group_id = \"old-qq\"
+
+[[group_mappings.group_to_group]]
+pair = \"a\"
+telegram_group_id = \"tg\"
+qq_group_id = \"qq\"
+[[group_mappings.group_to_group]]
+pair = \"b\"
+telegram_group_id = \"tg\"
+qq_group_id = \"qq\"
+
+[pipelines.bridge]
+source = \"obcx::message_store::events::MessageStored\"
+[[pipelines.bridge.stages]]
+name = \"forward\"
+actor = \"bridge\"
+input = \"obcx::message_store::events::MessageStored\"
+")
+execute_process(
+  COMMAND "${OBCX_EXECUTABLE}" --validate-config "${_bridge_valid}"
+  WORKING_DIRECTORY "${_root}"
+  OUTPUT_VARIABLE _bridge_valid_stdout
+  ERROR_VARIABLE _bridge_valid_stderr
+  RESULT_VARIABLE _bridge_valid_result)
+if(NOT _bridge_valid_result EQUAL 0)
+  message(FATAL_ERROR
+    "valid multi-pair Bridge config failed: ${_bridge_valid_stdout}${_bridge_valid_stderr}")
+endif()
+
+file(READ "${_bridge_valid}" _bridge_valid_text)
+string(REPLACE "pair = \"b\"\ntelegram_group_id"
+               "telegram_group_id" _bridge_invalid_text
+               "${_bridge_valid_text}")
+set(_bridge_invalid_pair "${_root}/bridge-multi-missing-pair.toml")
+file(WRITE "${_bridge_invalid_pair}" "${_bridge_invalid_text}")
+execute_process(
+  COMMAND "${OBCX_EXECUTABLE}" --validate-config "${_bridge_invalid_pair}"
+  WORKING_DIRECTORY "${_root}"
+  OUTPUT_VARIABLE _bridge_invalid_stdout
+  ERROR_VARIABLE _bridge_invalid_stderr
+  RESULT_VARIABLE _bridge_invalid_result)
+if(_bridge_invalid_result EQUAL 0 OR
+   NOT "${_bridge_invalid_stdout}${_bridge_invalid_stderr}" MATCHES
+       "reload_actor_config_invalid")
+  message(FATAL_ERROR
+    "ambiguous Bridge mapping was not rejected: ${_bridge_invalid_stdout}${_bridge_invalid_stderr}")
+endif()
+
+string(REPLACE "legacy_state_pair = \"a\""
+               "legacy_state_pair = \"missing\"" _bridge_bad_legacy_text
+               "${_bridge_valid_text}")
+set(_bridge_bad_legacy "${_root}/bridge-multi-bad-legacy.toml")
+file(WRITE "${_bridge_bad_legacy}" "${_bridge_bad_legacy_text}")
+execute_process(
+  COMMAND "${OBCX_EXECUTABLE}" --validate-config "${_bridge_bad_legacy}"
+  WORKING_DIRECTORY "${_root}"
+  OUTPUT_VARIABLE _bridge_legacy_stdout
+  ERROR_VARIABLE _bridge_legacy_stderr
+  RESULT_VARIABLE _bridge_legacy_result)
+if(_bridge_legacy_result EQUAL 0 OR
+   NOT "${_bridge_legacy_stdout}${_bridge_legacy_stderr}" MATCHES
+       "reload_actor_config_invalid")
+  message(FATAL_ERROR
+    "invalid legacy_state_pair was not rejected: ${_bridge_legacy_stdout}${_bridge_legacy_stderr}")
+endif()
+
+string(REPLACE "pair = \"a\"\ntelegram_group_id = \"old-tg\""
+               "pair = \"missing\"\ntelegram_group_id = \"old-tg\""
+               _bridge_bad_history_text "${_bridge_valid_text}")
+set(_bridge_bad_history "${_root}/bridge-multi-bad-history.toml")
+file(WRITE "${_bridge_bad_history}" "${_bridge_bad_history_text}")
+execute_process(
+  COMMAND "${OBCX_EXECUTABLE}" --validate-config "${_bridge_bad_history}"
+  WORKING_DIRECTORY "${_root}"
+  OUTPUT_VARIABLE _bridge_history_stdout
+  ERROR_VARIABLE _bridge_history_stderr
+  RESULT_VARIABLE _bridge_history_result)
+if(_bridge_history_result EQUAL 0 OR
+   NOT "${_bridge_history_stdout}${_bridge_history_stderr}" MATCHES
+       "reload_actor_config_invalid")
+  message(FATAL_ERROR
+    "invalid legacy mapping route pair was not rejected: ${_bridge_history_stdout}${_bridge_history_stderr}")
+endif()
+
 set(_unsupported "${_root}/unsupported.toml")
 file(WRITE "${_unsupported}" "
 [bots.primary]

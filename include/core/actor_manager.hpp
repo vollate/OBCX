@@ -2,6 +2,7 @@
 
 #include "core/actor.hpp"
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -40,6 +41,26 @@ struct ActorInputContract {
   struct BotInstallationConfigurationConstraint {
     std::string key;
     std::vector<std::string> expected_types;
+    std::string alternative_group;
+  };
+
+  struct BotInstallationCollectionConstraint {
+    std::string key;
+    std::size_t minimum_items = 1;
+    std::string identity_key;
+    std::vector<BotInstallationConfigurationConstraint> installation_fields;
+    std::vector<std::string> unique_fields;
+    std::string alternative_group;
+  };
+
+  struct CollectionIdentityReferenceConstraint {
+    std::string source_key;
+    std::string root_section;
+    std::vector<std::string> source_collections;
+    std::string target_collection;
+    std::string target_identity;
+    bool optional = false;
+    bool required_when_target_multiple = false;
   };
 
   std::uint32_t schema_version = 0;
@@ -51,6 +72,10 @@ struct ActorInputContract {
   std::vector<std::string> required_string_configuration;
   std::vector<BotInstallationConfigurationConstraint>
       bot_installation_configuration;
+  std::vector<BotInstallationCollectionConstraint>
+      bot_installation_collection_configuration;
+  std::vector<CollectionIdentityReferenceConstraint>
+      collection_identity_reference_configuration;
   std::vector<LessEqualConfigurationConstraint> less_equal_configuration;
 
   [[nodiscard]] auto accepts(const std::string &message_type) const -> bool {
@@ -61,10 +86,12 @@ struct ActorInputContract {
 class SafeActorWrapper {
 public:
   using DestroyFunc = void (*)(void *);
+  using PrepareFunc = ActorPreparationExportResult (*)(void *, ActorContext *);
 
   SafeActorWrapper(void *actor_ptr, std::shared_ptr<void> library_lifetime,
-                   DestroyFunc destroy_func, std::string exported_name,
-                   std::string exported_version, ActorInputContract contract);
+                   DestroyFunc destroy_func, PrepareFunc prepare_func,
+                   std::string exported_name, std::string exported_version,
+                   ActorInputContract contract);
   ~SafeActorWrapper();
 
   SafeActorWrapper(const SafeActorWrapper &) = delete;
@@ -81,6 +108,8 @@ public:
   [[nodiscard]] auto exported_name() const -> const std::string &;
   [[nodiscard]] auto exported_version() const -> const std::string &;
   [[nodiscard]] auto input_contract() const -> const ActorInputContract &;
+  [[nodiscard]] auto prepare_generation(ActorContext &context) const
+      -> ActorPreparationResult;
 
 private:
   friend class ActorManager;
@@ -91,6 +120,7 @@ private:
   void *actor_ptr_;
   std::shared_ptr<void> library_lifetime_;
   DestroyFunc destroy_func_;
+  PrepareFunc prepare_func_;
   std::string exported_name_;
   std::string exported_version_;
   ActorInputContract contract_;
@@ -127,6 +157,9 @@ public:
   auto discover_actor_from_path(const std::string &actor_path) -> bool;
   auto activate_actor(const std::string &actor_name) -> bool;
   auto activate_all_discovered() -> bool;
+  [[nodiscard]] auto prepare_actor(const std::string &actor_name,
+                                   ActorContext &context) const
+      -> ActorPreparationResult;
 
   void unload_actor(const std::string &actor_name);
   void unload_all_actors();

@@ -32,10 +32,43 @@ public:
         {"required_strings", obcx::common::json::array({"label"})},
         {"bot_installations",
          {{"target_installation",
-           obcx::common::json::array({"qq", "telegram"})}}},
+           {{"types", obcx::common::json::array({"qq", "telegram"})},
+            {"alternative_group", "target_form"}}}}},
+        {"bot_installation_collections",
+         {{"target_installations",
+           {{"minimum_items", 1},
+            {"identity", "id"},
+            {"bot_installations",
+             {{"target_installation",
+               obcx::common::json::array({"qq", "telegram"})}}},
+            {"unique_fields",
+             obcx::common::json::array({"target_installation"})},
+            {"alternative_group", "target_form"}}}}},
+        {"collection_identity_references",
+         obcx::common::json::array(
+             {{{"source_key", "selected_target"},
+               {"target_collection", "target_installations"},
+               {"target_identity", "id"},
+               {"optional", true}}})},
         {"less_equal", obcx::common::json::array({obcx::common::json::array(
                            {"retry_base", "retry_max"})})},
     };
+  }
+
+  auto prepare_generation(obcx::core::ActorContext &context)
+      -> obcx::core::ActorPreparationResult {
+    const auto configured = context.config()
+                                .get_value<std::string>("preparation_status")
+                                .value_or(std::string{});
+    if (context.actor_id() == "prepare-failed" || configured == "failed") {
+      return obcx::core::ActorPreparationResult::failed(
+          "fixture preparation failed");
+    }
+    if (context.actor_id() == "prepare-restart" || configured == "restart") {
+      return obcx::core::ActorPreparationResult::restart_required(
+          "fixture preparation requires restart");
+    }
+    return obcx::core::ActorPreparationResult::ready();
   }
 
   auto handle(const obcx::tests::events::SdkSmoke &,

@@ -102,7 +102,7 @@ db_namespace = "message_store"
 library = "bridge"
 enabled = true
 requires = ["message_store"]
-partition = "source_platform:conversation_id"
+partition = "source_bot:conversation_id"
 db = "main"
 db_namespace = "bridge"
 
@@ -164,9 +164,14 @@ source、stage 依赖和 `await`/`async` mode，但不会创建 scheduler worker
 
 Bridge 的 bot、媒体与群组映射选项可参考
 [actor-config.example.toml](local_actor/obcx-actor-bridge/actor-config.example.toml)；
-其中必须显式设置一组 `telegram_installation` 与
-`onebot11_installation`。当前仅 QQ/Telegram 的有限 typed operation 面、13 项
-allow-list、retry safety 与明确延后范围见
+单账号部署可继续显式设置一组 `telegram_installation` 与
+`onebot11_installation`；多账号部署使用具名 `installation_pairs`，并让每个群组或
+Topic mapping 指向唯一 pair。Bridge schema v3 使用 installation、platform、
+conversation 与 native message id 的完整消息身份；相同 Telegram message id 在不同
+chat 中不会交叉回复、编辑或撤回。v2→v3 会严格预检当前/历史 route，无法确定的旧
+mapping 默认阻止迁移，也可由管理员明确归档为生产不可读状态。首次迁移前必须停止
+进程并进行包含 WAL 的 SQLite 一致性备份。当前仅 QQ/Telegram 的有限
+typed operation 面、13 项 allow-list、retry safety 与明确延后范围见
 [QQ/Telegram Bot Operation Boundary](docs/architecture/qq-telegram-bot-operations.md)。
 actor 依赖与数据库选择以本页的当前运行配置为准。
 
@@ -191,8 +196,12 @@ obcx_add_actor(example
 
 Actor library 继承 `ReflectedActor<Derived>`，公开精确的同步或异步 `handle`
 重载，并使用 `OBCX_ACTOR_EXPORT_V2` 导出工厂、析构、名称、版本、数值 ABI 和
-强制的 schema-1 输入 contract。`ActorManager` 在构造 actor 前校验 contract；
-旧二进制、短消息名和缺少 contract 的 library 会被拒绝。
+强制的 schema-1 输入 contract。需要在 ingress 发布前准备 actor-owned state 的
+actor 可额外实现同步 `prepare_generation(ActorContext&)`，返回 typed `Ready`、
+`Failed` 或 `RestartRequired`；运行时在配置及 generation service 就绪后、scheduler
+注册前调用它。该导出是 ABI 2 的可选附加面，既有未提供该 symbol 的 actor 按
+`Ready` 处理。`ActorManager` 在构造 actor 前校验 contract；旧二进制、短消息名和
+缺少 contract 的 library 会被拒绝。
 
 Actor 命令同样使用 typed message：actor contract 只声明命令名、说明和 request
 message type，配置再按 platform/bot scope 激活路由；平台适配器不调用 actor

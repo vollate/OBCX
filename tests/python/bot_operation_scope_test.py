@@ -156,6 +156,88 @@ class BotOperationScopeTest(unittest.TestCase):
     def test_legacy_mapping_itself_cannot_grow_the_matrix(self) -> None:
         self.assertEqual(set(LEGACY_METHOD_ACTIONS.values()), APPROVED_ACTIONS)
 
+    def test_bridge_state_and_retry_calls_are_installation_scoped(self) -> None:
+        bridge_roots = (
+            ROOT / "local_actor" / "obcx-actor-bridge" / "actor",
+            ROOT / "local_actor" / "obcx-actor-bridge" / "dependency",
+            ROOT / "local_actor" / "obcx-actor-bridge" / "include",
+        )
+        forbidden = {
+            r'get_target_message_id\(\s*"(?:qq|telegram)"': (
+                "platform-only mapping lookup"
+            ),
+            r'get_source_message_id\(\s*"(?:qq|telegram)"': (
+                "platform-only reverse mapping lookup"
+            ),
+            r'register_message_send_callback\(\s*"(?:qq|telegram)"': (
+                "platform-only retry callback"
+            ),
+            r'get_platform_heartbeat\(\s*"(?:qq|telegram)"': (
+                "platform-only heartbeat lookup"
+            ),
+            r'get_message\(\s*"(?:qq|telegram)"\s*,\s*[^,()]+\)': (
+                "platform/message-only Message Store lookup"
+            ),
+        }
+        violations: list[str] = []
+        for root in bridge_roots:
+            for path in root.rglob("*"):
+                if not path.is_file() or path.suffix not in {".cpp", ".hpp"}:
+                    continue
+                text = path.read_text(encoding="utf-8")
+                for pattern, description in forbidden.items():
+                    for match in re.finditer(pattern, text, re.MULTILINE):
+                        line = text.count("\n", 0, match.start()) + 1
+                        violations.append(
+                            f"{path.relative_to(ROOT)}:{line}: {description}"
+                        )
+        self.assertEqual(violations, [])
+
+        runtime = (
+            ROOT
+            / "local_actor"
+            / "obcx-actor-bridge"
+            / "dependency"
+            / "bridge_forwarding_runtime.cpp"
+        ).read_text(encoding="utf-8")
+        self.assertIn("resolve_bridge_source_pair", runtime)
+        self.assertNotIn("config_->installation_pairs.begin()", runtime)
+
+    def test_bridge_message_mapping_apis_are_conversation_scoped(self) -> None:
+        repository_header = (
+            ROOT
+            / "local_actor"
+            / "obcx-actor-bridge"
+            / "include"
+            / "bridge_state_repository.hpp"
+        ).read_text(encoding="utf-8")
+        repository_source = (
+            ROOT
+            / "local_actor"
+            / "obcx-actor-bridge"
+            / "dependency"
+            / "bridge_state_repository.cpp"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("get_target_message_id", repository_header)
+        self.assertNotIn("get_source_message_id", repository_header)
+        self.assertIn("const BridgeMessageIdentity &source", repository_header)
+        self.assertIn("const BridgeMessageScope &target", repository_header)
+        self.assertIn("source_conversation_id", repository_source)
+        self.assertIn("target_conversation_id", repository_source)
+        self.assertNotRegex(
+            repository_source,
+            r"UNIQUE\s*\(\s*target_(?:message_)?id\s*\)",
+        )
+        live_api_source = repository_source.split(
+            "BridgeStateRepository::add_message_mapping", 1
+        )[1]
+        self.assertNotIn("_v2_archive", live_api_source)
+        self.assertNotRegex(
+            repository_source,
+            r"CREATE\s+(?:TABLE|INDEX)[^;]*message_store_",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

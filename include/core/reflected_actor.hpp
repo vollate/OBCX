@@ -354,6 +354,57 @@ auto dispatch_reflected_message(Derived &actor, const MessageEnvelope &envelope,
 
 } // namespace detail
 
+namespace detail {
+
+template <typename Derived>
+concept GenerationPreparable = requires(Derived &actor, ActorContext &context) {
+  { actor.prepare_generation(context) } -> std::same_as<ActorPreparationResult>;
+};
+
+template <typename Derived>
+auto prepare_actor_generation_export(void *actor_ptr, ActorContext *context)
+    -> ActorPreparationExportResult {
+  static thread_local std::string diagnostic;
+  diagnostic.clear();
+  if (actor_ptr == nullptr || context == nullptr) {
+    diagnostic = "actor generation preparation received a null argument";
+    return {.status =
+                static_cast<std::uint32_t>(ActorPreparationStatus::Failed),
+            .message = diagnostic.c_str()};
+  }
+
+  if constexpr (!GenerationPreparable<Derived>) {
+    return {};
+  } else {
+    try {
+      auto *base = static_cast<IActorV2 *>(actor_ptr);
+      auto result = static_cast<Derived *>(base)->prepare_generation(*context);
+      switch (result.status) {
+      case ActorPreparationStatus::Ready:
+      case ActorPreparationStatus::Failed:
+      case ActorPreparationStatus::RestartRequired:
+        break;
+      default:
+        result = ActorPreparationResult::failed(
+            "actor generation preparation returned an invalid status");
+        break;
+      }
+      diagnostic = std::move(result.message);
+      return {.status = static_cast<std::uint32_t>(result.status),
+              .message = diagnostic.empty() ? nullptr : diagnostic.c_str()};
+    } catch (const std::exception &error) {
+      diagnostic = error.what();
+    } catch (...) {
+      diagnostic = "actor generation preparation threw an unknown exception";
+    }
+    return {.status =
+                static_cast<std::uint32_t>(ActorPreparationStatus::Failed),
+            .message = diagnostic.c_str()};
+  }
+}
+
+} // namespace detail
+
 template <typename Derived> class ReflectedActor : public IActorV2 {
 public:
   [[nodiscard]] auto get_name() const -> std::string final {
@@ -413,6 +464,12 @@ public:
       } catch (...) {                                                          \
       }                                                                        \
     }                                                                          \
+  }                                                                            \
+  auto obcx_prepare_actor_generation_v2(void *actor,                           \
+                                        ::obcx::core::ActorContext *context)   \
+      -> ::obcx::core::ActorPreparationExportResult {                          \
+    return ::obcx::core::detail::prepare_actor_generation_export<ActorClass>(  \
+        actor, context);                                                       \
   }                                                                            \
   auto obcx_get_actor_name_v2() -> const char * {                              \
     static const std::string name{ActorClass::actor_name};                     \

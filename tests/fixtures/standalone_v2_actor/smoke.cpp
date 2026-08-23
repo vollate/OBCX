@@ -91,7 +91,14 @@ int main(int argc, char **argv) {
         contract->commands.front().matcher->kind != "re2" ||
         contract->commands.front().matcher->pattern !=
             R"(^(?:sdk_ping|sdk_alias)$)" ||
-        contract->commands.front().matcher->mode != "full") {
+        contract->commands.front().matcher->mode != "full" ||
+        contract->bot_installation_collection_configuration.size() != 1 ||
+        contract->bot_installation_collection_configuration.front().key !=
+            "installation_pairs" ||
+        contract->bot_installation_collection_configuration.front()
+                .identity_key != "id" ||
+        contract->bot_installation_collection_configuration.front()
+                .installation_fields.size() != 2) {
       return 8;
     }
 

@@ -24,6 +24,18 @@ public:
             obcx::command::re2(R"(^(?:sdk_ping|sdk_alias)$)")));
   }
 
+  [[nodiscard]] static auto configuration_contract() -> obcx::common::json {
+    return {
+        {"bot_installation_collections",
+         {{"installation_pairs",
+           {{"minimum_items", 1},
+            {"identity", "id"},
+            {"bot_installations",
+             {{"onebot11_installation", "qq"},
+              {"telegram_installation", "telegram"}}}}}}},
+    };
+  }
+
   auto handle(const obcx::sdk_fixture::events::SdkSmoke &,
               const obcx::core::MessageEnvelope &message,
               obcx::core::ActorContext &context)

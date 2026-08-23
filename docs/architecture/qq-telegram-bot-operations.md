@@ -63,26 +63,65 @@ possibly submitted retry is terminalized in the existing retry table by its
 finite-attempt fields. There is no generic outbox or crash-safe reconciliation;
 a process crash at the provider boundary remains deferred work.
 
-## Bridge configuration migration
+## Bridge installation pairs and state migration
 
-One Bridge actor/database supports exactly one pair in this slice:
+Bridge supports named, disjoint Telegram/OneBot installation pairs:
 
 ```toml
 [actors.bridge.config]
+bridge_files_dir = "/tmp/bridge_files"
+legacy_state_pair = "primary"
+
+[[actors.bridge.config.installation_pairs]]
+id = "primary"
 telegram_installation = "telegram_bot"
 onebot11_installation = "qq_bot"
-bridge_files_dir = "/tmp/bridge_files"
+
+[[actors.bridge.config.installation_pairs]]
+id = "secondary"
+telegram_installation = "telegram_bot_2"
+onebot11_installation = "qq_bot_2"
+
+[[group_mappings.group_to_group]]
+pair = "primary"
+telegram_group_id = "-1001"
+qq_group_id = "10001"
 ```
 
-Both names must identify enabled root bot entries of type `telegram` and `qq`.
-Messages, notices, and commands must carry the matching `source_bot`; no
-platform-only fallback is used. Existing group/topic mappings and all Bridge
-database tables remain unchanged. Multi-pair Bridge routing requires a later
-scoped-mapping migration.
+Each installation belongs to exactly one pair. Pair ids and installation ids
+must be unique, and every mapping must name its pair when more than one exists.
+Messages, notices, and commands carry `source_bot`; Bridge selects only that
+bot's pair and never falls back by platform or fans out. The existing scalar
+`telegram_installation`/`onebot11_installation` form remains valid for a single
+pair and cannot be mixed with the collection form.
+
+Bridge schema version 3 uses complete message identities consisting of exact
+installation, platform, conversation, and native message id. QQ conversations
+use `group:<id>` and Telegram conversations use `chat:<id>`; topic id remains
+route metadata. Consequently equal native ids in two chats on one installation
+remain independent for mappings, retries, media groups, replies, edits, and
+recalls. User/sticker caches and heartbeats remain installation scoped.
+
+An unversioned non-empty database is first assigned to the scalar pair, sole
+named pair, or explicit `legacy_state_pair` as version 2. The startup-only
+version-2-to-3 migration then resolves conversations from existing Message
+Store identity and current or explicit historical routes. An exact Telegram
+topic route uses stored thread evidence, while a group-to-group route remains
+chat-wide even when a message carries forum-thread metadata. Strict mode rolls
+back on unresolved state; explicit archive mode preserves unresolved
+mapping/media rows in non-live tables that no production lookup can read.
+Pending retries must migrate exactly. Typed generation preparation completes
+this work before Bridge is registered for ingress and publishes the repository
+only after commit. Stop OBCX and take a SQLite-consistent backup, including WAL
+state, before migration. A candidate reload performs a read-only schema check
+and cannot perform either incompatible migration; rollback requires restoring
+both the old binary and pre-migration database snapshot.
 
 ## Explicitly deferred
 
-This change does not add typed ingress, Telegram checkpoint changes,
-message-store migration, an ingress journal, a generic outbox, rate governance,
-a blob gateway, mapping v2, private send, history, contacts, moderation,
-reactions, polls, or adapters for unsupported platforms.
+This change does not add typed ingress, Telegram checkpoint changes, a Message
+Store migration, an ingress journal, a generic outbox or reconciliation,
+provider message lookup, rate governance, a blob gateway, private send,
+history, contacts, moderation, reactions, polls, or adapters for unsupported
+platforms. It also does not reconcile content that was already sent with a
+wrong reply reference; that message must be explicitly removed and resent.

@@ -85,6 +85,37 @@ auto contract_integer(const common::json &value)
   return value.get<std::int64_t>();
 }
 
+auto parse_bot_installation_types(const common::json &value, std::string &error)
+    -> std::optional<std::vector<std::string>> {
+  std::vector<std::string> expected_types;
+  if (value.is_string()) {
+    expected_types.push_back(value.get<std::string>());
+  } else if (value.is_array() && !value.empty()) {
+    for (const auto &entry : value) {
+      if (!entry.is_string()) {
+        error = "actor bot installation types must be strings";
+        return std::nullopt;
+      }
+      expected_types.push_back(entry.get<std::string>());
+    }
+  } else {
+    error = "actor bot installation constraints require a type or non-empty "
+            "type array";
+    return std::nullopt;
+  }
+  if (std::ranges::any_of(expected_types,
+                          [](const auto &type) { return type.empty(); })) {
+    error = "actor bot installation constraints require non-empty types";
+    return std::nullopt;
+  }
+  std::ranges::sort(expected_types);
+  if (std::ranges::adjacent_find(expected_types) != expected_types.end()) {
+    error = "actor bot installation constraints contain duplicate types";
+    return std::nullopt;
+  }
+  return expected_types;
+}
+
 auto parse_actor_contract(const char *document,
                           const std::string &exported_name, std::string &error)
     -> std::optional<ActorInputContract> {
@@ -293,7 +324,8 @@ auto parse_actor_contract(const char *document,
   for (const auto &[key, value] : configuration.items()) {
     (void)value;
     if (key != "integers" && key != "required_strings" &&
-        key != "bot_installations" && key != "less_equal") {
+        key != "bot_installations" && key != "bot_installation_collections" &&
+        key != "collection_identity_references" && key != "less_equal") {
       error = "actor configuration contract contains an unsupported member '" +
               key + "'";
       return std::nullopt;
@@ -378,41 +410,319 @@ auto parse_actor_contract(const char *document,
           "actor configuration contract bot_installations must be an object";
       return std::nullopt;
     }
-    for (const auto &[key, expected_type_value] : installations.items()) {
+    for (const auto &[key, declaration] : installations.items()) {
       if (key.empty() || !all_configuration_keys.insert(key).second) {
         error = "actor configuration contract contains an invalid or duplicate "
                 "bot installation key";
         return std::nullopt;
       }
-      std::vector<std::string> expected_types;
-      if (expected_type_value.is_string()) {
-        expected_types.push_back(expected_type_value.get<std::string>());
-      } else if (expected_type_value.is_array() &&
-                 !expected_type_value.empty()) {
-        for (const auto &entry : expected_type_value) {
-          if (!entry.is_string()) {
-            error = "actor bot installation types must be strings";
+
+      const common::json *types = &declaration;
+      std::string alternative_group;
+      if (declaration.is_object()) {
+        for (const auto &[member, value] : declaration.items()) {
+          (void)value;
+          if (member != "types" && member != "alternative_group") {
+            error = "actor bot installation constraint contains an "
+                    "unsupported member '" +
+                    member + "'";
             return std::nullopt;
           }
-          expected_types.push_back(entry.get<std::string>());
         }
-      } else {
-        error = "actor bot installation constraints require a type or "
-                "non-empty type array";
-        return std::nullopt;
+        if (!declaration.contains("types")) {
+          error = "actor bot installation constraint requires types";
+          return std::nullopt;
+        }
+        types = &declaration["types"];
+        if (declaration.contains("alternative_group")) {
+          if (!declaration["alternative_group"].is_string()) {
+            error = "actor bot installation alternative_group must be a "
+                    "string";
+            return std::nullopt;
+          }
+          alternative_group =
+              declaration["alternative_group"].get<std::string>();
+          if (alternative_group.empty()) {
+            error = "actor bot installation alternative_group must not be "
+                    "empty";
+            return std::nullopt;
+          }
+        }
       }
-      if (std::ranges::any_of(expected_types,
-                              [](const auto &type) { return type.empty(); })) {
-        error = "actor bot installation constraints require non-empty types";
-        return std::nullopt;
-      }
-      std::ranges::sort(expected_types);
-      if (std::ranges::adjacent_find(expected_types) != expected_types.end()) {
-        error = "actor bot installation constraints contain duplicate types";
+
+      auto expected_types = parse_bot_installation_types(*types, error);
+      if (!expected_types) {
         return std::nullopt;
       }
       contract.bot_installation_configuration.push_back(
-          {.key = key, .expected_types = std::move(expected_types)});
+          {.key = key,
+           .expected_types = std::move(*expected_types),
+           .alternative_group = std::move(alternative_group)});
+    }
+  }
+
+  if (configuration.contains("bot_installation_collections")) {
+    const auto &collections = configuration["bot_installation_collections"];
+    if (!collections.is_object()) {
+      error = "actor configuration contract bot_installation_collections must "
+              "be an object";
+      return std::nullopt;
+    }
+    for (const auto &[key, declaration] : collections.items()) {
+      if (key.empty() || !all_configuration_keys.insert(key).second ||
+          !declaration.is_object()) {
+        error = "actor configuration contract contains an invalid or duplicate "
+                "bot installation collection key";
+        return std::nullopt;
+      }
+      for (const auto &[member, value] : declaration.items()) {
+        (void)value;
+        if (member != "minimum_items" && member != "identity" &&
+            member != "bot_installations" && member != "unique_fields" &&
+            member != "alternative_group") {
+          error = "actor bot installation collection contains an unsupported "
+                  "member '" +
+                  member + "'";
+          return std::nullopt;
+        }
+      }
+      if (!declaration.contains("minimum_items") ||
+          !declaration.contains("identity") ||
+          !declaration.contains("bot_installations")) {
+        error = "actor bot installation collection requires minimum_items, "
+                "identity, and bot_installations";
+        return std::nullopt;
+      }
+      const auto minimum = contract_integer(declaration["minimum_items"]);
+      if (!minimum || *minimum <= 0 || *minimum > 1024) {
+        error = "actor bot installation collection minimum_items is invalid";
+        return std::nullopt;
+      }
+      if (!declaration["identity"].is_string()) {
+        error = "actor bot installation collection identity must be a string";
+        return std::nullopt;
+      }
+      auto identity = declaration["identity"].get<std::string>();
+      if (identity.empty()) {
+        error = "actor bot installation collection identity must not be empty";
+        return std::nullopt;
+      }
+      const auto &fields = declaration["bot_installations"];
+      if (!fields.is_object() || fields.empty()) {
+        error = "actor bot installation collection bot_installations must be "
+                "a non-empty object";
+        return std::nullopt;
+      }
+
+      ActorInputContract::BotInstallationCollectionConstraint collection{
+          .key = key,
+          .minimum_items = static_cast<std::size_t>(*minimum),
+          .identity_key = std::move(identity),
+      };
+      for (const auto &[field, types_value] : fields.items()) {
+        if (field.empty() || field == collection.identity_key) {
+          error = "actor bot installation collection contains an invalid or "
+                  "duplicate item field";
+          return std::nullopt;
+        }
+        auto expected_types = parse_bot_installation_types(types_value, error);
+        if (!expected_types) {
+          return std::nullopt;
+        }
+        collection.installation_fields.push_back(
+            {.key = field, .expected_types = std::move(*expected_types)});
+      }
+      if (declaration.contains("unique_fields")) {
+        const auto &unique_fields = declaration["unique_fields"];
+        if (!unique_fields.is_array() || unique_fields.empty()) {
+          error = "actor bot installation collection unique_fields must be a "
+                  "non-empty array";
+          return std::nullopt;
+        }
+        for (const auto &entry : unique_fields) {
+          if (!entry.is_string() || entry.get<std::string>().empty()) {
+            error = "actor bot installation collection unique_fields must "
+                    "contain non-empty strings";
+            return std::nullopt;
+          }
+          auto field = entry.get<std::string>();
+          const auto declared = std::ranges::find(
+              collection.installation_fields, field,
+              &ActorInputContract::BotInstallationConfigurationConstraint::key);
+          if (declared == collection.installation_fields.end()) {
+            error = "actor bot installation collection unique_fields "
+                    "references an unknown item field";
+            return std::nullopt;
+          }
+          collection.unique_fields.push_back(std::move(field));
+        }
+        if (!std::ranges::is_sorted(collection.unique_fields) ||
+            std::ranges::adjacent_find(collection.unique_fields) !=
+                collection.unique_fields.end()) {
+          error = "actor bot installation collection unique_fields must be "
+                  "sorted and unique";
+          return std::nullopt;
+        }
+      }
+      if (declaration.contains("alternative_group")) {
+        if (!declaration["alternative_group"].is_string()) {
+          error = "actor bot installation collection alternative_group must "
+                  "be a string";
+          return std::nullopt;
+        }
+        collection.alternative_group =
+            declaration["alternative_group"].get<std::string>();
+        if (collection.alternative_group.empty()) {
+          error = "actor bot installation collection alternative_group must "
+                  "not be empty";
+          return std::nullopt;
+        }
+      }
+      contract.bot_installation_collection_configuration.push_back(
+          std::move(collection));
+    }
+  }
+
+  std::unordered_map<std::string, std::size_t> scalar_alternatives;
+  std::unordered_map<std::string, std::size_t> collection_alternatives;
+  for (const auto &constraint : contract.bot_installation_configuration) {
+    if (!constraint.alternative_group.empty()) {
+      ++scalar_alternatives[constraint.alternative_group];
+    }
+  }
+  for (const auto &constraint :
+       contract.bot_installation_collection_configuration) {
+    if (!constraint.alternative_group.empty()) {
+      ++collection_alternatives[constraint.alternative_group];
+    }
+  }
+  for (const auto &[group, count] : scalar_alternatives) {
+    (void)count;
+    if (collection_alternatives[group] != 1) {
+      error = "actor bot installation alternative group '" + group +
+              "' must contain one collection form";
+      return std::nullopt;
+    }
+  }
+  for (const auto &[group, count] : collection_alternatives) {
+    if (count != 1 || !scalar_alternatives.contains(group)) {
+      error = "actor bot installation collection alternative group '" + group +
+              "' must contain one scalar form";
+      return std::nullopt;
+    }
+  }
+
+  if (configuration.contains("collection_identity_references")) {
+    const auto &references = configuration["collection_identity_references"];
+    if (!references.is_array()) {
+      error = "actor configuration contract collection_identity_references "
+              "must be an array";
+      return std::nullopt;
+    }
+    std::unordered_set<std::string> reference_identities;
+    for (const auto &declaration : references) {
+      if (!declaration.is_object()) {
+        error = "actor collection identity references must contain objects";
+        return std::nullopt;
+      }
+      for (const auto &[member, value] : declaration.items()) {
+        (void)value;
+        if (member != "source_key" && member != "root_section" &&
+            member != "source_collections" && member != "target_collection" &&
+            member != "target_identity" && member != "optional" &&
+            member != "required_when_target_multiple") {
+          error = "actor collection identity reference contains an "
+                  "unsupported member '" +
+                  member + "'";
+          return std::nullopt;
+        }
+      }
+      for (const auto required :
+           {"source_key", "target_collection", "target_identity"}) {
+        if (!declaration.contains(required) ||
+            !declaration[required].is_string() ||
+            declaration[required].get<std::string>().empty()) {
+          error = "actor collection identity reference requires non-empty "
+                  "source_key, target_collection, and target_identity";
+          return std::nullopt;
+        }
+      }
+      ActorInputContract::CollectionIdentityReferenceConstraint reference{
+          .source_key = declaration["source_key"].get<std::string>(),
+          .target_collection =
+              declaration["target_collection"].get<std::string>(),
+          .target_identity = declaration["target_identity"].get<std::string>(),
+      };
+      if (declaration.contains("root_section")) {
+        if (!declaration["root_section"].is_string() ||
+            declaration["root_section"].get<std::string>().empty()) {
+          error = "actor collection identity reference root_section must be a "
+                  "non-empty string";
+          return std::nullopt;
+        }
+        reference.root_section = declaration["root_section"].get<std::string>();
+      }
+      if (declaration.contains("source_collections")) {
+        const auto &collections_value = declaration["source_collections"];
+        if (!collections_value.is_array() || collections_value.empty()) {
+          error = "actor collection identity reference source_collections "
+                  "must be a non-empty array";
+          return std::nullopt;
+        }
+        for (const auto &entry : collections_value) {
+          if (!entry.is_string() || entry.get<std::string>().empty()) {
+            error = "actor collection identity reference source_collections "
+                    "must contain non-empty strings";
+            return std::nullopt;
+          }
+          reference.source_collections.push_back(entry.get<std::string>());
+        }
+        if (!std::ranges::is_sorted(reference.source_collections) ||
+            std::ranges::adjacent_find(reference.source_collections) !=
+                reference.source_collections.end()) {
+          error = "actor collection identity reference source_collections "
+                  "must be sorted and unique";
+          return std::nullopt;
+        }
+      }
+      if (reference.root_section.empty() !=
+          reference.source_collections.empty()) {
+        error = "actor collection identity reference root source requires "
+                "both root_section and source_collections";
+        return std::nullopt;
+      }
+      for (const auto boolean : {"optional", "required_when_target_multiple"}) {
+        if (declaration.contains(boolean) &&
+            !declaration[boolean].is_boolean()) {
+          error = "actor collection identity reference boolean members must "
+                  "be booleans";
+          return std::nullopt;
+        }
+      }
+      reference.optional = declaration.value("optional", false);
+      reference.required_when_target_multiple =
+          declaration.value("required_when_target_multiple", false);
+
+      const auto target = std::ranges::find(
+          contract.bot_installation_collection_configuration,
+          reference.target_collection,
+          &ActorInputContract::BotInstallationCollectionConstraint::key);
+      if (target == contract.bot_installation_collection_configuration.end() ||
+          target->identity_key != reference.target_identity) {
+        error = "actor collection identity reference targets an unknown "
+                "collection identity";
+        return std::nullopt;
+      }
+      const auto identity = reference.root_section + "\x1f" +
+                            reference.source_key + "\x1f" +
+                            reference.target_collection;
+      if (!reference_identities.insert(identity).second) {
+        error = "actor configuration contract contains a duplicate collection "
+                "identity reference";
+        return std::nullopt;
+      }
+      contract.collection_identity_reference_configuration.push_back(
+          std::move(reference));
     }
   }
 
@@ -449,10 +759,12 @@ auto parse_actor_contract(const char *document,
 struct ActorManager::DiscoveredActorLibrary {
   using CreateActor = void *(*)();
   using DestroyActor = void (*)(void *);
+  using PrepareActor = ActorPreparationExportResult (*)(void *, ActorContext *);
 
   void *handle = nullptr;
   CreateActor create_actor = nullptr;
   DestroyActor destroy_actor = nullptr;
+  PrepareActor prepare_actor = nullptr;
   std::string name;
   std::string version;
   std::string path;
@@ -468,11 +780,13 @@ struct ActorManager::DiscoveredActorLibrary {
 SafeActorWrapper::SafeActorWrapper(void *actor_ptr,
                                    std::shared_ptr<void> library_lifetime,
                                    DestroyFunc destroy_func,
+                                   PrepareFunc prepare_func,
                                    std::string exported_name,
                                    std::string exported_version,
                                    ActorInputContract contract)
     : actor_ptr_(actor_ptr), library_lifetime_(std::move(library_lifetime)),
-      destroy_func_(destroy_func), exported_name_(std::move(exported_name)),
+      destroy_func_(destroy_func), prepare_func_(prepare_func),
+      exported_name_(std::move(exported_name)),
       exported_version_(std::move(exported_version)),
       contract_(std::move(contract)) {}
 
@@ -481,12 +795,13 @@ SafeActorWrapper::~SafeActorWrapper() { reset(); }
 SafeActorWrapper::SafeActorWrapper(SafeActorWrapper &&other) noexcept
     : actor_ptr_(other.actor_ptr_),
       library_lifetime_(std::move(other.library_lifetime_)),
-      destroy_func_(other.destroy_func_),
+      destroy_func_(other.destroy_func_), prepare_func_(other.prepare_func_),
       exported_name_(std::move(other.exported_name_)),
       exported_version_(std::move(other.exported_version_)),
       contract_(std::move(other.contract_)) {
   other.actor_ptr_ = nullptr;
   other.destroy_func_ = nullptr;
+  other.prepare_func_ = nullptr;
 }
 
 auto SafeActorWrapper::operator=(SafeActorWrapper &&other) noexcept
@@ -496,11 +811,13 @@ auto SafeActorWrapper::operator=(SafeActorWrapper &&other) noexcept
     actor_ptr_ = other.actor_ptr_;
     library_lifetime_ = std::move(other.library_lifetime_);
     destroy_func_ = other.destroy_func_;
+    prepare_func_ = other.prepare_func_;
     exported_name_ = std::move(other.exported_name_);
     exported_version_ = std::move(other.exported_version_);
     contract_ = std::move(other.contract_);
     other.actor_ptr_ = nullptr;
     other.destroy_func_ = nullptr;
+    other.prepare_func_ = nullptr;
   }
   return *this;
 }
@@ -527,6 +844,40 @@ auto SafeActorWrapper::input_contract() const -> const ActorInputContract & {
   return contract_;
 }
 
+auto SafeActorWrapper::prepare_generation(ActorContext &context) const
+    -> ActorPreparationResult {
+  if (prepare_func_ == nullptr) {
+    return ActorPreparationResult::ready();
+  }
+  ActorPreparationExportResult exported;
+  try {
+    exported = prepare_func_(actor_ptr_, &context);
+  } catch (const std::exception &error) {
+    return ActorPreparationResult::failed(error.what());
+  } catch (...) {
+    return ActorPreparationResult::failed(
+        "actor generation preparation crossed the ABI with an unknown "
+        "exception");
+  }
+
+  const auto message = exported.message == nullptr
+                           ? std::string{}
+                           : std::string{exported.message};
+  switch (static_cast<ActorPreparationStatus>(exported.status)) {
+  case ActorPreparationStatus::Ready:
+    return ActorPreparationResult::ready();
+  case ActorPreparationStatus::Failed:
+    return ActorPreparationResult::failed(
+        message.empty() ? "actor preparation failed" : message);
+  case ActorPreparationStatus::RestartRequired:
+    return ActorPreparationResult::restart_required(
+        message.empty() ? "actor preparation requires process restart"
+                        : message);
+  }
+  return ActorPreparationResult::failed(
+      "actor generation preparation returned an invalid ABI status");
+}
+
 auto SafeActorWrapper::library_lifetime() const -> std::shared_ptr<void> {
   return library_lifetime_;
 }
@@ -537,6 +888,7 @@ void SafeActorWrapper::reset() {
   }
   actor_ptr_ = nullptr;
   destroy_func_ = nullptr;
+  prepare_func_ = nullptr;
   library_lifetime_.reset();
 }
 
@@ -655,8 +1007,8 @@ auto ActorManager::activate_actor(const std::string &actor_name) -> bool {
   std::shared_ptr<SafeActorWrapper> wrapper;
   try {
     wrapper = std::make_shared<SafeActorWrapper>(
-        actor_ptr, library_lifetime, library.destroy_actor, library.name,
-        library.version, library.contract);
+        actor_ptr, library_lifetime, library.destroy_actor,
+        library.prepare_actor, library.name, library.version, library.contract);
   } catch (...) {
     library.destroy_actor(actor_ptr);
     last_error_ = "failed to allocate actor lifetime wrapper";
@@ -677,6 +1029,17 @@ auto ActorManager::activate_all_discovered() -> bool {
   const auto names = get_discovered_actor_names();
   return std::ranges::all_of(
       names, [this](const auto &name) { return activate_actor(name); });
+}
+
+auto ActorManager::prepare_actor(const std::string &actor_name,
+                                 ActorContext &context) const
+    -> ActorPreparationResult {
+  const auto loaded = loaded_actors_.find(actor_name);
+  if (loaded == loaded_actors_.end() || !loaded->second.wrapper) {
+    return ActorPreparationResult::failed(
+        "actor is unavailable for generation preparation");
+  }
+  return loaded->second.wrapper->prepare_generation(context);
 }
 
 void ActorManager::unload_actor(const std::string &actor_name) {
@@ -809,6 +1172,7 @@ auto ActorManager::discover_actor_library(const std::string &actor_path)
 
   using create_actor_t = DiscoveredActorLibrary::CreateActor;
   using destroy_actor_t = DiscoveredActorLibrary::DestroyActor;
+  using prepare_actor_t = DiscoveredActorLibrary::PrepareActor;
   using actor_string_t = const char *(*)();
   using actor_abi_t = std::uint32_t (*)();
 
@@ -823,6 +1187,14 @@ auto ActorManager::discover_actor_library(const std::string &actor_path)
     if (const char *error = dlerror()) {
       close_with_error("failed to load " + std::string{symbol} +
                        " symbol: " + error);
+      return nullptr;
+    }
+    return resolved;
+  };
+  auto optional_symbol = [&](const char *symbol) -> void * {
+    dlerror();
+    void *resolved = dlsym(handle, symbol);
+    if (dlerror() != nullptr) {
       return nullptr;
     }
     return resolved;
@@ -856,6 +1228,8 @@ auto ActorManager::discover_actor_library(const std::string &actor_path)
   if (!destroy_actor) {
     return nullptr;
   }
+  auto prepare_actor = reinterpret_cast<prepare_actor_t>(
+      optional_symbol("obcx_prepare_actor_generation_v2"));
   auto get_actor_name = reinterpret_cast<actor_string_t>(
       required_symbol("obcx_get_actor_name_v2"));
   if (!get_actor_name) {
@@ -903,6 +1277,7 @@ auto ActorManager::discover_actor_library(const std::string &actor_path)
   library->handle = handle;
   library->create_actor = create_actor;
   library->destroy_actor = destroy_actor;
+  library->prepare_actor = prepare_actor;
   library->name = std::move(exported_name);
   library->version = std::move(exported_version);
   library->path = actor_path;

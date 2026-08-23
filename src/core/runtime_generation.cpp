@@ -162,30 +162,232 @@ auto validate_actor_configuration(const common::RuntimeConfigSnapshot &snapshot,
   }
 
   const auto bots = snapshot.get_bot_configs();
+  const auto validate_installation =
+      [&](const std::string &path, const std::string &installation,
+          const std::vector<std::string> &expected_types)
+      -> std::optional<std::string> {
+    if (installation.empty()) {
+      return path + " must name an enabled configured bot";
+    }
+    const auto bot =
+        std::ranges::find(bots, installation, &common::BotConfig::name);
+    if (bot == bots.end() || !bot->enabled) {
+      return path + " must name an enabled configured bot";
+    }
+    if (std::ranges::find(expected_types, bot->type) == expected_types.end()) {
+      std::string expected;
+      for (const auto &type : expected_types) {
+        expected += expected.empty() ? type : " or " + type;
+      }
+      return path + " requires bot type " + expected;
+    }
+    return std::nullopt;
+  };
+  const auto configured = [&](const std::string &key) {
+    return section && static_cast<bool>(section->at_path(key));
+  };
+
+  std::unordered_map<std::string, bool> scalar_alternative_selected;
+  std::unordered_map<std::string, bool> collection_alternative_selected;
+  std::unordered_map<std::string, std::string> scalar_alternative_key;
+  std::unordered_map<std::string, std::string> collection_alternative_key;
   for (const auto &constraint : contract.bot_installation_configuration) {
+    if (!constraint.alternative_group.empty()) {
+      scalar_alternative_key.try_emplace(constraint.alternative_group,
+                                         constraint.key);
+      if (configured(constraint.key)) {
+        scalar_alternative_selected[constraint.alternative_group] = true;
+      }
+    }
+  }
+  for (const auto &constraint :
+       contract.bot_installation_collection_configuration) {
+    if (!constraint.alternative_group.empty()) {
+      collection_alternative_key.emplace(constraint.alternative_group,
+                                         constraint.key);
+      if (configured(constraint.key)) {
+        collection_alternative_selected[constraint.alternative_group] = true;
+      }
+    }
+  }
+  std::unordered_set<std::string> alternative_groups;
+  for (const auto &[group, selected] : scalar_alternative_selected) {
+    (void)selected;
+    alternative_groups.insert(group);
+  }
+  for (const auto &constraint : contract.bot_installation_configuration) {
+    if (!constraint.alternative_group.empty()) {
+      alternative_groups.insert(constraint.alternative_group);
+    }
+  }
+  for (const auto &constraint :
+       contract.bot_installation_collection_configuration) {
+    if (!constraint.alternative_group.empty()) {
+      alternative_groups.insert(constraint.alternative_group);
+    }
+  }
+  for (const auto &group : alternative_groups) {
+    const auto scalar = scalar_alternative_selected[group];
+    const auto collection = collection_alternative_selected[group];
+    if (!scalar && !collection) {
+      return actor + "." + scalar_alternative_key[group] + " or " + actor +
+             "." + collection_alternative_key[group] +
+             " must provide one form for " + group;
+    }
+    if (scalar && collection) {
+      return actor + " configuration must provide exactly one form for " +
+             group;
+    }
+  }
+
+  for (const auto &constraint : contract.bot_installation_configuration) {
+    if (!constraint.alternative_group.empty() &&
+        !scalar_alternative_selected[constraint.alternative_group]) {
+      continue;
+    }
     if (!section) {
       return actor + "." + constraint.key +
              " must name an enabled configured bot";
     }
-    const auto configured = section->at_path(constraint.key);
-    const auto installation = configured.value<std::string>();
-    if (!installation || installation->empty()) {
+    const auto node = section->at_path(constraint.key);
+    const auto installation = node.value<std::string>();
+    if (!installation) {
       return actor + "." + constraint.key +
              " must name an enabled configured bot";
     }
-    const auto bot =
-        std::ranges::find(bots, *installation, &common::BotConfig::name);
-    if (bot == bots.end() || !bot->enabled) {
-      return actor + "." + constraint.key +
-             " must name an enabled configured bot";
+    if (auto failure =
+            validate_installation(actor + "." + constraint.key, *installation,
+                                  constraint.expected_types)) {
+      return failure;
     }
-    if (std::ranges::find(constraint.expected_types, bot->type) ==
-        constraint.expected_types.end()) {
-      std::string expected;
-      for (const auto &type : constraint.expected_types) {
-        expected += expected.empty() ? type : " or " + type;
+  }
+
+  for (const auto &constraint :
+       contract.bot_installation_collection_configuration) {
+    if (!constraint.alternative_group.empty() &&
+        !collection_alternative_selected[constraint.alternative_group]) {
+      continue;
+    }
+    if (!section) {
+      return actor + "." + constraint.key + " must be a non-empty array";
+    }
+    const auto node = section->at_path(constraint.key);
+    const auto *items = node.as_array();
+    if (items == nullptr || items->size() < constraint.minimum_items) {
+      return actor + "." + constraint.key + " must contain at least " +
+             std::to_string(constraint.minimum_items) + " item(s)";
+    }
+    std::unordered_set<std::string> identities;
+    std::unordered_map<std::string, std::unordered_set<std::string>>
+        unique_field_values;
+    std::size_t index = 0;
+    for (const auto &item : *items) {
+      const auto *table = item.as_table();
+      const auto item_path =
+          actor + "." + constraint.key + "[" + std::to_string(index) + "]";
+      if (table == nullptr) {
+        return item_path + " must be a table";
       }
-      return actor + "." + constraint.key + " requires bot type " + expected;
+      const auto identity =
+          (*table)[constraint.identity_key].value<std::string>();
+      if (!identity || identity->empty()) {
+        return item_path + "." + constraint.identity_key +
+               " must be a non-empty string";
+      }
+      if (!identities.insert(*identity).second) {
+        return actor + "." + constraint.key + " contains duplicate " +
+               constraint.identity_key;
+      }
+      for (const auto &field : constraint.installation_fields) {
+        const auto installation = (*table)[field.key].value<std::string>();
+        const auto path = item_path + "." + field.key;
+        if (!installation) {
+          return path + " must name an enabled configured bot";
+        }
+        if (auto failure = validate_installation(path, *installation,
+                                                 field.expected_types)) {
+          return failure;
+        }
+        if (std::ranges::find(constraint.unique_fields, field.key) !=
+                constraint.unique_fields.end() &&
+            !unique_field_values[field.key].insert(*installation).second) {
+          return actor + "." + constraint.key + " contains duplicate " +
+                 field.key;
+        }
+      }
+      ++index;
+    }
+  }
+
+  for (const auto &reference :
+       contract.collection_identity_reference_configuration) {
+    if (!section) {
+      continue;
+    }
+    const auto target_node = section->at_path(reference.target_collection);
+    const auto *target_items = target_node.as_array();
+    if (target_items == nullptr) {
+      // The collection belongs to an unselected alternative form.
+      continue;
+    }
+    std::unordered_set<std::string> target_identities;
+    for (const auto &item : *target_items) {
+      const auto *table = item.as_table();
+      if (table == nullptr) {
+        continue;
+      }
+      if (const auto identity =
+              (*table)[reference.target_identity].value<std::string>()) {
+        target_identities.insert(*identity);
+      }
+    }
+    const auto validate_reference =
+        [&](const toml::table &source,
+            const std::string &path) -> std::optional<std::string> {
+      const auto value = source[reference.source_key].value<std::string>();
+      if (!value || value->empty()) {
+        if (reference.optional && !(reference.required_when_target_multiple &&
+                                    target_identities.size() > 1)) {
+          return std::nullopt;
+        }
+        return path + "." + reference.source_key +
+               " must reference a configured " + reference.target_collection;
+      }
+      if (!target_identities.contains(*value)) {
+        return path + "." + reference.source_key + " references an unknown " +
+               reference.target_collection;
+      }
+      return std::nullopt;
+    };
+
+    if (reference.root_section.empty()) {
+      if (auto failure = validate_reference(*section, actor)) {
+        return failure;
+      }
+      continue;
+    }
+    const auto root = snapshot.get_section(reference.root_section);
+    if (!root) {
+      continue;
+    }
+    for (const auto &collection : reference.source_collections) {
+      const auto *items = (*root)[collection].as_array();
+      if (items == nullptr) {
+        continue;
+      }
+      std::size_t index = 0;
+      for (const auto &item : *items) {
+        const auto *table = item.as_table();
+        const auto path = reference.root_section + "." + collection + "[" +
+                          std::to_string(index) + "]";
+        if (table == nullptr) {
+          return path + " must be a table";
+        }
+        if (auto failure = validate_reference(*table, path)) {
+          return failure;
+        }
+        ++index;
+      }
     }
   }
 
@@ -780,6 +982,22 @@ auto RuntimeGenerationBuilder::build(RuntimeGenerationBuildRequest request)
     }
   }
 
+  const auto actor_generation_purpose = [&] {
+    switch (request.purpose) {
+    case RuntimeGenerationBuildPurpose::Startup:
+      return ActorGenerationPurpose::Startup;
+    case RuntimeGenerationBuildPurpose::ValidationOnly:
+      return ActorGenerationPurpose::ValidationOnly;
+    case RuntimeGenerationBuildPurpose::ReloadCandidate:
+      return ActorGenerationPurpose::ReloadCandidate;
+    }
+    return ActorGenerationPurpose::Startup;
+  }();
+  generation->orchestrator_->register_service<ActorGenerationInfo>(
+      std::make_shared<ActorGenerationInfo>(ActorGenerationInfo{
+          .purpose = actor_generation_purpose,
+          .generation_id = request.generation_id,
+      }));
   generation->orchestrator_->register_service<DbManager>(
       generation->db_manager_);
   generation->orchestrator_->register_service<BotRegistry>(
@@ -800,6 +1018,19 @@ auto RuntimeGenerationBuilder::build(RuntimeGenerationBuildRequest request)
     if (!generation->actor_manager_->activate_actor(actor.name)) {
       return failed("reload_activation_failed",
                     "actor construction failed for " + actor.name);
+    }
+    ActorContext preparation_context(actor.name, generation->services_,
+                                     actor.db, actor.db_namespace);
+    const auto preparation = generation->actor_manager_->prepare_actor(
+        actor.name, preparation_context);
+    if (!preparation.ok()) {
+      const auto code =
+          preparation.status == ActorPreparationStatus::RestartRequired
+              ? "reload_restart_required"
+              : "reload_actor_initialization_failed";
+      return failed(
+          code, "actor " + actor.name +
+                    " generation preparation failed: " + preparation.message);
     }
     auto instance = generation->actor_manager_->get_actor_shared(actor.name);
     if (!instance) {

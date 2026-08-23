@@ -16,6 +16,13 @@ add_library(obcx_test_actor_v2 SHARED fixtures/test_actor_v2.cpp)
 target_link_libraries(obcx_test_actor_v2 PRIVATE obcx_core)
 set_target_properties(obcx_test_actor_v2 PROPERTIES OUTPUT_NAME test_actor_v2)
 
+# Compatibility fixture intentionally predates the additive optional
+# obcx_prepare_actor_generation_v2 export.
+add_library(obcx_legacy_v2_actor SHARED fixtures/legacy_v2_actor.cpp)
+target_link_libraries(obcx_legacy_v2_actor PRIVATE obcx_core)
+set_target_properties(obcx_legacy_v2_actor PROPERTIES OUTPUT_NAME
+                                                      legacy_v2_actor)
+
 add_library(obcx_reload_lifecycle_actor SHARED
             fixtures/reload_lifecycle_actor.cpp)
 target_link_libraries(obcx_reload_lifecycle_actor PRIVATE obcx_core)
@@ -97,3 +104,9 @@ obcx_add_contract_fixture(command_invalid_pattern 14)
 obcx_add_contract_fixture(command_matcher_callable 15)
 obcx_add_contract_fixture(command_matcher_kind 16)
 obcx_add_contract_fixture(command_pattern_too_large 17)
+obcx_add_contract_fixture(collection_callable 18)
+obcx_add_contract_fixture(collection_duplicate_field 19)
+obcx_add_contract_fixture(collection_duplicate_type 20)
+obcx_add_contract_fixture(collection_invalid_alternative 21)
+obcx_add_contract_fixture(collection_unknown_unique_field 22)
+obcx_add_contract_fixture(collection_unknown_reference 23)

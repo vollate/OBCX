@@ -45,6 +45,24 @@ The executor exposes these counters through `BlockingExecutor::metrics()`.
 Startup and shutdown logs publish the same payload-free fields so operators can
 distinguish saturation, callable failures, and shutdown rejection.
 
+## Generation preparation
+
+A reflected actor may implement synchronous
+`prepare_generation(ActorContext&) -> ActorPreparationResult`. The V2 export
+helper exposes this through an additive optional ABI symbol. The runtime calls
+it after validated configuration and generation services are available and
+before scheduler/orchestrator registration, so actor-owned schema preparation
+can finish before any message, notice, command, retry worker, or media buffer
+uses that state. `Ready` continues construction, `Failed` rejects the
+generation, and `RestartRequired` produces `reload_restart_required` without
+publishing the candidate.
+
+Actors built before this additive symbol and reflected actors without the hook
+remain `Ready`; their construction and dispatch behavior is unchanged. A hook
+must inspect `ActorGenerationInfo::purpose`: validation-only preparation may
+validate actor-specific configuration but must not mutate state, while a reload
+candidate must return restart-required before any startup-only migration.
+
 ## Reload operation
 
 Enter `reload` in either the TUI command box or the `--no-tui` standard-input
@@ -81,10 +99,10 @@ configuration values.
 
 The transaction has one observable order: `prepare -> gate -> drain ->
 publish -> reopen -> retire`. Parse, staging, contract checks, actor
-construction, and activation all occur during `prepare`, before ingress is
-closed. Publication is a single pointer exchange after the old generation has
-drained; no fallible actor work occurs between publication and reopening the
-gate.
+construction, typed actor generation preparation, and activation all occur
+during `prepare`, before ingress is closed. Publication is a single pointer
+exchange after the old generation has drained; no fallible actor work occurs
+between publication and reopening the gate.
 
 Common operator-facing failure codes are:
 
@@ -95,8 +113,9 @@ Common operator-facing failure codes are:
 | `reload_actor_unavailable` / `reload_contract_invalid` | An actor artifact or ABI 2 contract is invalid; restore a matching artifact set. |
 | `reload_dependency_identity_conflict` | A private shared-library closure could not be isolated; rebuild/package the complete actor closure. |
 | `reload_activation_failed` | Candidate actor construction or scheduler registration failed; inspect candidate logs. |
+| `reload_actor_initialization_failed` | An actor's pre-ingress generation preparation failed; correct its actor-specific configuration/state before retrying. |
 | `reload_bot_unavailable` | A configured identity is absent from the live process-owned registry; restore the startup identity or restart. |
-| `reload_restart_required` | A bot definition, database instance, or resolved thread budget changed; restart the process. |
+| `reload_restart_required` | A process-owned setting changed or an actor reported that startup-only state preparation is required; restart the process. |
 | `reload_drain_timeout` | Old work missed the deadline; ingress has reopened on the old generation. Diagnose the actor before retrying. |
 | `reload_shutdown` | Process shutdown won the race; do not retry in that process. |
 

@@ -58,6 +58,18 @@ extern "C" auto obcx_get_actor_contract() -> const char * {
            std::string(4097, 'a') + R"(","mode":"full"}}]})";
   }();
   return contract.c_str();
+#elif OBCX_CONTRACT_CASE == 18
+  return R"({"schema_version":1,"actor":"contract_fixture","accepted_inputs":["test::Message"],"configuration":{"bot_installation_collections":{"pairs":{"minimum_items":1,"identity":"id","bot_installations":{"target":"qq"},"validator":"run"}}}})";
+#elif OBCX_CONTRACT_CASE == 19
+  return R"({"schema_version":1,"actor":"contract_fixture","accepted_inputs":["test::Message"],"configuration":{"bot_installation_collections":{"pairs":{"minimum_items":1,"identity":"target","bot_installations":{"target":"qq"}}}}})";
+#elif OBCX_CONTRACT_CASE == 20
+  return R"({"schema_version":1,"actor":"contract_fixture","accepted_inputs":["test::Message"],"configuration":{"bot_installation_collections":{"pairs":{"minimum_items":1,"identity":"id","bot_installations":{"target":["qq","qq"]}}}}})";
+#elif OBCX_CONTRACT_CASE == 21
+  return R"({"schema_version":1,"actor":"contract_fixture","accepted_inputs":["test::Message"],"configuration":{"bot_installation_collections":{"pairs":{"minimum_items":1,"identity":"id","bot_installations":{"target":"qq"},"alternative_group":"pair_form"}}}})";
+#elif OBCX_CONTRACT_CASE == 22
+  return R"({"schema_version":1,"actor":"contract_fixture","accepted_inputs":["test::Message"],"configuration":{"bot_installation_collections":{"pairs":{"minimum_items":1,"identity":"id","bot_installations":{"target":"qq"},"unique_fields":["missing"]}}}})";
+#elif OBCX_CONTRACT_CASE == 23
+  return R"({"schema_version":1,"actor":"contract_fixture","accepted_inputs":["test::Message"],"configuration":{"bot_installation_collections":{"pairs":{"minimum_items":1,"identity":"id","bot_installations":{"target":"qq"}}},"collection_identity_references":[{"source_key":"pair","target_collection":"missing","target_identity":"id"}]}})";
 #else
   return R"({"schema_version":1,"actor":"contract_fixture","accepted_inputs":["test::Message"]})";
 #endif

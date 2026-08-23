@@ -82,6 +82,7 @@ add_dependencies(
   obcx_multiple_inheritance_actor
   obcx_invalid_actor
   obcx_test_actor_v2
+  obcx_legacy_v2_actor
   obcx_missing_v2_factory_actor
   obcx_unsupported_actor
   obcx_contract_missing
@@ -101,7 +102,13 @@ add_dependencies(
   obcx_contract_command_invalid_pattern
   obcx_contract_command_matcher_callable
   obcx_contract_command_matcher_kind
-  obcx_contract_command_pattern_too_large)
+  obcx_contract_command_pattern_too_large
+  obcx_contract_collection_callable
+  obcx_contract_collection_duplicate_field
+  obcx_contract_collection_duplicate_type
+  obcx_contract_collection_invalid_alternative
+  obcx_contract_collection_unknown_unique_field
+  obcx_contract_collection_unknown_reference)
 target_compile_definitions(
   actor_manager_test
   PRIVATE
@@ -109,6 +116,7 @@ target_compile_definitions(
     OBCX_TEST_MULTIPLE_INHERITANCE_ACTOR_LIBRARY="$<TARGET_FILE:obcx_multiple_inheritance_actor>"
     OBCX_TEST_INVALID_ACTOR_LIBRARY="$<TARGET_FILE:obcx_invalid_actor>"
     OBCX_TEST_ACTOR_V2_LIBRARY="$<TARGET_FILE:obcx_test_actor_v2>"
+    OBCX_TEST_LEGACY_V2_ACTOR_LIBRARY="$<TARGET_FILE:obcx_legacy_v2_actor>"
     OBCX_TEST_MISSING_V2_FACTORY_LIBRARY="$<TARGET_FILE:obcx_missing_v2_factory_actor>"
     OBCX_TEST_UNSUPPORTED_ACTOR_LIBRARY="$<TARGET_FILE:obcx_unsupported_actor>"
     OBCX_TEST_CONTRACT_MISSING_LIBRARY="$<TARGET_FILE:obcx_contract_missing>"
@@ -129,4 +137,10 @@ target_compile_definitions(
     OBCX_TEST_CONTRACT_COMMAND_MATCHER_CALLABLE_LIBRARY="$<TARGET_FILE:obcx_contract_command_matcher_callable>"
     OBCX_TEST_CONTRACT_COMMAND_MATCHER_KIND_LIBRARY="$<TARGET_FILE:obcx_contract_command_matcher_kind>"
     OBCX_TEST_CONTRACT_COMMAND_PATTERN_TOO_LARGE_LIBRARY="$<TARGET_FILE:obcx_contract_command_pattern_too_large>"
+    OBCX_TEST_CONTRACT_COLLECTION_CALLABLE_LIBRARY="$<TARGET_FILE:obcx_contract_collection_callable>"
+    OBCX_TEST_CONTRACT_COLLECTION_DUPLICATE_FIELD_LIBRARY="$<TARGET_FILE:obcx_contract_collection_duplicate_field>"
+    OBCX_TEST_CONTRACT_COLLECTION_DUPLICATE_TYPE_LIBRARY="$<TARGET_FILE:obcx_contract_collection_duplicate_type>"
+    OBCX_TEST_CONTRACT_COLLECTION_INVALID_ALTERNATIVE_LIBRARY="$<TARGET_FILE:obcx_contract_collection_invalid_alternative>"
+    OBCX_TEST_CONTRACT_COLLECTION_UNKNOWN_UNIQUE_FIELD_LIBRARY="$<TARGET_FILE:obcx_contract_collection_unknown_unique_field>"
+    OBCX_TEST_CONTRACT_COLLECTION_UNKNOWN_REFERENCE_LIBRARY="$<TARGET_FILE:obcx_contract_collection_unknown_reference>"
 )

@@ -62,12 +62,60 @@ TEST(ActorManagerTest, DiscoversContractWithoutConstructingActor) {
             "target_installation");
   EXPECT_EQ(contract->bot_installation_configuration.front().expected_types,
             (std::vector<std::string>{"qq", "telegram"}));
+  EXPECT_EQ(contract->bot_installation_configuration.front().alternative_group,
+            "target_form");
+  ASSERT_EQ(contract->bot_installation_collection_configuration.size(), 1U);
+  const auto &collection =
+      contract->bot_installation_collection_configuration.front();
+  EXPECT_EQ(collection.key, "target_installations");
+  EXPECT_EQ(collection.minimum_items, 1U);
+  EXPECT_EQ(collection.identity_key, "id");
+  EXPECT_EQ(collection.alternative_group, "target_form");
+  EXPECT_EQ(collection.unique_fields,
+            (std::vector<std::string>{"target_installation"}));
+  ASSERT_EQ(collection.installation_fields.size(), 1U);
+  EXPECT_EQ(collection.installation_fields.front().key, "target_installation");
+  EXPECT_EQ(collection.installation_fields.front().expected_types,
+            (std::vector<std::string>{"qq", "telegram"}));
+  ASSERT_EQ(contract->collection_identity_reference_configuration.size(), 1U);
+  const auto &reference =
+      contract->collection_identity_reference_configuration.front();
+  EXPECT_EQ(reference.source_key, "selected_target");
+  EXPECT_EQ(reference.target_collection, "target_installations");
+  EXPECT_EQ(reference.target_identity, "id");
+  EXPECT_TRUE(reference.optional);
   ASSERT_EQ(contract->less_equal_configuration.size(), 1);
   EXPECT_EQ(contract->less_equal_configuration.front().lesser, "retry_base");
   EXPECT_EQ(contract->less_equal_configuration.front().greater, "retry_max");
 
   ASSERT_TRUE(manager.activate_actor("test_actor_v2"));
   EXPECT_TRUE(manager.is_actor_loaded("test_actor_v2"));
+}
+
+TEST(ActorManagerTest, RunsOptionalGenerationPreparationWithTypedStatus) {
+  ActorManager manager;
+  ASSERT_TRUE(manager.load_actor_from_path(OBCX_TEST_ACTOR_V2_LIBRARY));
+
+  ActorContext ready_context("test_actor_v2");
+  EXPECT_TRUE(manager.prepare_actor("test_actor_v2", ready_context).ok());
+
+  ActorContext failed_context("prepare-failed");
+  const auto failed = manager.prepare_actor("test_actor_v2", failed_context);
+  EXPECT_EQ(failed.status, ActorPreparationStatus::Failed);
+  EXPECT_EQ(failed.message, "fixture preparation failed");
+
+  ActorContext restart_context("prepare-restart");
+  const auto restart = manager.prepare_actor("test_actor_v2", restart_context);
+  EXPECT_EQ(restart.status, ActorPreparationStatus::RestartRequired);
+  EXPECT_EQ(restart.message, "fixture preparation requires restart");
+}
+
+TEST(ActorManagerTest, LegacyV2ActorWithoutPreparationExportRemainsReady) {
+  ActorManager manager;
+  ASSERT_TRUE(manager.load_actor_from_path(OBCX_TEST_LEGACY_V2_ACTOR_LIBRARY));
+  ActorContext context("legacy_v2_actor");
+  const auto preparation = manager.prepare_actor("legacy_v2_actor", context);
+  EXPECT_TRUE(preparation.ok());
 }
 
 TEST(ActorManagerTest, FindsActorByNameInActorDirectory) {
@@ -151,6 +199,16 @@ TEST(ActorManagerTest, RejectsMissingAndMalformedActorContracts) {
        "matcher kind is unsupported"},
       {OBCX_TEST_CONTRACT_COMMAND_PATTERN_TOO_LARGE_LIBRARY,
        "RE2 command pattern exceeds the fixed byte limit"},
+      {OBCX_TEST_CONTRACT_COLLECTION_CALLABLE_LIBRARY, "unsupported member"},
+      {OBCX_TEST_CONTRACT_COLLECTION_DUPLICATE_FIELD_LIBRARY,
+       "invalid or duplicate item field"},
+      {OBCX_TEST_CONTRACT_COLLECTION_DUPLICATE_TYPE_LIBRARY, "duplicate types"},
+      {OBCX_TEST_CONTRACT_COLLECTION_INVALID_ALTERNATIVE_LIBRARY,
+       "must contain one scalar form"},
+      {OBCX_TEST_CONTRACT_COLLECTION_UNKNOWN_UNIQUE_FIELD_LIBRARY,
+       "unknown item field"},
+      {OBCX_TEST_CONTRACT_COLLECTION_UNKNOWN_REFERENCE_LIBRARY,
+       "unknown collection identity"},
   };
 
   ActorManager manager;

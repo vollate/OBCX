@@ -270,6 +270,18 @@ TEST_F(RuntimeGenerationTest,
     EXPECT_EQ(result.generation->db_manager(), database);
     EXPECT_EQ(result.generation->bot_registry(), registry);
     EXPECT_EQ(result.generation->bot_operation_client(), operation_client);
+    const auto generation_info =
+        result.generation->services()
+            ->get_service<obcx::core::ActorGenerationInfo>();
+    ASSERT_NE(generation_info, nullptr);
+    EXPECT_EQ(generation_info->generation_id, id - 1);
+    const auto expected_purpose =
+        purpose == obcx::core::RuntimeGenerationBuildPurpose::Startup
+            ? obcx::core::ActorGenerationPurpose::Startup
+        : purpose == obcx::core::RuntimeGenerationBuildPurpose::ValidationOnly
+            ? obcx::core::ActorGenerationPurpose::ValidationOnly
+            : obcx::core::ActorGenerationPurpose::ReloadCandidate;
+    EXPECT_EQ(generation_info->purpose, expected_purpose);
     EXPECT_EQ(
         result.generation->services()->get_service<obcx::core::BotRegistry>(),
         registry);
@@ -300,6 +312,38 @@ TEST_F(RuntimeGenerationTest,
     EXPECT_TRUE(
         result.generation->actor_manager()->is_actor_loaded("test_actor_v2"));
     generations.push_back(std::move(result.generation));
+  }
+}
+
+TEST_F(RuntimeGenerationTest, GenerationPreparationFailureIsTyped) {
+  struct Case {
+    std::string status;
+    std::string expected_code;
+    std::string expected_message;
+  };
+  for (const auto &test :
+       std::vector<Case>{{"failed", "reload_actor_initialization_failed",
+                          "fixture preparation failed"},
+                         {"restart", "reload_restart_required",
+                          "fixture preparation requires restart"}}) {
+    const auto config =
+        snapshot("preparation-" + test.status + ".toml",
+                 valid_config(OBCX_TEST_ACTOR_V2_LIBRARY, "stable-token",
+                              "label = \"a\"\npreparation_status = \"" +
+                                  test.status + "\""));
+    auto [database, registry] = services_for(config);
+    auto build_request =
+        request(obcx::core::RuntimeGenerationBuildPurpose::Startup, 1, config,
+                database, registry);
+
+    obcx::core::RuntimeGenerationBuilder builder;
+    const auto result = builder.build(std::move(build_request));
+
+    ASSERT_FALSE(result.ready());
+    ASSERT_TRUE(result.failure.has_value());
+    EXPECT_EQ(result.failure->code, test.expected_code);
+    EXPECT_NE(result.failure->message.find(test.expected_message),
+              std::string::npos);
   }
 }
 
@@ -708,6 +752,105 @@ TEST_F(RuntimeGenerationTest,
                         "type = \"discord\"");
   expect_invalid("wrong-installation-type.toml", std::move(wrong_surface),
                  "target_installation");
+}
+
+TEST_F(RuntimeGenerationTest,
+       BotInstallationCollectionsValidateBeforeActivationForEveryPurpose) {
+  const auto collection_document = [&](std::string installation = "primary",
+                                       std::string identity = "route-a",
+                                       bool keep_scalar = false) {
+    auto document = valid_config(OBCX_TEST_ACTOR_V2_LIBRARY);
+    if (!keep_scalar) {
+      const auto scalar = document.find("target_installation = \"primary\"\n");
+      EXPECT_NE(scalar, std::string::npos);
+      if (scalar != std::string::npos) {
+        document.erase(
+            scalar, std::string{"target_installation = \"primary\"\n"}.size());
+      }
+    }
+    document += "\n[[actors.test_actor_v2.config.target_installations]]\n"
+                "id = \"" +
+                identity + "\"\ntarget_installation = \"" + installation +
+                "\"\n";
+    return document;
+  };
+
+  obcx::core::RuntimeGenerationBuilder builder;
+  auto process_blocking_executor =
+      std::make_shared<obcx::core::BlockingExecutor>(1);
+  std::uint64_t generation_id = 100;
+  const auto valid =
+      snapshot("valid-installation-collection.toml", collection_document());
+  auto [database, registry] = services_for(valid);
+  for (const auto purpose :
+       {obcx::core::RuntimeGenerationBuildPurpose::Startup,
+        obcx::core::RuntimeGenerationBuildPurpose::ValidationOnly,
+        obcx::core::RuntimeGenerationBuildPurpose::ReloadCandidate}) {
+    auto build_request =
+        request(purpose, generation_id++, valid, database, registry);
+    if (purpose == obcx::core::RuntimeGenerationBuildPurpose::ReloadCandidate) {
+      build_request.blocking_executor = process_blocking_executor;
+    }
+    auto result = builder.build(std::move(build_request));
+    ASSERT_TRUE(result.ready())
+        << (result.failure ? result.failure->message : "missing failure");
+  }
+
+  const auto expect_invalid = [&](std::string name, std::string document,
+                                  std::string_view expected) {
+    const auto config = snapshot(std::move(name), document);
+    auto [invalid_database, invalid_registry] = services_for(config);
+    auto result = builder.build(
+        request(obcx::core::RuntimeGenerationBuildPurpose::ValidationOnly,
+                generation_id++, config, std::move(invalid_database),
+                std::move(invalid_registry)));
+    ASSERT_TRUE(result.failure.has_value());
+    EXPECT_EQ(result.failure->code, "reload_actor_config_invalid");
+    EXPECT_NE(result.failure->message.find(expected), std::string::npos)
+        << result.failure->message;
+  };
+
+  expect_invalid("missing-collection-installation.toml",
+                 collection_document("missing"), "target_installation");
+
+  auto disabled = collection_document("secondary");
+  disabled += "\n[bots.secondary]\ntype = \"qq\"\nenabled = false\n";
+  expect_invalid("disabled-collection-installation.toml", std::move(disabled),
+                 "target_installation");
+
+  auto wrong_type = collection_document();
+  const auto type = wrong_type.find("type = \"qq\"");
+  ASSERT_NE(type, std::string::npos);
+  wrong_type.replace(type, std::string{"type = \"qq\""}.size(),
+                     "type = \"discord\"");
+  expect_invalid("wrong-collection-installation-type.toml",
+                 std::move(wrong_type), "target_installation");
+
+  auto duplicate = collection_document();
+  duplicate += "\n[[actors.test_actor_v2.config.target_installations]]\n"
+               "id = \"route-a\"\ntarget_installation = \"primary\"\n";
+  expect_invalid("duplicate-collection-identity.toml", std::move(duplicate),
+                 "duplicate id");
+
+  auto duplicate_installation = collection_document();
+  duplicate_installation +=
+      "\n[[actors.test_actor_v2.config.target_installations]]\n"
+      "id = \"route-b\"\ntarget_installation = \"primary\"\n";
+  expect_invalid("duplicate-collection-installation.toml",
+                 std::move(duplicate_installation),
+                 "duplicate target_installation");
+
+  expect_invalid("mixed-installation-forms.toml",
+                 collection_document("primary", "route-a", true),
+                 "exactly one form");
+
+  auto unknown_reference = collection_document();
+  const auto label = unknown_reference.find("label = \"a\"\n");
+  ASSERT_NE(label, std::string::npos);
+  unknown_reference.insert(label + std::string{"label = \"a\"\n"}.size(),
+                           "selected_target = \"missing\"\n");
+  expect_invalid("unknown-collection-reference.toml",
+                 std::move(unknown_reference), "unknown target_installations");
 }
 
 TEST_F(RuntimeGenerationTest,
