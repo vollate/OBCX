@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_INTERFACES_TELEGRAM_BOT_HPP_
+#define OBCX_INCLUDE_INTERFACES_TELEGRAM_BOT_HPP_
 
 #include "common/message_type.hpp"
 
@@ -171,3 +172,5 @@ public:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_INTERFACES_TELEGRAM_BOT_HPP_

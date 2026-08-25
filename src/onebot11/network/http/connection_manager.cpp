@@ -20,7 +20,13 @@ HttpConnectionManager::~HttpConnectionManager() {
   // Release our own resources (poll_timer_, http_client_) while the
   // referenced io_context is still alive. IBot::~IBot guarantees this
   // destruction order.
-  disconnect();
+  try {
+    shutdown();
+  } catch (const std::exception &error) {
+    OBCX_ERROR("Failed to shut down HTTP connection manager: {}", error.what());
+  } catch (...) {
+    OBCX_ERROR("Failed to shut down HTTP connection manager");
+  }
 }
 
 void HttpConnectionManager::connect(const common::ConnectionConfig &config) {
@@ -34,7 +40,9 @@ void HttpConnectionManager::connect(const common::ConnectionConfig &config) {
   OBCX_INFO("HTTP connection established to {}:{}", config_.host, config_.port);
 }
 
-void HttpConnectionManager::disconnect() {
+void HttpConnectionManager::disconnect() { shutdown(); }
+
+void HttpConnectionManager::shutdown() {
   stop_polling();
   is_connected_ = false;
 

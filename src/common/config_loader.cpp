@@ -208,9 +208,10 @@ auto ConfigLoader::build_snapshot(const std::string &config_path)
     -> RuntimeConfigBuildResult {
   try {
     auto parsed = toml::parse_file(config_path);
+    auto snapshot = std::unique_ptr<const RuntimeConfigSnapshot>(
+        new RuntimeConfigSnapshot(config_path, std::move(parsed)));
     return RuntimeConfigBuildResult{
-        .snapshot = std::shared_ptr<const RuntimeConfigSnapshot>(
-            new RuntimeConfigSnapshot(config_path, std::move(parsed))),
+        .snapshot = std::move(snapshot),
     };
   } catch (const toml::parse_error &e) {
     return RuntimeConfigBuildResult{
@@ -245,8 +246,8 @@ auto ConfigLoader::current_snapshot() const noexcept
 
 auto ConfigLoader::load_config(const std::string &config_path) -> bool {
   auto candidate = build_snapshot(config_path);
-  if (!candidate) {
-    const auto &diagnostic = *candidate.diagnostic;
+  if (candidate.diagnostic) {
+    const auto &diagnostic = candidate.diagnostic.value();
     OBCX_ERROR("Config load failed [{}] path={} line={} column={}",
                diagnostic.code, diagnostic.path, diagnostic.line,
                diagnostic.column);

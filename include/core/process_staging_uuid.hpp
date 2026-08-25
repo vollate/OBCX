@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_PROCESS_STAGING_UUID_HPP_
+#define OBCX_INCLUDE_CORE_PROCESS_STAGING_UUID_HPP_
 
 #include <string_view>
 
@@ -9,3 +10,5 @@ namespace obcx::core::detail {
 [[nodiscard]] auto process_staging_uuid() noexcept -> std::string_view;
 
 } // namespace obcx::core::detail
+
+#endif // OBCX_INCLUDE_CORE_PROCESS_STAGING_UUID_HPP_

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_ACTOR_TASK_HPP_
+#define OBCX_INCLUDE_CORE_ACTOR_TASK_HPP_
 
 #include <atomic>
 #include <concepts>
@@ -503,3 +504,5 @@ inline auto ActorTaskPromise<void>::get_return_object() noexcept
 }
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_ACTOR_TASK_HPP_

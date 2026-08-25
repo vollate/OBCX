@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_ACTOR_WORK_STEALING_EXECUTOR_HPP_
+#define OBCX_INCLUDE_CORE_ACTOR_WORK_STEALING_EXECUTOR_HPP_
 
 #include "core/actor_task.hpp"
 
@@ -229,3 +230,5 @@ private:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_ACTOR_WORK_STEALING_EXECUTOR_HPP_

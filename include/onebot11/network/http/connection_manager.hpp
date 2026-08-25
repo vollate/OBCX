@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_ONEBOT11_NETWORK_HTTP_CONNECTION_MANAGER_HPP_
+#define OBCX_INCLUDE_ONEBOT11_NETWORK_HTTP_CONNECTION_MANAGER_HPP_
 
 #include "common/message_type.hpp"
 #include "interfaces/connection_manager.hpp"
@@ -10,10 +11,6 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <memory>
-
-namespace obcx::adapter {
-class ProtocolAdapter;
-}
 
 namespace obcx::network {
 
@@ -65,6 +62,7 @@ private:
    * @param events_json 事件JSON数组
    */
   void process_events(std::string_view events_json);
+  void shutdown();
 
   asio::io_context &ioc_;
   adapter::onebot11::ProtocolAdapter &adapter_;
@@ -83,3 +81,5 @@ private:
 };
 
 } // namespace obcx::network
+
+#endif // OBCX_INCLUDE_ONEBOT11_NETWORK_HTTP_CONNECTION_MANAGER_HPP_

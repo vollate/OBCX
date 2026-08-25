@@ -382,7 +382,9 @@ auto ProxyHttpClient::send_http_request(
       boost::system::error_code ec;
       int max_retries = 3;
       for (int retry = 0; retry < max_retries; ++retry) {
-        auto _ = ssl_stream.handshake(ssl::stream_base::client, ec);
+        static_cast<void>(
+            ssl_stream.handshake( // NOLINT(bugprone-unused-return-value)
+                ssl::stream_base::client, ec));
         if (!ec) {
           OBCX_TRACE("SSL handshake success (retry {})", retry);
           break;

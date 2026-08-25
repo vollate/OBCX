@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_ONEBOT11_NETWORK_WEBSOCKET_CONNECTION_MANAGER_HPP_
+#define OBCX_INCLUDE_ONEBOT11_NETWORK_WEBSOCKET_CONNECTION_MANAGER_HPP_
 
 #include "common/message_type.hpp"
 #include "interfaces/connection_manager.hpp"
@@ -10,10 +11,6 @@
 #include <functional>
 #include <memory>
 #include <string>
-
-namespace obcx::adapter {
-class ProtocolAdapter;
-}
 
 namespace obcx::network {
 
@@ -39,11 +36,11 @@ public:
 
   void connect(const common::ConnectionConfig &config) override;
   void disconnect() override;
-  auto is_connected() const -> bool override;
+  [[nodiscard]] auto is_connected() const -> bool override;
   auto send_action_and_wait_async(std::string action_payload, uint64_t echo_id)
       -> asio::awaitable<std::string> override;
   void set_event_callback(EventCallback callback) override;
-  auto get_connection_type() const -> std::string override;
+  [[nodiscard]] auto get_connection_type() const -> std::string override;
 
   /**
    * @brief 通过 WebSocket 启动连接过程。(兼容方法)
@@ -76,6 +73,7 @@ private:
    * @brief 安排一次重连。
    */
   void schedule_reconnect();
+  void shutdown();
 
   asio::io_context &ioc_;
   adapter::onebot11::ProtocolAdapter &adapter_;
@@ -100,3 +98,5 @@ private:
 };
 
 } // namespace obcx::network
+
+#endif // OBCX_INCLUDE_ONEBOT11_NETWORK_WEBSOCKET_CONNECTION_MANAGER_HPP_

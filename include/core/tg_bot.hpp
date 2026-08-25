@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_TG_BOT_HPP_
+#define OBCX_INCLUDE_CORE_TG_BOT_HPP_
 
 #include "interfaces/bot.hpp"
 #include "interfaces/telegram_bot.hpp"
@@ -503,3 +504,5 @@ private:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_TG_BOT_HPP_

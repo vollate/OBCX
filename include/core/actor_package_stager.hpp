@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_ACTOR_PACKAGE_STAGER_HPP_
+#define OBCX_INCLUDE_CORE_ACTOR_PACKAGE_STAGER_HPP_
 
 #include <cstdint>
 #include <filesystem>
@@ -81,3 +82,5 @@ public:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_ACTOR_PACKAGE_STAGER_HPP_

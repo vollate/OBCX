@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_EVENT_DISPATCHER_HPP_
+#define OBCX_INCLUDE_CORE_EVENT_DISPATCHER_HPP_
 
 #include "common/logger.hpp"
 #include "common/message_type.hpp"
@@ -108,3 +109,5 @@ private:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_EVENT_DISPATCHER_HPP_

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_BOT_OPERATION_CLIENT_HPP_
+#define OBCX_INCLUDE_CORE_BOT_OPERATION_CLIENT_HPP_
 
 #include "core/bot_operation_contract.hpp"
 
@@ -173,3 +174,5 @@ protected:
 };
 
 } // namespace obcx::bot
+
+#endif // OBCX_INCLUDE_CORE_BOT_OPERATION_CLIENT_HPP_

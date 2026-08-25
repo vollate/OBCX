@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_ONEBOT11_BOT_OPERATIONS_HPP_
+#define OBCX_INCLUDE_CORE_ONEBOT11_BOT_OPERATIONS_HPP_
 
 #include "core/bot_operations.hpp"
 
@@ -415,3 +416,5 @@ inline void from_json(const Json &document, OneBotGroupPokeResult &result) {
 }
 
 } // namespace obcx::bot
+
+#endif // OBCX_INCLUDE_CORE_ONEBOT11_BOT_OPERATIONS_HPP_

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_COMMAND_MATCHER_HPP_
+#define OBCX_INCLUDE_CORE_COMMAND_MATCHER_HPP_
 
 #include <cstddef>
 #include <cstdint>
@@ -31,3 +32,5 @@ struct CommandPatternCompileResult {
                                           std::string_view candidate) -> bool;
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_COMMAND_MATCHER_HPP_

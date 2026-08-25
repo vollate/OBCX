@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_QQ_TELEGRAM_BOT_ENDPOINTS_HPP_
+#define OBCX_INCLUDE_CORE_QQ_TELEGRAM_BOT_ENDPOINTS_HPP_
 
 #include "core/bot_operation_dispatcher.hpp"
 
@@ -22,3 +23,5 @@ void register_existing_bot_operation_endpoint(
     std::string_view configured_type, std::shared_ptr<IBot> live_bot);
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_QQ_TELEGRAM_BOT_ENDPOINTS_HPP_

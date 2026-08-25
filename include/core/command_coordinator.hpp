@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_COMMAND_COORDINATOR_HPP_
+#define OBCX_INCLUDE_CORE_COMMAND_COORDINATOR_HPP_
 
 #include "common/config_loader.hpp"
 #include "core/actor_manager.hpp"
@@ -142,3 +143,5 @@ private:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_COMMAND_COORDINATOR_HPP_

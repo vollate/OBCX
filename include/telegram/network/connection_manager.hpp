@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_TELEGRAM_NETWORK_CONNECTION_MANAGER_HPP_
+#define OBCX_INCLUDE_TELEGRAM_NETWORK_CONNECTION_MANAGER_HPP_
 
 #include "common/message_type.hpp"
 #include "interfaces/connection_manager.hpp"
@@ -133,6 +134,7 @@ private:
    * @param updates_json 更新JSON数组
    */
   void process_updates(std::string_view updates_json);
+  void shutdown();
 
   asio::io_context &ioc_;
   adapter::telegram::ProtocolAdapter &adapter_;
@@ -151,3 +153,5 @@ private:
 };
 
 } // namespace obcx::network
+
+#endif // OBCX_INCLUDE_TELEGRAM_NETWORK_CONNECTION_MANAGER_HPP_

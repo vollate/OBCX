@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_ACTOR_MANAGER_HPP_
+#define OBCX_INCLUDE_CORE_ACTOR_MANAGER_HPP_
 
 #include "core/actor.hpp"
 
@@ -199,3 +200,5 @@ private:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_ACTOR_MANAGER_HPP_

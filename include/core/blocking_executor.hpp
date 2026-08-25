@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_BLOCKING_EXECUTOR_HPP_
+#define OBCX_INCLUDE_CORE_BLOCKING_EXECUTOR_HPP_
 
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/associated_executor.hpp>
@@ -312,3 +313,5 @@ private:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_BLOCKING_EXECUTOR_HPP_

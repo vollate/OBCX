@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_COMMAND_PLATFORM_ADAPTER_HPP_
+#define OBCX_INCLUDE_CORE_COMMAND_PLATFORM_ADAPTER_HPP_
 
 #include "core/actor.hpp"
 #include "core/actor_commands.hpp"
@@ -62,3 +63,5 @@ public:
     -> std::shared_ptr<ICommandPlatformAdapter>;
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_COMMAND_PLATFORM_ADAPTER_HPP_

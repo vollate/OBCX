@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_INTERFACES_CONNECTION_MANAGER_HPP_
+#define OBCX_INCLUDE_INTERFACES_CONNECTION_MANAGER_HPP_
 
 #include "common/message_type.hpp"
 #include "interfaces/protocol_adapter.hpp"
@@ -98,3 +99,5 @@ public:
       -> std::unique_ptr<IConnectionManager>;
 };
 } // namespace obcx::network
+
+#endif // OBCX_INCLUDE_INTERFACES_CONNECTION_MANAGER_HPP_

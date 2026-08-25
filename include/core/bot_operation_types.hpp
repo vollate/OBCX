@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_BOT_OPERATION_TYPES_HPP_
+#define OBCX_INCLUDE_CORE_BOT_OPERATION_TYPES_HPP_
 
 #include "common/json_utils.hpp"
 
@@ -632,3 +633,5 @@ void from_json(const Json &document, BotOperationResult<T> &result) {
 }
 
 } // namespace obcx::bot
+
+#endif // OBCX_INCLUDE_CORE_BOT_OPERATION_TYPES_HPP_

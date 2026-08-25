@@ -344,7 +344,9 @@ auto ProxyHttpClient::connect_through_proxy() -> tcp::socket {
     }
 
     boost::system::error_code ec;
-    ssl_socket.handshake(ssl::stream_base::client, ec);
+    static_cast<void>(
+        ssl_socket.handshake( // NOLINT(bugprone-unused-return-value)
+            ssl::stream_base::client, ec));
     if (ec) {
       throw std::runtime_error(
           fmt::format("HTTPS proxy SSL handshake failed: {}", ec.message()));

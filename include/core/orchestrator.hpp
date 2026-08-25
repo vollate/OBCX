@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_ORCHESTRATOR_HPP_
+#define OBCX_INCLUDE_CORE_ORCHESTRATOR_HPP_
 
 #include "common/config_loader.hpp"
 #include "core/actor.hpp"
@@ -74,3 +75,5 @@ private:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_ORCHESTRATOR_HPP_

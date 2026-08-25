@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_QQ_BOT_HPP_
+#define OBCX_INCLUDE_CORE_QQ_BOT_HPP_
 
 #include "interfaces/bot.hpp"
 #include "interfaces/qq_bot.hpp"
@@ -396,3 +397,5 @@ private:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_QQ_BOT_HPP_

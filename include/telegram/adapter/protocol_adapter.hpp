@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_TELEGRAM_ADAPTER_PROTOCOL_ADAPTER_HPP_
+#define OBCX_INCLUDE_TELEGRAM_ADAPTER_PROTOCOL_ADAPTER_HPP_
 
 #include "common/message_type.hpp"
 #include "interfaces/protocol_adapter.hpp"
@@ -447,3 +448,5 @@ public:
 };
 
 } // namespace obcx::adapter::telegram
+
+#endif // OBCX_INCLUDE_TELEGRAM_ADAPTER_PROTOCOL_ADAPTER_HPP_

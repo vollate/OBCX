@@ -142,7 +142,14 @@ TelegramConnectionManager::~TelegramConnectionManager() {
   // Release our own resources (poll_timer_, http_client_) while the
   // referenced io_context is still alive. IBot::~IBot guarantees this
   // destruction order.
-  disconnect();
+  try {
+    shutdown();
+  } catch (const std::exception &error) {
+    OBCX_ERROR("Failed to shut down Telegram connection manager: {}",
+               error.what());
+  } catch (...) {
+    OBCX_ERROR("Failed to shut down Telegram connection manager");
+  }
   http_client_.reset();
 }
 
@@ -185,7 +192,9 @@ void TelegramConnectionManager::connect(
   start_polling();
 }
 
-void TelegramConnectionManager::disconnect() {
+void TelegramConnectionManager::disconnect() { shutdown(); }
+
+void TelegramConnectionManager::shutdown() {
   stop_polling();
   is_connected_ = false;
 

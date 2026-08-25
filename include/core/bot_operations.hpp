@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_BOT_OPERATIONS_HPP_
+#define OBCX_INCLUDE_CORE_BOT_OPERATIONS_HPP_
 
 #include "common/message_type.hpp"
 #include "core/bot_operation_types.hpp"
@@ -278,3 +279,5 @@ inline void from_json(const Json &document, EditMessageTextResult &result) {
 }
 
 } // namespace obcx::bot
+
+#endif // OBCX_INCLUDE_CORE_BOT_OPERATIONS_HPP_

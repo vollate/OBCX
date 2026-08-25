@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_DB_MANAGER_HPP_
+#define OBCX_INCLUDE_CORE_DB_MANAGER_HPP_
 
 #include "common/config_loader.hpp"
 
@@ -126,3 +127,5 @@ private:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_DB_MANAGER_HPP_

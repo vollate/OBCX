@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_COMMON_CONFIG_LOADER_HPP_
+#define OBCX_INCLUDE_COMMON_CONFIG_LOADER_HPP_
 
 #include <atomic>
 #include <cstddef>
@@ -339,3 +340,5 @@ private:
 };
 
 } // namespace obcx::common
+
+#endif // OBCX_INCLUDE_COMMON_CONFIG_LOADER_HPP_

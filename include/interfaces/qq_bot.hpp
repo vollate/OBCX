@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_INTERFACES_QQ_BOT_HPP_
+#define OBCX_INCLUDE_INTERFACES_QQ_BOT_HPP_
 
 #include <boost/asio/awaitable.hpp>
 #include <string>
@@ -32,3 +33,5 @@ public:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_INTERFACES_QQ_BOT_HPP_

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_INTERFACES_BOT_HPP_
+#define OBCX_INCLUDE_INTERFACES_BOT_HPP_
 
 namespace obcx::common {
 class CliHandler;
@@ -380,3 +381,5 @@ private:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_INTERFACES_BOT_HPP_

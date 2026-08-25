@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_SRC_NETWORK_HTTP_CLIENT_IMPL_HPP_
+#define OBCX_SRC_NETWORK_HTTP_CLIENT_IMPL_HPP_
 
 #include "network/http_client.hpp"
 
@@ -108,3 +109,5 @@ void HttpClient::prepare_request(
 }
 
 } // namespace obcx::network
+
+#endif // OBCX_SRC_NETWORK_HTTP_CLIENT_IMPL_HPP_

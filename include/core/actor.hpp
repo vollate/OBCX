@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_ACTOR_HPP_
+#define OBCX_INCLUDE_CORE_ACTOR_HPP_
 
 #include "common/config_loader.hpp"
 #include "common/json_utils.hpp"
@@ -397,3 +398,5 @@ public:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_ACTOR_HPP_

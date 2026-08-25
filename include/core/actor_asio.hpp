@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_ACTOR_ASIO_HPP_
+#define OBCX_INCLUDE_CORE_ACTOR_ASIO_HPP_
 
 #include "core/actor_task.hpp"
 
@@ -464,3 +465,5 @@ public:
 };
 
 } // namespace boost::asio
+
+#endif // OBCX_INCLUDE_CORE_ACTOR_ASIO_HPP_

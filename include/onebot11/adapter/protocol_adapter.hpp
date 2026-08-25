@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_ONEBOT11_ADAPTER_PROTOCOL_ADAPTER_HPP_
+#define OBCX_INCLUDE_ONEBOT11_ADAPTER_PROTOCOL_ADAPTER_HPP_
 
 #include "common/message_type.hpp"
 #include "interfaces/protocol_adapter.hpp"
@@ -702,3 +703,5 @@ public:
 };
 
 } // namespace obcx::adapter::onebot11
+
+#endif // OBCX_INCLUDE_ONEBOT11_ADAPTER_PROTOCOL_ADAPTER_HPP_

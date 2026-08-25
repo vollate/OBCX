@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_INTERFACES_PROTOCOL_ADAPTER_HPP_
+#define OBCX_INCLUDE_INTERFACES_PROTOCOL_ADAPTER_HPP_
 
 #include "common/message_type.hpp"
 
@@ -342,3 +343,5 @@ public:
 };
 
 } // namespace obcx::adapter
+
+#endif // OBCX_INCLUDE_INTERFACES_PROTOCOL_ADAPTER_HPP_

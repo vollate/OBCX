@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_COMMON_COMPONENT_MANAGER_HPP_
+#define OBCX_INCLUDE_COMMON_COMPONENT_MANAGER_HPP_
 
 #include "common/config_loader.hpp"
 #include "interfaces/connection_manager.hpp"
@@ -34,3 +35,5 @@ private:
 };
 
 } // namespace obcx::common
+
+#endif // OBCX_INCLUDE_COMMON_COMPONENT_MANAGER_HPP_

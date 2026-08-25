@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_ACTOR_MESSAGES_HPP_
+#define OBCX_INCLUDE_CORE_ACTOR_MESSAGES_HPP_
 
 #include "common/json_utils.hpp"
 
@@ -56,3 +57,5 @@ inline void to_json(common::json &document, const MessageStored &message) {
 }
 
 } // namespace obcx::message_store::events
+
+#endif // OBCX_INCLUDE_CORE_ACTOR_MESSAGES_HPP_

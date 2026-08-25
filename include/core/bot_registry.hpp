@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_BOT_REGISTRY_HPP_
+#define OBCX_INCLUDE_CORE_BOT_REGISTRY_HPP_
 
 #include "interfaces/bot.hpp"
 
@@ -108,3 +109,5 @@ private:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_BOT_REGISTRY_HPP_

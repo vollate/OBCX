@@ -24,8 +24,15 @@ WebSocketConnectionManager::~WebSocketConnectionManager() {
   // cleanup, send_strand_ — which holds a shared_ptr into the io_context's
   // strand_executor_service — would be destroyed after the service was gone,
   // crashing inside _Sp_counted_ptr_inplace::_M_destroy.
-  disconnect();
-  // disconnect() posts a detached close() but doesn't drop the client.
+  try {
+    shutdown();
+  } catch (const std::exception &error) {
+    OBCX_ERROR("Failed to shut down WebSocket connection manager: {}",
+               error.what());
+  } catch (...) {
+    OBCX_ERROR("Failed to shut down WebSocket connection manager");
+  }
+  // shutdown() posts a detached close() but doesn't drop the client.
   // Reset it here so its socket/stream destructors run against a live
   // executor service.
   ws_client_.reset();
@@ -46,7 +53,9 @@ void WebSocketConnectionManager::connect(
   connect_ws(config.host, config.port, config.access_token);
 }
 
-void WebSocketConnectionManager::disconnect() {
+void WebSocketConnectionManager::disconnect() { shutdown(); }
+
+void WebSocketConnectionManager::shutdown() {
   is_running_ = false;
   is_connected_.store(false, std::memory_order_release);
 

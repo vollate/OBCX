@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_ONEBOT11_ADAPTER_EVENT_CONVERTER_HPP_
+#define OBCX_INCLUDE_ONEBOT11_ADAPTER_EVENT_CONVERTER_HPP_
 
 #include "common/message_type.hpp"
 #include <optional>
@@ -48,3 +49,5 @@ auto from_v11_json(std::string_view json_str) -> std::optional<common::Event>;
 }; // namespace EventConverter
 
 } // namespace obcx::adapter::onebot11
+
+#endif // OBCX_INCLUDE_ONEBOT11_ADAPTER_EVENT_CONVERTER_HPP_

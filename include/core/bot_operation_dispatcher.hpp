@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OBCX_INCLUDE_CORE_BOT_OPERATION_DISPATCHER_HPP_
+#define OBCX_INCLUDE_CORE_BOT_OPERATION_DISPATCHER_HPP_
 
 #include "core/bot_operation_client.hpp"
 
@@ -186,3 +187,5 @@ private:
 };
 
 } // namespace obcx::core
+
+#endif // OBCX_INCLUDE_CORE_BOT_OPERATION_DISPATCHER_HPP_
