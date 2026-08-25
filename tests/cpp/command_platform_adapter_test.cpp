@@ -1,6 +1,4 @@
 #include "core/command_platform_adapter.hpp"
-#include "core/tg_bot.hpp"
-#include "telegram/adapter/protocol_adapter.hpp"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/io_context.hpp>
@@ -11,21 +9,18 @@
 namespace obcx::core {
 namespace {
 
-class CapturingTelegramBot final : public TGBot {
+class CapturingTelegramCatalog final : public TelegramCommandCatalog {
 public:
-  CapturingTelegramBot() : TGBot(adapter::telegram::ProtocolAdapter{}) {}
-
-  auto set_commands(
-      const std::vector<std::pair<std::string, std::string>> &commands)
-      -> boost::asio::awaitable<std::string> override {
-    calls.push_back(commands);
+  auto publish(const std::vector<CommandCatalogEntry> &entries)
+      -> boost::asio::awaitable<CommandCatalogPublishResult> override {
+    calls.push_back(entries);
     if (fail) {
       throw std::runtime_error{"catalog failure"};
     }
-    co_return "{}";
+    co_return CommandCatalogPublishResult{.supported = true, .succeeded = true};
   }
 
-  std::vector<std::vector<std::pair<std::string, std::string>>> calls;
+  std::vector<std::vector<CommandCatalogEntry>> calls;
   bool fail = false;
 };
 
@@ -136,23 +131,23 @@ TEST(CommandPlatformAdapterTest, CatalogCapabilitiesArePlatformSpecific) {
 
 TEST(CommandPlatformAdapterTest, TelegramPublishesOneCompleteReplacementList) {
   auto adapter = command_platform_adapter("telegram");
-  CapturingTelegramBot bot;
+  CapturingTelegramCatalog catalog_capability;
   const std::vector catalog = {
       CommandCatalogEntry{.name = "chat", .description = "Chat"},
       CommandCatalogEntry{.name = "toggle_think",
                           .description = "Toggle thinking"},
   };
 
-  auto result = run_awaitable(adapter->publish_catalog(bot, catalog));
+  auto result =
+      run_awaitable(adapter->publish_catalog(&catalog_capability, catalog));
   EXPECT_TRUE(result.supported);
   EXPECT_TRUE(result.succeeded);
-  ASSERT_EQ(bot.calls.size(), 1U);
-  EXPECT_EQ(bot.calls.front(),
-            (std::vector<std::pair<std::string, std::string>>{
-                {"chat", "Chat"}, {"toggle_think", "Toggle thinking"}}));
+  ASSERT_EQ(catalog_capability.calls.size(), 1U);
+  EXPECT_EQ(catalog_capability.calls.front(), catalog);
 
-  bot.fail = true;
-  result = run_awaitable(adapter->publish_catalog(bot, catalog));
+  catalog_capability.fail = true;
+  result =
+      run_awaitable(adapter->publish_catalog(&catalog_capability, catalog));
   EXPECT_FALSE(result.succeeded);
   EXPECT_EQ(result.code, "command_catalog_publish_failed");
 }

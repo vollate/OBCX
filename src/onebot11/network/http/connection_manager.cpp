@@ -18,8 +18,8 @@ HttpConnectionManager::HttpConnectionManager(
 
 HttpConnectionManager::~HttpConnectionManager() {
   // Release our own resources (poll_timer_, http_client_) while the
-  // referenced io_context is still alive. IBot::~IBot guarantees this
-  // destruction order.
+  // referenced installation io_context is still alive. BotInstallation owns
+  // transports ahead of its executor and guarantees this destruction order.
   try {
     shutdown();
   } catch (const std::exception &error) {
@@ -98,6 +98,15 @@ void HttpConnectionManager::set_event_callback(EventCallback callback) {
 
 auto HttpConnectionManager::get_connection_type() const -> std::string {
   return "HTTP";
+}
+
+void HttpConnectionManager::set_poll_interval(
+    const std::chrono::milliseconds interval) {
+  if (is_polling_) {
+    throw std::logic_error(
+        "cannot change OneBot HTTP poll interval while running");
+  }
+  poll_interval_ = interval;
 }
 
 void HttpConnectionManager::start_polling() {

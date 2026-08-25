@@ -14,7 +14,8 @@
 
 namespace obcx::bot {
 
-inline constexpr std::size_t maximum_actor_media_bytes = 128U * 1024U * 1024U;
+inline constexpr std::size_t maximum_actor_media_bytes =
+    std::size_t{128} * 1024U * 1024U;
 
 namespace detail {
 

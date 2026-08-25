@@ -44,10 +44,7 @@ set(_expected_headers
     include/obcx/core/actor_manager.hpp
     include/obcx/core/actor_task.hpp
     include/obcx/core/actor_work_stealing_executor.hpp
-    include/obcx/core/bot_registry.hpp
-    include/obcx/core/command_platform_adapter.hpp
     include/obcx/core/db_manager.hpp
-    include/obcx/core/event_dispatcher.hpp
     include/obcx/core/native_actor_scheduler.hpp
     include/obcx/core/reflected_actor.hpp
     include/obcx/core/blocking_executor.hpp
@@ -57,11 +54,6 @@ set(_expected_headers
     include/obcx/core/bot_operations.hpp
     include/obcx/core/onebot11_bot_operations.hpp
     include/obcx/core/telegram_bot_operations.hpp
-    include/obcx/interfaces/bot.hpp
-    include/obcx/interfaces/connection_manager.hpp
-    include/obcx/interfaces/protocol_adapter.hpp
-    include/obcx/interfaces/qq_bot.hpp
-    include/obcx/interfaces/telegram_bot.hpp
     include/obcx/network/http_client.hpp
     include/obcx/obcx/version.hpp)
 list(SORT _expected_headers)

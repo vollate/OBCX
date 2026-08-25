@@ -1,3 +1,4 @@
+#include "core/bot_operation_client.hpp"
 #include "core/reflected_actor.hpp"
 
 namespace obcx::sdk_fixture::events {
@@ -44,11 +45,29 @@ public:
         context.config().get_value<std::string>("label").value_or("missing");
     label = co_await context.run_blocking(
         [label = std::move(label)]() mutable { return std::move(label); });
+    const auto bot_operations =
+        context.get_service<obcx::bot::BotOperationClient>();
+    const obcx::bot::BotInstallationRef installation{
+        .installation_id = "standalone-telegram",
+        .surface = obcx::bot::BotSurface::TelegramBotApi,
+    };
+    const auto bot_operation_client_available = [&] {
+      if (bot_operations == nullptr) {
+        return false;
+      }
+      const auto supported = bot_operations->supported_actions(installation);
+      return supported.ok() &&
+             supported.value->supports(obcx::bot::BotAction::SendGroupMessage);
+    }();
+
     auto result = obcx::core::ActorResult::success();
     obcx::core::MessageEnvelope emitted;
     emitted.type = "SdkV2Handled";
     emitted.causation_id = message.id;
-    emitted.payload = {{"label", label}};
+    emitted.payload = {
+        {"label", label},
+        {"bot_operation_client", bot_operation_client_available},
+    };
     result.emit(std::move(emitted));
     co_return result;
   }

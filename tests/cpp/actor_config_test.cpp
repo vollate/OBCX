@@ -106,8 +106,9 @@ TEST_F(ActorConfigTest,
        ProcessFingerprintCoversDisabledBotsWithoutExposingSecrets) {
   const auto active_path = write_test_config("fingerprint-active.toml", R"(
 [bots.disabled]
-type = "telegram"
 enabled = false
+surface = "telegram.bot_api"
+transport = "http"
 
 [bots.disabled.connection]
 access_token = "active-secret-token"
@@ -119,8 +120,9 @@ path = "state.db"
   const auto candidate_path =
       write_test_config("fingerprint-candidate.toml", R"(
 [bots.disabled]
-type = "telegram"
 enabled = false
+surface = "telegram.bot_api"
+transport = "http"
 
 [bots.disabled.connection]
 access_token = "candidate-secret-token"
@@ -461,14 +463,16 @@ enabled = true
   EXPECT_TRUE(ConfigLoader::instance().get_pipeline_configs().empty());
 }
 
-TEST_F(ActorConfigTest, ParsesBotConnectionWithoutExtensionLists) {
+TEST_F(ActorConfigTest, ParsesTypedBotConnectionWithoutExtensionLists) {
   create_test_config(R"(
 [bots.qq]
-type = "onebot"
 enabled = true
+surface = "onebot11.qq"
+transport = "websocket"
 
 [bots.qq.connection]
-endpoint = "ws://localhost:3001"
+host = "localhost"
+port = 3001
 
 [actors.message_store]
 library = "message_store"
@@ -480,12 +484,14 @@ source = "obcx::core::events::RawMessageEvent"
 
   const auto bots = ConfigLoader::instance().get_bot_configs();
   ASSERT_EQ(bots.size(), 1);
-  EXPECT_EQ(bots[0].name, "qq");
-  EXPECT_EQ(bots[0].type, "onebot");
+  EXPECT_EQ(bots[0].installation_id, "qq");
+  EXPECT_EQ(bots[0].surface, BotInstallationSurface::OneBot11Qq);
+  EXPECT_EQ(bots[0].transport, BotTransport::WebSocket);
   EXPECT_TRUE(bots[0].enabled);
-  ASSERT_TRUE(bots[0].connection.get("endpoint"));
-  EXPECT_EQ(bots[0].connection.get("endpoint")->value_or<std::string>(""),
-            "ws://localhost:3001");
+  const auto &connection =
+      std::get<OneBot11WebSocketConnectionConfig>(bots[0].connection);
+  EXPECT_EQ(connection.host, "localhost");
+  EXPECT_EQ(connection.port, 3001);
 }
 
 TEST_F(ActorConfigTest, ValidatesActorPipelineReferences) {

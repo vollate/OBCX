@@ -121,7 +121,12 @@ class ActorArchitectureTest(unittest.TestCase):
             re.compile(
                 r"#\s*include\s*[<\"](?:core/bot_registry|"
                 r"interfaces/(?:bot|qq_bot|telegram_bot)|"
-                r"core/(?:qq_bot|tg_bot)|[^>\"]*connection_manager)\.hpp[>\"]"
+                r"core/(?:qq_bot|tg_bot|bot_component_runtime|"
+                r"bot_installation_assembler|bot_installation_directory|"
+                r"bot_operation_components|bot_transport_components|"
+                r"bot_event_components|bot_protocol_components|"
+                r"bot_command_catalog_component)|"
+                r"[^>\"]*connection_manager)\.hpp[>\"]"
             ),
             re.compile(r"\bBotRegistry\b"),
             re.compile(r"\b(?:IBot|IQQBot|ITelegramBot)\b"),

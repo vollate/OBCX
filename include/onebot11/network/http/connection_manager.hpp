@@ -2,7 +2,6 @@
 #define OBCX_INCLUDE_ONEBOT11_NETWORK_HTTP_CONNECTION_MANAGER_HPP_
 
 #include "common/message_type.hpp"
-#include "interfaces/connection_manager.hpp"
 #include "network/http_client.hpp"
 #include "onebot11/adapter/protocol_adapter.hpp"
 
@@ -10,9 +9,11 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
+#include <functional>
 #include <memory>
 
 namespace obcx::network {
+namespace asio = boost::asio;
 
 /**
  * @brief HTTP连接管理器
@@ -20,11 +21,12 @@ namespace obcx::network {
  * 实现通过HTTP轮询的方式与OneBot11实现通信。
  * 定期轮询获取事件，通过HTTP POST发送API请求。
  */
-class HttpConnectionManager : public IConnectionManager {
+class HttpConnectionManager {
 public:
+  using EventCallback = std::function<void(const common::Event &)>;
   HttpConnectionManager(asio::io_context &ioc,
                         adapter::onebot11::ProtocolAdapter &adapter);
-  ~HttpConnectionManager() override;
+  ~HttpConnectionManager();
 
   HttpConnectionManager(const HttpConnectionManager &) = delete;
   auto operator=(const HttpConnectionManager &)
@@ -32,14 +34,15 @@ public:
   HttpConnectionManager(HttpConnectionManager &&) = delete;
   auto operator=(HttpConnectionManager &&) -> HttpConnectionManager & = delete;
 
-  // 实现IConnectionManager接口
-  void connect(const common::ConnectionConfig &config) override;
-  void disconnect() override;
-  [[nodiscard]] auto is_connected() const -> bool override;
+  // OneBot HTTP transport operations.
+  void connect(const common::ConnectionConfig &config);
+  void disconnect();
+  [[nodiscard]] auto is_connected() const -> bool;
   auto send_action_and_wait_async(std::string action_payload, uint64_t echo_id)
-      -> asio::awaitable<std::string> override;
-  void set_event_callback(EventCallback callback) override;
-  [[nodiscard]] auto get_connection_type() const -> std::string override;
+      -> asio::awaitable<std::string>;
+  void set_event_callback(EventCallback callback);
+  [[nodiscard]] auto get_connection_type() const -> std::string;
+  void set_poll_interval(std::chrono::milliseconds interval);
 
 private:
   /**

@@ -28,9 +28,9 @@ public:
       const -> bot::BotOperationResult<bot::SupportedBotActions> override;
 };
 
-class QQTelegramOperationDispatcher final : public bot::BotOperationClient {
+class BotOperationDispatcher final : public bot::BotOperationClient {
 public:
-  QQTelegramOperationDispatcher() = default;
+  BotOperationDispatcher() = default;
 
   void register_endpoint(std::shared_ptr<BotOperationEndpoint> endpoint);
   [[nodiscard]] auto endpoint_count() const noexcept -> std::size_t;
@@ -183,7 +183,7 @@ private:
 
   mutable std::shared_mutex mutex_;
   std::unordered_map<std::string, std::shared_ptr<BotOperationEndpoint>>
-      endpoints_;
+      endpoints_{};
 };
 
 } // namespace obcx::core

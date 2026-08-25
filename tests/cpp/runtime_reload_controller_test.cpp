@@ -2,7 +2,6 @@
 #include "core/actor_manager.hpp"
 #include "core/actor_runtime_reload_controller.hpp"
 #include "core/bot_operation_dispatcher.hpp"
-#include "core/bot_registry.hpp"
 #include "core/db_manager.hpp"
 #include "core/native_actor_scheduler.hpp"
 #include "core/orchestrator.hpp"
@@ -132,7 +131,6 @@ protected:
       io_thread_.join();
     }
     database_.reset();
-    registry_.reset();
     obcx::core::DbManager::reset_shared_managers_for_tests();
     fs::remove_all(root_);
   }
@@ -142,8 +140,10 @@ protected:
     auto document = std::string{};
     if (with_command) {
       document += "[bots.primary]\n"
-                  "type = \"qq\"\n"
-                  "enabled = true\n\n";
+                  "enabled = true\n"
+                  "surface = \"onebot11.qq\"\n"
+                  "transport = \"http\"\n"
+                  "[bots.primary.connection]\n\n";
     }
     document += "[db.instances.main]\n"
                 "type = \"sqlite\"\n"
@@ -210,7 +210,6 @@ protected:
     if (!database_) {
       database_ = obcx::core::DbManager::shared_manager(
           parsed.snapshot->get_db_instance_configs());
-      registry_ = std::make_shared<obcx::core::BotRegistry>();
     }
 
     obcx::core::RuntimeGenerationBuildRequest request{
@@ -224,7 +223,6 @@ protected:
         .staging_root = root_ / "staging",
         .configured_io_sources = 1,
         .db_manager = database_,
-        .bot_registry = registry_,
         .bot_operation_client = operation_client_};
     if (active) {
       request.active_process_owned_fingerprint =
@@ -250,8 +248,10 @@ protected:
                                   const std::string &private_actor) const
       -> std::string {
     return "[bots.primary]\n"
-           "type = \"qq\"\n"
-           "enabled = true\n\n"
+           "enabled = true\n"
+           "surface = \"onebot11.qq\"\n"
+           "transport = \"http\"\n"
+           "[bots.primary.connection]\n\n"
            "[db.instances.main]\n"
            "type = \"sqlite\"\n"
            "path = \"" +
@@ -304,7 +304,6 @@ protected:
     if (!database_) {
       database_ = obcx::core::DbManager::shared_manager(
           parsed.snapshot->get_db_instance_configs());
-      registry_ = std::make_shared<obcx::core::BotRegistry>();
     }
 
     obcx::core::RuntimeGenerationBuildRequest request{
@@ -318,7 +317,6 @@ protected:
         .staging_root = root_ / "staging",
         .configured_io_sources = 1,
         .db_manager = database_,
-        .bot_registry = registry_,
         .bot_operation_client = operation_client_};
     if (active) {
       request.active_process_owned_fingerprint =
@@ -396,9 +394,8 @@ protected:
   std::thread io_thread_;
   obcx::core::RuntimeGenerationBuilder builder_;
   std::shared_ptr<obcx::core::DbManager> database_;
-  std::shared_ptr<obcx::core::BotRegistry> registry_;
   std::shared_ptr<obcx::bot::BotOperationClient> operation_client_ =
-      std::make_shared<obcx::core::QQTelegramOperationDispatcher>();
+      std::make_shared<obcx::core::BotOperationDispatcher>();
   std::shared_ptr<obcx::core::ActorRuntimeReloadController> controller_;
 };
 

@@ -2,7 +2,9 @@
 #define OBCX_INCLUDE_COMMON_CONFIG_LOADER_HPP_
 
 #include <atomic>
+#include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -11,16 +13,94 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace obcx::common {
 
-struct BotConfig {
-  std::string name;
-  std::string type;
-  bool enabled{};
-  toml::table connection;
+enum class BotInstallationSurface : std::uint8_t {
+  OneBot11Qq,
+  TelegramBotApi,
 };
+
+enum class BotTransport : std::uint8_t {
+  WebSocket,
+  Http,
+};
+
+enum class BotProxyType : std::uint8_t {
+  Http,
+  Https,
+  Socks5,
+};
+
+struct BotProxyConfig {
+  std::string host;
+  std::uint16_t port{};
+  BotProxyType type = BotProxyType::Http;
+  std::string username;
+  std::string password;
+
+  auto operator==(const BotProxyConfig &) const -> bool = default;
+};
+
+struct OneBot11WebSocketConnectionConfig {
+  std::string host = "localhost";
+  std::uint16_t port = 3001;
+  std::string access_token;
+  std::chrono::milliseconds connect_timeout{5'000};
+  std::chrono::milliseconds action_timeout{30'000};
+
+  auto operator==(const OneBot11WebSocketConnectionConfig &) const
+      -> bool = default;
+};
+
+struct OneBot11HttpConnectionConfig {
+  std::string host = "localhost";
+  std::uint16_t port = 3000;
+  std::string access_token;
+  bool use_tls{};
+  std::chrono::milliseconds connect_timeout{5'000};
+  std::chrono::milliseconds action_timeout{30'000};
+  std::chrono::milliseconds poll_interval{1'000};
+
+  auto operator==(const OneBot11HttpConnectionConfig &) const -> bool = default;
+};
+
+struct TelegramHttpConnectionConfig {
+  std::string host = "api.telegram.org";
+  std::uint16_t port = 443;
+  std::string access_token;
+  std::string bot_username;
+  bool use_tls = true;
+  std::chrono::milliseconds connect_timeout{5'000};
+  std::chrono::milliseconds action_timeout{30'000};
+  std::chrono::milliseconds poll_timeout{25'000};
+  std::chrono::milliseconds poll_force_close{30'000};
+  std::chrono::milliseconds poll_retry_interval{3'000};
+  std::optional<BotProxyConfig> proxy;
+
+  auto operator==(const TelegramHttpConnectionConfig &) const -> bool = default;
+};
+
+using BotConnectionConfig =
+    std::variant<OneBot11WebSocketConnectionConfig,
+                 OneBot11HttpConnectionConfig, TelegramHttpConnectionConfig>;
+
+struct BotInstallationConfig {
+  std::string installation_id;
+  bool enabled{};
+  BotInstallationSurface surface{};
+  BotTransport transport{};
+  BotConnectionConfig connection;
+
+  auto operator==(const BotInstallationConfig &) const -> bool = default;
+};
+
+[[nodiscard]] auto bot_surface_id(BotInstallationSurface surface) noexcept
+    -> std::string_view;
+[[nodiscard]] auto bot_transport_id(BotTransport transport) noexcept
+    -> std::string_view;
 
 struct ActorConfig {
   std::string name;
@@ -127,19 +207,22 @@ struct ProcessOwnedConfigFingerprint {
 struct ConfigLoadDiagnostic {
   std::string code;
   std::string path;
+  std::string message;
   size_t line = 0;
   size_t column = 0;
 };
 
 class RuntimeConfigSnapshot {
 public:
+  ~RuntimeConfigSnapshot() = default;
   RuntimeConfigSnapshot(const RuntimeConfigSnapshot &) = delete;
   auto operator=(const RuntimeConfigSnapshot &)
       -> RuntimeConfigSnapshot & = delete;
   RuntimeConfigSnapshot(RuntimeConfigSnapshot &&) = delete;
   auto operator=(RuntimeConfigSnapshot &&) -> RuntimeConfigSnapshot & = delete;
 
-  [[nodiscard]] auto get_bot_configs() const -> std::vector<BotConfig>;
+  [[nodiscard]] auto get_bot_configs() const
+      -> std::vector<BotInstallationConfig>;
   [[nodiscard]] auto get_actor_configs() const -> std::vector<ActorConfig>;
   [[nodiscard]] auto get_db_instance_configs() const
       -> std::vector<DbInstanceConfig>;
@@ -295,7 +378,7 @@ public:
 
   auto load_config(const std::string &config_path) -> bool;
 
-  auto get_bot_configs() const -> std::vector<BotConfig>;
+  auto get_bot_configs() const -> std::vector<BotInstallationConfig>;
 
   auto get_actor_configs() const -> std::vector<ActorConfig>;
 

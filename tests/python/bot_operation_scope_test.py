@@ -82,12 +82,15 @@ def bot_interface_methods() -> set[str]:
     methods: set[str] = set()
     declaration = re.compile(r"\bvirtual\s+auto\s+(\w+)\s*\(", re.MULTILINE)
     for path in INTERFACE_HEADERS:
-        methods.update(declaration.findall(path.read_text(encoding="utf-8")))
+        if path.exists():
+            methods.update(declaration.findall(path.read_text(encoding="utf-8")))
     return methods
 
 
 def actor_bot_calls() -> list[tuple[Path, int, str]]:
     interface_methods = bot_interface_methods()
+    if not interface_methods:
+        return []
     method_alternation = "|".join(sorted(map(re.escape, interface_methods)))
     # Production variables carrying a bot/provider capability consistently use
     # bot, telegram, qq, or uploader in their names. Keep the receiver in the

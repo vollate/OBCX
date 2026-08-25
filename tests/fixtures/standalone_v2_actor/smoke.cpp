@@ -1,4 +1,5 @@
 #include "core/actor_manager.hpp"
+#include "core/bot_operation_client.hpp"
 #include "core/bot_operation_contract.hpp"
 #include "core/native_actor_scheduler.hpp"
 
@@ -14,6 +15,24 @@
 #include <utility>
 
 namespace {
+
+class FixtureBotOperationClient final : public obcx::bot::BotOperationClient {
+public:
+  [[nodiscard]] auto supported_actions(
+      const obcx::bot::BotInstallationRef &installation) const
+      -> obcx::bot::BotOperationResult<
+          obcx::bot::SupportedBotActions> override {
+    if (installation.installation_id != "standalone-telegram" ||
+        installation.surface != obcx::bot::BotSurface::TelegramBotApi) {
+      return obcx::bot::failed_operation<obcx::bot::SupportedBotActions>(
+          obcx::bot::BotOperationErrorCode::RouteNotFound,
+          "fixture installation not found");
+    }
+    return obcx::bot::BotOperationResult<obcx::bot::SupportedBotActions>::
+        success({.installation = installation,
+                 .actions = {obcx::bot::BotAction::SendGroupMessage}});
+  }
+};
 
 auto bot_operation_contract_smoke() -> bool {
   const obcx::bot::BotInstallationRef installation{
@@ -123,6 +142,8 @@ int main(int argc, char **argv) {
     services->register_service<obcx::common::ActorConfigService>(
         std::make_shared<obcx::common::ActorConfigService>(built.snapshot));
     services->register_service<BlockingExecutor>(blocking_executor);
+    services->register_service<obcx::bot::BotOperationClient>(
+        std::make_shared<FixtureBotOperationClient>());
     services->register_service<boost::asio::any_io_executor>(
         std::make_shared<boost::asio::any_io_executor>(
             actor_io_pool.get_executor()));
@@ -153,7 +174,8 @@ int main(int argc, char **argv) {
     if (!result.ok() || result.emitted.size() != 1 ||
         result.emitted.front().type != "SdkV2Handled" ||
         result.emitted.front().causation_id != "standalone-sdk" ||
-        result.emitted.front().payload.value("label", "") != "generation-a") {
+        result.emitted.front().payload.value("label", "") != "generation-a" ||
+        !result.emitted.front().payload.value("bot_operation_client", false)) {
       return 7;
     }
     std::filesystem::remove(config_path);

@@ -1,8 +1,6 @@
 #include "core/command_platform_adapter.hpp"
 
 #include "core/command_matcher.hpp"
-#include "interfaces/bot.hpp"
-#include "interfaces/telegram_bot.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -132,29 +130,20 @@ public:
     return true;
   }
 
-  auto publish_catalog(IBot &bot,
-                       const std::vector<CommandCatalogEntry> &catalog)
+  auto publish_catalog(TelegramCommandCatalog *catalog,
+                       const std::vector<CommandCatalogEntry> &entries)
       -> boost::asio::awaitable<CommandCatalogPublishResult> override {
-    auto *telegram = dynamic_cast<ITelegramBot *>(&bot);
-    if (telegram == nullptr) {
+    if (catalog == nullptr) {
       co_return CommandCatalogPublishResult{
           .supported = true,
           .succeeded = false,
           .code = "command_catalog_capability_missing",
-          .message = "configured Telegram bot lacks ITelegramBot capability",
+          .message = "configured Telegram installation lacks command catalog "
+                     "capability",
       };
-    }
-    std::vector<std::pair<std::string, std::string>> commands;
-    commands.reserve(catalog.size());
-    for (const auto &entry : catalog) {
-      commands.emplace_back(entry.name, entry.description);
     }
     try {
-      (void)co_await telegram->set_commands(commands);
-      co_return CommandCatalogPublishResult{
-          .supported = true,
-          .succeeded = true,
-      };
+      co_return co_await catalog->publish(entries);
     } catch (...) {
       co_return CommandCatalogPublishResult{
           .supported = true,
@@ -204,7 +193,8 @@ public:
     return false;
   }
 
-  auto publish_catalog(IBot &, const std::vector<CommandCatalogEntry> &)
+  auto publish_catalog(TelegramCommandCatalog *,
+                       const std::vector<CommandCatalogEntry> &)
       -> boost::asio::awaitable<CommandCatalogPublishResult> override {
     co_return CommandCatalogPublishResult{
         .supported = false,

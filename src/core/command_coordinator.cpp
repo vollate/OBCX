@@ -34,14 +34,20 @@ auto command_failure(std::string code, std::string message)
   };
 }
 
-auto configured_bot_target(const common::BotConfig &bot) -> std::string {
-  for (const auto key : {"username", "bot_username"}) {
-    if (const auto *value = bot.connection.get(key)) {
-      if (const auto target = value->value<std::string>();
-          target && !target->empty()) {
-        return *target;
-      }
-    }
+auto configured_bot_target(const common::BotInstallationConfig &bot)
+    -> std::string {
+  const auto *telegram =
+      std::get_if<common::TelegramHttpConnectionConfig>(&bot.connection);
+  return telegram == nullptr ? std::string{} : telegram->bot_username;
+}
+
+auto command_platform(const common::BotInstallationSurface surface)
+    -> std::string {
+  switch (surface) {
+  case common::BotInstallationSurface::OneBot11Qq:
+    return "qq";
+  case common::BotInstallationSurface::TelegramBotApi:
+    return "telegram";
   }
   return {};
 }
@@ -406,10 +412,10 @@ auto build_command_routing_table(
       actors.emplace(actor.name, actor);
     }
   }
-  std::unordered_map<std::string, common::BotConfig> bots;
+  std::unordered_map<std::string, common::BotInstallationConfig> bots;
   for (const auto &bot : snapshot.get_bot_configs()) {
     if (bot.enabled) {
-      bots.emplace(bot.name, bot);
+      bots.emplace(bot.installation_id, bot);
     }
   }
 
@@ -475,8 +481,7 @@ auto build_command_routing_table(
             "command_bot_unavailable",
             "command route references a missing or disabled bot: " + bot_name);
       }
-      const auto platform =
-          normalize_command_platform(configured_bot->second.type);
+      const auto platform = command_platform(configured_bot->second.surface);
       if (!platforms.contains(platform)) {
         return command_failure(
             "command_bot_platform_mismatch",

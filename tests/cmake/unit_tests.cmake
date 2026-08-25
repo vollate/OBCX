@@ -17,18 +17,25 @@ obcx_add_gtest(actor_task_test "unit;actor-runtime;coroutine")
 obcx_add_gtest(actor_work_stealing_executor_test
                "unit;actor-runtime;concurrency")
 obcx_add_gtest(blocking_executor_test "unit;actor-runtime;concurrency")
+obcx_add_gtest(bot_component_runtime_test
+               "unit;bot-runtime;component;lifecycle;concurrency")
+obcx_add_gtest(bot_event_component_test
+               "unit;bot-runtime;component;ingress")
+obcx_add_gtest(bot_installation_assembler_test
+               "unit;bot-runtime;component;configuration")
+obcx_add_gtest(bot_installation_config_test
+               "unit;bot-runtime;configuration;security")
+obcx_add_gtest(bot_operation_component_test
+               "unit;bot-runtime;component;telegram;onebot11")
 obcx_add_gtest(bot_operation_dispatcher_test "unit;bot-runtime;dispatch")
 obcx_add_gtest(bot_operation_response_parser_test
                "unit;bot-runtime;telegram;onebot11")
 obcx_add_gtest(bot_operation_types_test "unit;bot-runtime;contract")
-obcx_add_gtest(bot_registry_test "unit;bot-runtime")
-obcx_add_gtest(bot_transport_baseline_test "unit;bot-runtime;telegram;onebot11")
 obcx_add_gtest(cli_handler_test "unit;cli;actor-runtime")
 obcx_add_gtest(command_coordinator_test
                "unit;actor-runtime;routing;bot-runtime;concurrency")
 obcx_add_gtest(command_platform_adapter_test "unit;actor-runtime;bot-runtime")
 obcx_add_gtest(db_manager_test "unit;database")
-obcx_add_gtest(event_dispatcher_test "unit;bot-runtime;concurrency")
 obcx_add_gtest(http_client_timeout_test "integration;network")
 obcx_add_gtest(message_event_ingress_test "unit;bot-runtime")
 obcx_add_gtest(native_actor_scheduler_test "unit;actor-runtime;concurrency")

@@ -4,12 +4,9 @@ add_library(
         common/cli_handler.cpp
         tui/tui_app.cpp
         tui/tui_layout.cpp
-        common/component_manager.cpp
         common/json_utils.cpp
         common/message_type.cpp
         common/config_loader.cpp
-        interfaces/bot.cpp
-        interfaces/connection_manager.cpp
         network/compression.cpp
         network/http_client.cpp
         network/http_client_sync.cpp
@@ -29,8 +26,16 @@ add_library(
         core/actor_manager.cpp
         core/actor_package_stager.cpp
         core/actor_work_stealing_executor.cpp
+        core/bot_command_catalog_component.cpp
+        core/bot_component_runtime.cpp
+        core/bot_event_components.cpp
+        core/bot_installation_assembler.cpp
+        core/bot_installation_directory.cpp
+        core/bot_operation_components.cpp
         core/bot_operation_dispatcher.cpp
         core/bot_operation_response_parser.cpp
+        core/bot_protocol_components.cpp
+        core/bot_transport_components.cpp
         core/command_coordinator.cpp
         core/command_matcher.cpp
         core/command_platform_adapter.cpp
@@ -40,10 +45,7 @@ add_library(
         core/orchestrator.cpp
         core/process_staging_uuid.cpp
         core/runtime_thread_budget.cpp
-        core/runtime_generation.cpp
-        core/qq_bot.cpp
-        core/qq_telegram_bot_endpoints.cpp
-        core/tg_bot.cpp)
+        core/runtime_generation.cpp)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -136,20 +138,9 @@ install(FILES
     ${CMAKE_SOURCE_DIR}/include/core/bot_operations.hpp
     ${CMAKE_SOURCE_DIR}/include/core/onebot11_bot_operations.hpp
     ${CMAKE_SOURCE_DIR}/include/core/telegram_bot_operations.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/bot_registry.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/command_platform_adapter.hpp
     ${CMAKE_SOURCE_DIR}/include/core/db_manager.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/event_dispatcher.hpp
     ${CMAKE_SOURCE_DIR}/include/core/native_actor_scheduler.hpp
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/obcx/core)
-
-install(FILES
-    ${CMAKE_SOURCE_DIR}/include/interfaces/bot.hpp
-    ${CMAKE_SOURCE_DIR}/include/interfaces/connection_manager.hpp
-    ${CMAKE_SOURCE_DIR}/include/interfaces/protocol_adapter.hpp
-    ${CMAKE_SOURCE_DIR}/include/interfaces/qq_bot.hpp
-    ${CMAKE_SOURCE_DIR}/include/interfaces/telegram_bot.hpp
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/obcx/interfaces)
 
 install(FILES
     ${CMAKE_SOURCE_DIR}/include/network/http_client.hpp

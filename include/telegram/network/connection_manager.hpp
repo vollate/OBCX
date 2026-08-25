@@ -2,18 +2,19 @@
 #define OBCX_INCLUDE_TELEGRAM_NETWORK_CONNECTION_MANAGER_HPP_
 
 #include "common/message_type.hpp"
-#include "interfaces/connection_manager.hpp"
-#include "interfaces/telegram_bot.hpp"
 #include "network/http_client.hpp"
 #include "telegram/adapter/protocol_adapter.hpp"
+#include "telegram/provider_types.hpp"
 
 #include <atomic>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/steady_timer.hpp>
+#include <functional>
 #include <memory>
 #include <optional>
 
 namespace obcx::network {
+namespace asio = boost::asio;
 
 struct TelegramMultipartRequest {
   std::string body;
@@ -42,8 +43,9 @@ struct TelegramMultipartRequest {
  * 实现通过HTTP轮询的方式与Telegram Bot API通信。
  * 定期轮询获取更新，通过HTTP POST发送API请求。
  */
-class TelegramConnectionManager : public IConnectionManager {
+class TelegramConnectionManager {
 public:
+  using EventCallback = std::function<void(const common::Event &)>;
   TelegramConnectionManager(asio::io_context &ioc,
                             adapter::telegram::ProtocolAdapter &adapter);
   TelegramConnectionManager(const TelegramConnectionManager &) = delete;
@@ -53,16 +55,16 @@ public:
   TelegramConnectionManager(TelegramConnectionManager &&) = delete;
   auto operator=(TelegramConnectionManager &&)
       -> TelegramConnectionManager & = delete;
-  ~TelegramConnectionManager() override;
+  ~TelegramConnectionManager();
 
-  // 实现IConnectionManager接口
-  void connect(const common::ConnectionConfig &config) override;
-  void disconnect() override;
-  [[nodiscard]] auto is_connected() const -> bool override;
+  // Telegram HTTP transport operations.
+  void connect(const common::ConnectionConfig &config);
+  void disconnect();
+  [[nodiscard]] auto is_connected() const -> bool;
   auto send_action_and_wait_async(std::string action_payload, uint64_t echo_id)
-      -> asio::awaitable<std::string> override;
-  void set_event_callback(EventCallback callback) override;
-  [[nodiscard]] auto get_connection_type() const -> std::string override;
+      -> asio::awaitable<std::string>;
+  void set_event_callback(EventCallback callback);
+  [[nodiscard]] auto get_connection_type() const -> std::string;
 
   /**
    * @brief 下载Telegram文件

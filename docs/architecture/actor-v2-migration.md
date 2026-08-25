@@ -135,10 +135,10 @@ timeouts.
 
 ## Services and protocol capabilities
 
-Resolve shared runtime services with `context.get_service<T>()`. Bot-specific
-features use installed capability interfaces such as `IQQBot` and
-`ITelegramBot`; actor packages must not include concrete bot or connection
-manager implementation headers.
+Resolve shared runtime services with `context.get_service<T>()`. Bot egress
+uses the installed `BotOperationClient` plus data-only operation contracts;
+actor packages must not include process component, provider, transport, or
+connection-manager implementation headers.
 
 Database-aware actors read `context.db_instance()` and
 `context.db_namespace()`. Pipeline partition keys determine the mailbox

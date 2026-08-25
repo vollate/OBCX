@@ -28,7 +28,7 @@ class BotOperationClient;
 namespace obcx::core {
 
 class ActorManager;
-class BotRegistry;
+class BotInstallationDirectory;
 class DbManager;
 class Orchestrator;
 struct OrchestratorResult;
@@ -82,8 +82,8 @@ public:
       -> const std::shared_ptr<Orchestrator> &;
   [[nodiscard]] auto db_manager() const noexcept
       -> const std::shared_ptr<DbManager> &;
-  [[nodiscard]] auto bot_registry() const noexcept
-      -> const std::shared_ptr<BotRegistry> &;
+  [[nodiscard]] auto bot_installation_directory() const noexcept
+      -> const std::shared_ptr<BotInstallationDirectory> &;
   [[nodiscard]] auto bot_operation_client() const noexcept
       -> const std::shared_ptr<bot::BotOperationClient> &;
   [[nodiscard]] auto blocking_executor() const noexcept
@@ -117,7 +117,7 @@ private:
       std::shared_ptr<const common::RuntimeConfigSnapshot> snapshot,
       common::ProcessOwnedConfigFingerprint process_owned_fingerprint,
       std::shared_ptr<DbManager> db_manager,
-      std::shared_ptr<BotRegistry> bot_registry,
+      std::shared_ptr<BotInstallationDirectory> bot_installation_directory,
       std::shared_ptr<bot::BotOperationClient> bot_operation_client,
       std::shared_ptr<BlockingExecutor> blocking_executor,
       std::filesystem::path staging_root);
@@ -142,7 +142,7 @@ private:
   std::shared_ptr<ActorServices> services_;
   std::shared_ptr<NativeActorScheduler> scheduler_;
   std::shared_ptr<DbManager> db_manager_;
-  std::shared_ptr<BotRegistry> bot_registry_;
+  std::shared_ptr<BotInstallationDirectory> bot_installation_directory_;
   std::shared_ptr<bot::BotOperationClient> bot_operation_client_;
   std::shared_ptr<BlockingExecutor> blocking_executor_;
   std::shared_ptr<Orchestrator> orchestrator_;
@@ -165,7 +165,7 @@ struct RuntimeGenerationBuildRequest {
   std::filesystem::path staging_root;
   std::size_t configured_io_sources = 1;
   std::shared_ptr<DbManager> db_manager;
-  std::shared_ptr<BotRegistry> bot_registry;
+  std::shared_ptr<BotInstallationDirectory> bot_installation_directory;
   std::shared_ptr<bot::BotOperationClient> bot_operation_client;
   std::shared_ptr<BlockingExecutor> blocking_executor;
   bool require_registered_bots = false;

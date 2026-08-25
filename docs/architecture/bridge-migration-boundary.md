@@ -22,8 +22,8 @@ scheduler.
 Core owns:
 
 - actor ABI, library loading, scheduling, cancellation, and pipeline dispatch;
-- `BotRegistry`, `DbManager`, protocol capability interfaces, and installed
-  SDK exports;
+- `DbManager`, process-owned bot installations/dispatcher, and installed SDK
+  exports;
 - installed SDK surface validation, generation-scoped configuration audit,
   and the clean cross-repository harness.
 
@@ -34,10 +34,10 @@ The bridge package owns:
 - bridge-specific configuration and schema migrations;
 - forwarding, mapping, media, retry, suspension, failure, and shutdown tests.
 
-The bridge depends only on installed SDK headers. QQ-specific operations are
-resolved through `IQQBot`; Telegram-specific media/topic operations are
-resolved through `ITelegramBot`. Generic HTTP work uses the installed
-`HttpClient` API.
+The bridge depends only on installed SDK headers. QQ and Telegram operations
+are sent through `BotOperationClient` with exact installation/surface DTOs.
+Provider components, transports, and authenticated URLs remain process-owned.
+Generic HTTP work uses the installed `HttpClient` API.
 
 ## Pipeline contract
 

@@ -19,8 +19,10 @@ file(COPY_FILE "${OBCX_TEST_ACTOR}"
 set(_valid "${_root}/valid.toml")
 file(WRITE "${_valid}" "
 [bots.primary]
-type = \"qq\"
 enabled = true
+surface = \"onebot11.qq\"
+transport = \"http\"
+[bots.primary.connection]
 
 [actors.test_actor_v2]
 library = \"test_actor_v2\"
@@ -62,8 +64,10 @@ endforeach()
 set(_valid_collection "${_root}/valid-collection.toml")
 file(WRITE "${_valid_collection}" "
 [bots.primary]
-type = \"qq\"
 enabled = true
+surface = \"onebot11.qq\"
+transport = \"http\"
+[bots.primary.connection]
 
 [actors.test_actor_v2]
 library = \"test_actor_v2\"
@@ -98,8 +102,10 @@ endif()
 set(_invalid_collection "${_root}/invalid-collection.toml")
 file(WRITE "${_invalid_collection}" "
 [bots.primary]
-type = \"qq\"
 enabled = true
+surface = \"onebot11.qq\"
+transport = \"http\"
+[bots.primary.connection]
 
 [actors.test_actor_v2]
 library = \"test_actor_v2\"
@@ -140,17 +146,27 @@ endif()
 set(_bridge_valid "${_root}/bridge-multi-valid.toml")
 file(WRITE "${_bridge_valid}" "
 [bots.qq-a]
-type = \"qq\"
 enabled = true
+surface = \"onebot11.qq\"
+transport = \"http\"
+[bots.qq-a.connection]
 [bots.tg-a]
-type = \"telegram\"
 enabled = true
+surface = \"telegram.bot_api\"
+transport = \"http\"
+[bots.tg-a.connection]
+access_token = \"YOUR_TELEGRAM_TOKEN_A\"
 [bots.qq-b]
-type = \"qq\"
 enabled = true
+surface = \"onebot11.qq\"
+transport = \"http\"
+[bots.qq-b.connection]
 [bots.tg-b]
-type = \"telegram\"
 enabled = true
+surface = \"telegram.bot_api\"
+transport = \"http\"
+[bots.tg-b.connection]
+access_token = \"YOUR_TELEGRAM_TOKEN_B\"
 
 [actors.bridge]
 library = \"bridge\"
@@ -258,8 +274,10 @@ endif()
 set(_unsupported "${_root}/unsupported.toml")
 file(WRITE "${_unsupported}" "
 [bots.primary]
-type = \"qq\"
 enabled = true
+surface = \"onebot11.qq\"
+transport = \"http\"
+[bots.primary.connection]
 
 [actors.test_actor_v2]
 library = \"${OBCX_TEST_ACTOR}\"

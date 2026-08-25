@@ -10,7 +10,7 @@
 
 namespace obcx::core {
 
-auto QQTelegramOperationDispatcher::classify_exception(
+auto BotOperationDispatcher::classify_exception(
     const std::exception &error, const bool side_effecting) noexcept
     -> ExceptionClassification {
   if (!side_effecting) {
@@ -68,7 +68,7 @@ auto BotOperationEndpoint::supported_actions(
       std::move(supported));
 }
 
-void QQTelegramOperationDispatcher::register_endpoint(
+void BotOperationDispatcher::register_endpoint(
     std::shared_ptr<BotOperationEndpoint> endpoint) {
   if (!endpoint) {
     throw std::invalid_argument("bot operation endpoint cannot be null");
@@ -78,8 +78,10 @@ void QQTelegramOperationDispatcher::register_endpoint(
   auto supported = endpoint->supported_actions(installation);
   supported.validate();
   if (!supported.ok()) {
+    const auto message = supported.error ? supported.error.value().message
+                                         : "missing typed endpoint error";
     throw std::invalid_argument("bot operation endpoint actions are invalid: " +
-                                supported.error->message);
+                                message);
   }
 
   std::unique_lock lock(mutex_);
@@ -91,13 +93,12 @@ void QQTelegramOperationDispatcher::register_endpoint(
   }
 }
 
-auto QQTelegramOperationDispatcher::endpoint_count() const noexcept
-    -> std::size_t {
+auto BotOperationDispatcher::endpoint_count() const noexcept -> std::size_t {
   std::shared_lock lock(mutex_);
   return endpoints_.size();
 }
 
-auto QQTelegramOperationDispatcher::find_endpoint(
+auto BotOperationDispatcher::find_endpoint(
     const bot::BotInstallationRef &installation) const
     -> std::shared_ptr<BotOperationEndpoint> {
   std::shared_lock lock(mutex_);
@@ -105,7 +106,7 @@ auto QQTelegramOperationDispatcher::find_endpoint(
   return found == endpoints_.end() ? nullptr : found->second;
 }
 
-auto QQTelegramOperationDispatcher::supported_actions(
+auto BotOperationDispatcher::supported_actions(
     const bot::BotInstallationRef &installation) const
     -> bot::BotOperationResult<bot::SupportedBotActions> {
   try {
@@ -123,7 +124,7 @@ auto QQTelegramOperationDispatcher::supported_actions(
   return endpoint->supported_actions(installation);
 }
 
-auto QQTelegramOperationDispatcher::execute(
+auto BotOperationDispatcher::execute(
     const bot::SendGroupMessageRequest &request)
     -> boost::asio::awaitable<bot::BotOperationResult<bot::SendMessageResult>> {
   co_return co_await dispatch<bot::SendMessageResult>(
@@ -134,8 +135,7 @@ auto QQTelegramOperationDispatcher::execute(
       });
 }
 
-auto QQTelegramOperationDispatcher::execute(
-    const bot::DeleteMessageRequest &request)
+auto BotOperationDispatcher::execute(const bot::DeleteMessageRequest &request)
     -> boost::asio::awaitable<
         bot::BotOperationResult<bot::DeleteMessageResult>> {
   co_return co_await dispatch<bot::DeleteMessageResult>(
@@ -146,7 +146,7 @@ auto QQTelegramOperationDispatcher::execute(
       });
 }
 
-auto QQTelegramOperationDispatcher::execute(
+auto BotOperationDispatcher::execute(
     const bot::SendTelegramTopicMessageRequest &request)
     -> boost::asio::awaitable<bot::BotOperationResult<bot::SendMessageResult>> {
   co_return co_await dispatch<bot::SendMessageResult>(
@@ -157,7 +157,7 @@ auto QQTelegramOperationDispatcher::execute(
       });
 }
 
-auto QQTelegramOperationDispatcher::execute(
+auto BotOperationDispatcher::execute(
     const bot::EditTelegramMessageTextRequest &request)
     -> boost::asio::awaitable<
         bot::BotOperationResult<bot::EditMessageTextResult>> {
@@ -169,7 +169,7 @@ auto QQTelegramOperationDispatcher::execute(
       });
 }
 
-auto QQTelegramOperationDispatcher::execute(
+auto BotOperationDispatcher::execute(
     const bot::SendTelegramPhotoRequest &request)
     -> boost::asio::awaitable<bot::BotOperationResult<bot::SendMessageResult>> {
   co_return co_await dispatch<bot::SendMessageResult>(
@@ -180,7 +180,7 @@ auto QQTelegramOperationDispatcher::execute(
       });
 }
 
-auto QQTelegramOperationDispatcher::execute(
+auto BotOperationDispatcher::execute(
     const bot::SendTelegramMediaGroupUrlsRequest &request)
     -> boost::asio::awaitable<bot::BotOperationResult<bot::SendMessageResult>> {
   co_return co_await dispatch<bot::SendMessageResult>(
@@ -191,7 +191,7 @@ auto QQTelegramOperationDispatcher::execute(
       });
 }
 
-auto QQTelegramOperationDispatcher::execute(
+auto BotOperationDispatcher::execute(
     const bot::SendTelegramMediaGroupUploadsRequest &request)
     -> boost::asio::awaitable<bot::BotOperationResult<bot::SendMessageResult>> {
   co_return co_await dispatch<bot::SendMessageResult>(
@@ -202,7 +202,7 @@ auto QQTelegramOperationDispatcher::execute(
       });
 }
 
-auto QQTelegramOperationDispatcher::execute(
+auto BotOperationDispatcher::execute(
     const bot::FetchTelegramFileRequest &request)
     -> boost::asio::awaitable<
         bot::BotOperationResult<bot::FetchedTelegramFile>> {
@@ -214,7 +214,7 @@ auto QQTelegramOperationDispatcher::execute(
       });
 }
 
-auto QQTelegramOperationDispatcher::execute(
+auto BotOperationDispatcher::execute(
     const bot::GetOneBotGroupMemberRequest &request)
     -> boost::asio::awaitable<bot::BotOperationResult<bot::OneBotGroupMember>> {
   co_return co_await dispatch<bot::OneBotGroupMember>(
@@ -225,7 +225,7 @@ auto QQTelegramOperationDispatcher::execute(
       });
 }
 
-auto QQTelegramOperationDispatcher::execute(
+auto BotOperationDispatcher::execute(
     const bot::GetOneBotForwardMessageRequest &request)
     -> boost::asio::awaitable<
         bot::BotOperationResult<bot::OneBotForwardMessage>> {
@@ -237,7 +237,7 @@ auto QQTelegramOperationDispatcher::execute(
       });
 }
 
-auto QQTelegramOperationDispatcher::execute(
+auto BotOperationDispatcher::execute(
     const bot::ResolveOneBotGroupFileRequest &request)
     -> boost::asio::awaitable<
         bot::BotOperationResult<bot::ResolvedOneBotGroupFile>> {
@@ -249,7 +249,7 @@ auto QQTelegramOperationDispatcher::execute(
       });
 }
 
-auto QQTelegramOperationDispatcher::execute(
+auto BotOperationDispatcher::execute(
     const bot::ResolveOneBotPrivateFileRequest &request)
     -> boost::asio::awaitable<
         bot::BotOperationResult<bot::ResolvedOneBotPrivateFile>> {
@@ -261,8 +261,7 @@ auto QQTelegramOperationDispatcher::execute(
       });
 }
 
-auto QQTelegramOperationDispatcher::execute(
-    const bot::PokeOneBotGroupRequest &request)
+auto BotOperationDispatcher::execute(const bot::PokeOneBotGroupRequest &request)
     -> boost::asio::awaitable<
         bot::BotOperationResult<bot::OneBotGroupPokeResult>> {
   co_return co_await dispatch<bot::OneBotGroupPokeResult>(

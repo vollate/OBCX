@@ -171,7 +171,7 @@ Default DB policy:
 | legacy bridge handlers use bridge state repository for mapping behavior | DONE | [x] | Bridge | `BridgeHandlerRepositoryTest` and bridge plugin build prove reply mapping lookup uses `BridgeStateRepository`; QQ/TG handlers are wired to repository for mapping, media-group, reply, and recall paths |
 | legacy bridge handlers no longer write raw received messages directly | DONE | [x] | Bridge | `BridgeHandlerRepositoryTest` guards against raw-message writes in forwarding handlers; `ReceivedMessageRepositoryTest` proves bridge reads message_store-owned raw messages |
 | platform message events enter actor pipeline | DONE | [x] | Runtime | `MessageEventIngressTest` proves `MessageEvent -> obcx::core::events::RawMessageEvent`; main runtime registers actor ingress when actors/pipelines are configured |
-| actor-mode bridge forwarding uses `obcx::message_store::events::MessageStored` | DONE | [x] | Bridge | `BridgeActorTest` proves forwarding runtime service consumption; bridge actor constructs `BridgeForwardingRuntime` from `BotRegistry` and skips legacy raw callbacks when actor pipeline is enabled |
+| actor-mode bridge forwarding uses `obcx::message_store::events::MessageStored` | DONE | [x] | Bridge | `BridgeActorTest` proves forwarding runtime service consumption; bridge actor constructs `BridgeForwardingRuntime` with `BotOperationClient` and exact installation pairs |
 
 ## Phase 0: Boundary Correction
 

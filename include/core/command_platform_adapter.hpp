@@ -13,8 +13,6 @@
 
 namespace obcx::core {
 
-class IBot;
-
 struct DetectedCommand {
   std::string name;
   std::string arguments;
@@ -32,6 +30,21 @@ struct CommandCatalogPublishResult {
   bool succeeded = false;
   std::string code;
   std::string message;
+};
+
+class TelegramCommandCatalog {
+public:
+  TelegramCommandCatalog() = default;
+  TelegramCommandCatalog(const TelegramCommandCatalog &) = delete;
+  auto operator=(const TelegramCommandCatalog &)
+      -> TelegramCommandCatalog & = delete;
+  TelegramCommandCatalog(TelegramCommandCatalog &&) = delete;
+  auto operator=(TelegramCommandCatalog &&)
+      -> TelegramCommandCatalog & = delete;
+  virtual ~TelegramCommandCatalog() = default;
+
+  virtual auto publish(const std::vector<CommandCatalogEntry> &catalog)
+      -> boost::asio::awaitable<CommandCatalogPublishResult> = 0;
 };
 
 class ICommandPlatformAdapter {
@@ -54,8 +67,8 @@ public:
       -> std::optional<std::string> = 0;
   [[nodiscard]] virtual auto supports_catalog_publication() const noexcept
       -> bool = 0;
-  virtual auto publish_catalog(IBot &bot,
-                               const std::vector<CommandCatalogEntry> &catalog)
+  virtual auto publish_catalog(TelegramCommandCatalog *catalog,
+                               const std::vector<CommandCatalogEntry> &entries)
       -> boost::asio::awaitable<CommandCatalogPublishResult> = 0;
 };
 

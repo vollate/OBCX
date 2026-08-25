@@ -413,7 +413,8 @@ template <typename T> struct BotOperationResult {
     return {.value = std::move(result)};
   }
 
-  [[nodiscard]] static auto failure(BotOperationError failure)
+  [[nodiscard]] static auto failure(
+      BotOperationError failure) // NOLINT(performance-unnecessary-value-param)
       -> BotOperationResult {
     failure.validate();
     return {.error = std::move(failure)};

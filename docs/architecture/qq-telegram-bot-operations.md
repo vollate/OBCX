@@ -23,7 +23,7 @@ implemented. OneBot support never implies `qq.official`.
 | `onebot11.group.poke` | no | yes | Bridge |
 
 Adding an action or platform requires a separate proposal and executable
-adapter tests. Unused `IBot` methods are not capabilities.
+adapter tests. Removed universal-bot methods are not capabilities.
 
 ## SDK and ownership
 
@@ -36,15 +36,17 @@ Every request names a `BotInstallationRef` containing the configured bot name
 and exact surface. Group and message references retain that installation;
 Telegram chat id and message id are separate values.
 
-`BotOperationClient` is the only new actor service. The process dispatcher
-owns wrappers around the existing `QQBot` and `TGBot`; only those wrappers see
-legacy bot/provider interfaces and parse Telegram or OneBot response envelopes.
-Tokens, clients, connection managers, executors, and Telegram tokenized file
-URLs do not enter actor code.
+`BotOperationClient` is the only actor-visible bot service. Process-owned
+OneBot and Telegram operation components implement native endpoints and parse
+provider response envelopes. `BotOperationDispatcher` routes those endpoint
+capabilities by exact installation and surface. Tokens, clients, transports,
+component registries, executors, and Telegram tokenized file URLs do not enter
+actor code.
 
-`BotRegistry` and legacy interfaces remain process/runtime compatibility
-infrastructure for external actors during this slice. The in-repository Bridge
-and `chat_llm` actors no longer use them.
+The former universal/provider bot interfaces, concrete `QQBot`/`TGBot`, live
+bot registry, and RTTI wrappers have been removed. See
+[bot-component-runtime.md](bot-component-runtime.md) for process composition,
+lifecycle, and configuration.
 
 ## Errors and retry safety
 

@@ -20,7 +20,7 @@ WebSocketConnectionManager::WebSocketConnectionManager(
 
 WebSocketConnectionManager::~WebSocketConnectionManager() {
   // Release our own resources while the referenced io_context is still alive
-  // (IBot::~IBot guarantees this destruction order). Without this explicit
+  // (BotInstallation guarantees this destruction order). Without this explicit
   // cleanup, send_strand_ — which holds a shared_ptr into the io_context's
   // strand_executor_service — would be destroyed after the service was gone,
   // crashing inside _Sp_counted_ptr_inplace::_M_destroy.

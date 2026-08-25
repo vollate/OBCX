@@ -2,9 +2,9 @@
 
 #include "common/logger.hpp"
 #include "core/actor_manager.hpp"
+#include "core/bot_installation_directory.hpp"
 #include "core/bot_operation_client.hpp"
 #include "core/bot_operation_dispatcher.hpp"
-#include "core/bot_registry.hpp"
 #include "core/command_coordinator.hpp"
 #include "core/db_manager.hpp"
 #include "core/orchestrator.hpp"
@@ -169,12 +169,23 @@ auto validate_actor_configuration(const common::RuntimeConfigSnapshot &snapshot,
     if (installation.empty()) {
       return path + " must name an enabled configured bot";
     }
-    const auto bot =
-        std::ranges::find(bots, installation, &common::BotConfig::name);
+    const auto bot = std::ranges::find(
+        bots, installation, &common::BotInstallationConfig::installation_id);
     if (bot == bots.end() || !bot->enabled) {
       return path + " must name an enabled configured bot";
     }
-    if (std::ranges::find(expected_types, bot->type) == expected_types.end()) {
+    const auto matches_expected = std::ranges::any_of(
+        expected_types, [&bot](const std::string_view expected) {
+          switch (bot->surface) {
+          case common::BotInstallationSurface::OneBot11Qq:
+            return expected == "qq" || expected == "onebot" ||
+                   expected == "onebot11.qq";
+          case common::BotInstallationSurface::TelegramBotApi:
+            return expected == "telegram" || expected == "telegram.bot_api";
+          }
+          return false;
+        });
+    if (!matches_expected) {
       std::string expected;
       for (const auto &type : expected_types) {
         expected += expected.empty() ? type : " or " + type;
@@ -449,7 +460,7 @@ RuntimeGeneration::RuntimeGeneration(
     std::shared_ptr<const common::RuntimeConfigSnapshot> snapshot,
     common::ProcessOwnedConfigFingerprint process_owned_fingerprint,
     std::shared_ptr<DbManager> db_manager,
-    std::shared_ptr<BotRegistry> bot_registry,
+    std::shared_ptr<BotInstallationDirectory> bot_installation_directory,
     std::shared_ptr<bot::BotOperationClient> bot_operation_client,
     std::shared_ptr<BlockingExecutor> blocking_executor, fs::path staging_root)
     : staging_owner_(
@@ -464,7 +475,7 @@ RuntimeGeneration::RuntimeGeneration(
       scheduler_(std::make_shared<NativeActorScheduler>(
           std::move(scheduler_options), services_)),
       db_manager_(std::move(db_manager)),
-      bot_registry_(std::move(bot_registry)),
+      bot_installation_directory_(std::move(bot_installation_directory)),
       bot_operation_client_(std::move(bot_operation_client)),
       blocking_executor_(std::move(blocking_executor)),
       orchestrator_(std::make_shared<Orchestrator>(scheduler_, services_)),
@@ -518,9 +529,9 @@ auto RuntimeGeneration::db_manager() const noexcept
   return db_manager_;
 }
 
-auto RuntimeGeneration::bot_registry() const noexcept
-    -> const std::shared_ptr<BotRegistry> & {
-  return bot_registry_;
+auto RuntimeGeneration::bot_installation_directory() const noexcept
+    -> const std::shared_ptr<BotInstallationDirectory> & {
+  return bot_installation_directory_;
 }
 
 auto RuntimeGeneration::bot_operation_client() const noexcept
@@ -605,11 +616,16 @@ auto RuntimeGeneration::reconcile_command_catalog(CommandBotKey key)
         .code = "command_catalog_bot_unavailable",
         .message = "configured live bot is unavailable",
     };
-    if (const auto registered =
-            bot_registry_->find_bot(key.platform, key.bot)) {
-      published = co_await bot_binding->adapter->publish_catalog(
-          *registered->bot, bot_binding->catalog);
+    std::shared_ptr<TelegramCommandCatalog> catalog;
+    if (bot_installation_directory_ != nullptr) {
+      const auto surface = key.platform == "telegram"
+                               ? bot::BotSurface::TelegramBotApi
+                               : bot::BotSurface::OneBot11Qq;
+      catalog = bot_installation_directory_->telegram_command_catalog(
+          {.installation_id = key.bot, .surface = surface});
     }
+    published = co_await bot_binding->adapter->publish_catalog(
+        catalog.get(), bot_binding->catalog);
 
     {
       std::scoped_lock lock(command_catalog_mutex_);
@@ -852,13 +868,12 @@ auto RuntimeGenerationBuilder::build(RuntimeGenerationBuildRequest request)
                   "actor runtime requires enabled actors and either pipelines "
                   "or command routes");
   }
-  if (!request.db_manager || !request.bot_registry) {
+  if (!request.db_manager) {
     return failed("reload_process_service_missing",
                   "process-owned runtime services are missing");
   }
   if (!request.bot_operation_client) {
-    request.bot_operation_client =
-        std::make_shared<QQTelegramOperationDispatcher>();
+    request.bot_operation_client = std::make_shared<BotOperationDispatcher>();
   }
   if (request.purpose == RuntimeGenerationBuildPurpose::ReloadCandidate &&
       !request.blocking_executor) {
@@ -900,7 +915,8 @@ auto RuntimeGenerationBuilder::build(RuntimeGenerationBuildRequest request)
   auto generation = std::shared_ptr<RuntimeGeneration>(new RuntimeGeneration{
       request.generation_id, thread_budget, scheduler_options, request.snapshot,
       process_fingerprint, std::move(request.db_manager),
-      std::move(request.bot_registry), std::move(request.bot_operation_client),
+      std::move(request.bot_installation_directory),
+      std::move(request.bot_operation_client),
       std::move(request.blocking_executor), staging_root});
 
   ActorPackageStager stager;
@@ -972,10 +988,16 @@ auto RuntimeGenerationBuilder::build(RuntimeGenerationBuildRequest request)
       if (!bot.enabled) {
         continue;
       }
-      const auto platform = normalize_command_platform(bot.type);
-      const auto identity = bot.name.empty() ? bot.type : bot.name;
-      if (platform.empty() ||
-          !generation->bot_registry_->find_bot(platform, identity)) {
+      const auto surface =
+          bot.surface == common::BotInstallationSurface::TelegramBotApi
+              ? bot::BotSurface::TelegramBotApi
+              : bot::BotSurface::OneBot11Qq;
+      const auto &identity = bot.installation_id;
+      const auto available =
+          generation->bot_installation_directory_ != nullptr &&
+          static_cast<bool>(generation->bot_installation_directory_->endpoint(
+              {.installation_id = identity, .surface = surface}));
+      if (!available) {
         return failed("reload_bot_unavailable",
                       "configured live bot is unavailable: " + identity);
       }
@@ -1000,8 +1022,6 @@ auto RuntimeGenerationBuilder::build(RuntimeGenerationBuildRequest request)
       }));
   generation->orchestrator_->register_service<DbManager>(
       generation->db_manager_);
-  generation->orchestrator_->register_service<BotRegistry>(
-      generation->bot_registry_);
   generation->orchestrator_->register_service<bot::BotOperationClient>(
       generation->bot_operation_client_);
   generation->orchestrator_->register_service<common::ActorConfigService>(

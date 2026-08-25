@@ -140,8 +140,8 @@ TelegramConnectionManager::TelegramConnectionManager(
 
 TelegramConnectionManager::~TelegramConnectionManager() {
   // Release our own resources (poll_timer_, http_client_) while the
-  // referenced io_context is still alive. IBot::~IBot guarantees this
-  // destruction order.
+  // referenced installation io_context is still alive. BotInstallation owns
+  // transports ahead of its executor and guarantees this destruction order.
   try {
     shutdown();
   } catch (const std::exception &error) {

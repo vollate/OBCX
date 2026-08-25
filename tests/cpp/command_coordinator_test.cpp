@@ -182,11 +182,20 @@ auto config_document(std::string fallback = "continue",
                      std::string platform = "qq", std::string bot_type = "qq",
                      std::string actor = "command_actor",
                      std::string command = "test") -> std::string {
+  const auto telegram = bot_type == "telegram";
+  const auto surface =
+      std::string{telegram ? "telegram.bot_api" : "onebot11.qq"};
+  const auto connection =
+      std::string{telegram ? "access_token = \"YOUR_TELEGRAM_TOKEN\"\n\n"
+                           : "access_token = \"\"\n\n"};
   return "[bots.primary]\n"
-         "type = \"" +
-         bot_type +
+         "enabled = true\n"
+         "surface = \"" +
+         surface +
          "\"\n"
-         "enabled = true\n\n"
+         "transport = \"http\"\n\n"
+         "[bots.primary.connection]\n" +
+         connection +
          "[actors.command_actor]\n"
          "enabled = true\n"
          "partition = \"conversation_id\"\n\n"
@@ -336,10 +345,11 @@ TEST_F(CommandCoordinatorTest, BuildsImmutableRoutesAndDetectionOnlyCatalogs) {
 TEST_F(CommandCoordinatorTest,
        UsesConfiguredTelegramUsernameForExplicitCommandTargets) {
   auto document = config_document("continue", "telegram", "telegram");
-  const auto actor = document.find("[actors.command_actor]");
-  ASSERT_NE(actor, std::string::npos);
-  document.insert(actor, "[bots.primary.connection]\n"
-                         "bot_username = \"my_bot\"\n\n");
+  const auto connection = document.find("[bots.primary.connection]\n");
+  ASSERT_NE(connection, std::string::npos);
+  document.insert(connection +
+                      std::string{"[bots.primary.connection]\n"}.size(),
+                  "bot_username = \"my_bot\"\n");
   const auto config = snapshot("telegram-target.toml", document);
   const auto built = table(config);
   ASSERT_TRUE(built) << (built.failure ? built.failure->message : "");
