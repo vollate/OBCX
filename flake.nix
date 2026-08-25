@@ -3,10 +3,18 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    clang-p2996 = {
+      url = "github:Bloomberg/clang-p2996/p2996";
+      flake = false;
+    };
   };
 
   outputs =
-    { nixpkgs, ... }:
+    {
+      nixpkgs,
+      clang-p2996,
+      ...
+    }:
     let
       linuxSystems = [
         "x86_64-linux"
@@ -40,6 +48,35 @@
         system:
         let
           pkgs = pkgsFor system;
+          clangP2996Source = clang-p2996 // {
+            passthru = {
+              owner = "Bloomberg";
+              repo = "clang-p2996";
+              rev = clang-p2996.rev or "p2996";
+            };
+          };
+          # Rebuild clangd from Bloomberg's LLVM 21 fork so it understands
+          # the C++26 reflection syntax used by the GCC 16 build.
+          clangP2996BasePackages = pkgs.llvmPackages_21.override {
+            monorepoSrc = clangP2996Source;
+            version = "21.0.0";
+          };
+          clangP2996Packages = clangP2996BasePackages.overrideScope (
+            final: prev: {
+              libllvm = (prev.libllvm.override {
+                buildLlvmPackages = final;
+              }).overrideAttrs {
+                # The fork's llvm-exegesis CPU-pinning tests are host-sensitive
+                # and are not required for the clangd development tool.
+                doCheck = false;
+              };
+              libclang = prev.libclang.override {
+                buildLlvmPackages = final;
+                libllvm = final.libllvm;
+              };
+            }
+          );
+          clangTools = clangP2996Packages.clang-tools;
         in
         {
           default =
@@ -51,7 +88,7 @@
                   git
                   pkg-config
                   cmake-format
-                  clang-tools
+                  clangTools
                   doxygen
                   ffmpeg
                   openspec
@@ -96,7 +133,7 @@
                   binutils
                   pkg-config
                   cmake-format
-                  clang-tools
+                  clangTools
                   doxygen
                   ffmpeg
                   perf

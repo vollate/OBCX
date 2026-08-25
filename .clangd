@@ -1,0 +1,7 @@
+CompileFlags:
+  # compile_commands.json is generated for GCC 16. Remove GCC-specific
+  # dependency-scanning/module flags before clangd parses each command.
+  Remove:
+    - -fmodules-ts
+    - "-fmodule-mapper=*"
+    - "-fdeps-format=*"
