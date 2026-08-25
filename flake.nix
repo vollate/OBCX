@@ -8,10 +8,12 @@
   outputs =
     { nixpkgs, ... }:
     let
-      supportedSystems = [
+      linuxSystems = [
         "x86_64-linux"
         "aarch64-linux"
       ];
+      darwinSystems = [ "aarch64-darwin" ];
+      supportedSystems = linuxSystems ++ darwinSystems;
 
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
       pkgsFor = system: import nixpkgs { inherit system; };
@@ -38,54 +40,76 @@
         system:
         let
           pkgs = pkgsFor system;
-          stdenv = pkgs.gcc16Stdenv;
-
-          obcxDependencies =
-            (with pkgs; [
-              boost
-              brotli
-              fmt
-              zlib
-              gtest
-              nlohmann_json
-              openspec
-              openssl
-              spdlog
-              sqlite
-              tomlplusplus
-              ftxui
-              libxml2
-              re2
-              zstd
-              liburing
-              stdenv.cc.cc.lib
-            ]);
         in
         {
-          default = pkgs.mkShell.override { inherit stdenv; } {
-            nativeBuildInputs =
-              (with pkgs; [
-                cmake
-                ninja
-                git
-                gcc16
-                binutils
-                pkg-config
-                cmake-format
-                clang-tools
-                doxygen
-                ffmpeg
-                perf
-                treefmt
-              ]);
+          default =
+            if pkgs.stdenv.isDarwin then
+              pkgs.mkShell {
+                packages = with pkgs; [
+                  cmake
+                  ninja
+                  git
+                  pkg-config
+                  cmake-format
+                  clang-tools
+                  doxygen
+                  ffmpeg
+                  openspec
+                  treefmt
+                ];
 
-            buildInputs = obcxDependencies;
+                shellHook = ''
+                  echo "OBCX macOS shell: tooling only; native builds require Linux GCC 16.1+ reflection."
+                  export CC=clang
+                  export CXX=clang++
+                '';
+              }
+            else
+              let
+                stdenv = pkgs.gcc16Stdenv;
+                obcxDependencies = with pkgs; [
+                  boost
+                  brotli
+                  fmt
+                  zlib
+                  gtest
+                  nlohmann_json
+                  openspec
+                  openssl
+                  spdlog
+                  sqlite
+                  tomlplusplus
+                  ftxui
+                  libxml2
+                  re2
+                  zstd
+                  liburing
+                  stdenv.cc.cc.lib
+                ];
+              in
+              pkgs.mkShell.override { inherit stdenv; } {
+                nativeBuildInputs = with pkgs; [
+                  cmake
+                  ninja
+                  git
+                  gcc16
+                  binutils
+                  pkg-config
+                  cmake-format
+                  clang-tools
+                  doxygen
+                  ffmpeg
+                  perf
+                  treefmt
+                ];
 
-            shellHook = ''
-              export CC=gcc
-              export CXX=g++
-            '';
-          };
+                buildInputs = obcxDependencies;
+
+                shellHook = ''
+                  export CC=gcc
+                  export CXX=g++
+                '';
+              };
         }
       );
     };

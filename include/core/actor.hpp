@@ -41,28 +41,29 @@ inline constexpr auto OBCX_ACTOR_ABI_GENERATION_V2 =
 namespace detail {
 
 consteval auto canonical_message_name(std::meta::info type) -> std::string {
-  using namespace std::meta;
-  type = dealias(type);
-  if (!is_class_type(type) && !is_enum_type(type)) {
-    throw exception("OBCX_REFLECTED_MESSAGE_NOT_CLASS_OR_ENUM", type);
+  type = std::meta::dealias(type);
+  if (!std::meta::is_class_type(type) && !std::meta::is_enum_type(type)) {
+    throw std::meta::exception("OBCX_REFLECTED_MESSAGE_NOT_CLASS_OR_ENUM",
+                               type);
   }
 
   std::vector<std::string_view> reversed;
   auto current = type;
   while (true) {
-    if (!has_identifier(current)) {
-      throw exception("OBCX_REFLECTED_MESSAGE_UNSTABLE_IDENTITY", current);
+    if (!std::meta::has_identifier(current)) {
+      throw std::meta::exception("OBCX_REFLECTED_MESSAGE_UNSTABLE_IDENTITY",
+                                 current);
     }
-    reversed.push_back(identifier_of(current));
-    if (!has_parent(current)) {
+    reversed.push_back(std::meta::identifier_of(current));
+    if (!std::meta::has_parent(current)) {
       break;
     }
-    current = parent_of(current);
-    if (!is_namespace(current) &&
-        (!is_type(current) || !is_class_type(current))) {
-      throw exception("OBCX_REFLECTED_MESSAGE_LOCAL_TYPE", current);
+    current = std::meta::parent_of(current);
+    if (!std::meta::is_namespace(current) &&
+        (!std::meta::is_type(current) || !std::meta::is_class_type(current))) {
+      throw std::meta::exception("OBCX_REFLECTED_MESSAGE_LOCAL_TYPE", current);
     }
-    if (!has_parent(current)) {
+    if (!std::meta::has_parent(current)) {
       break;
     }
   }

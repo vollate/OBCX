@@ -36,7 +36,6 @@ namespace {
 
 namespace asio = boost::asio;
 namespace fs = std::filesystem;
-using namespace std::chrono_literals;
 
 struct Options {
   fs::path message_store_actor;
@@ -530,7 +529,8 @@ auto run_batch(
         });
   }
 
-  require(done.wait_for(120s) == std::future_status::ready,
+  require(done.wait_for(std::chrono::seconds{120}) ==
+              std::future_status::ready,
           "bridge business batch timed out");
   require(state->failures.load(std::memory_order_relaxed) == 0,
           state->first_error.empty() ? "bridge business batch failed"

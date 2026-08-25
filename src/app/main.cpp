@@ -39,7 +39,6 @@
 #include <unordered_set>
 #include <vector>
 
-using namespace obcx;
 namespace po = boost::program_options;
 
 namespace {
@@ -319,7 +318,7 @@ public:
     common::ConfigLoader::instance().publish_snapshot(config_snapshot);
     auto actor_runtime = std::move(actor_runtime_build.generation);
 
-    auto &component_manager = ComponentManager::instance();
+    auto &component_manager = common::ComponentManager::instance();
 
     if (bot_configs.empty()) {
       OBCX_ERROR("No bot configurations found");
@@ -349,7 +348,7 @@ public:
         continue;
       }
 
-      auto bot = ComponentManager::create_bot(config);
+      auto bot = common::ComponentManager::create_bot(config);
       if (!bot) {
         OBCX_ERROR("Failed to create bot component of type: {}", config.type);
         continue;
