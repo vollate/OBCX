@@ -185,9 +185,9 @@ struct SendTelegramMediaGroupUrlsRequest {
     target.validate();
     detail::require_telegram(target.installation,
                              "SendTelegramMediaGroupUrlsRequest");
-    if (media.empty() || media.size() > 10U) {
+    if (media.size() < 2U || media.size() > 10U) {
       throw std::invalid_argument(
-          "Telegram URL media group requires between 1 and 10 items");
+          "Telegram URL media group requires between 2 and 10 items");
     }
     for (const auto &item : media) {
       item.validate();
@@ -228,9 +228,9 @@ struct SendTelegramMediaGroupUploadsRequest {
                              "SendTelegramMediaGroupUploadsRequest");
     detail::validate_media_bound(maximum_bytes,
                                  "SendTelegramMediaGroupUploadsRequest");
-    if (media.empty() || media.size() > 10U) {
+    if (media.size() < 2U || media.size() > 10U) {
       throw std::invalid_argument(
-          "Telegram upload media group requires between 1 and 10 items");
+          "Telegram upload media group requires between 2 and 10 items");
     }
     std::size_t total = 0;
     for (const auto &item : media) {

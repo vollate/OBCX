@@ -295,11 +295,15 @@ TEST(BotOperationComponentTest,
           .media = {{.type = "photo",
                      .filename = "a.jpg",
                      .mime_type = "image/jpeg",
-                     .bytes = {1, 2, 3}}},
+                     .bytes = {1, 2, 3}},
+                    {.type = "photo",
+                     .filename = "b.jpg",
+                     .mime_type = "image/jpeg",
+                     .bytes = {4, 5, 6}}},
           .maximum_bytes = 16}));
   ASSERT_TRUE(uploaded.ok());
   EXPECT_EQ(transport->upload_chat, "-1001");
-  EXPECT_EQ(transport->upload_count, 1U);
+  EXPECT_EQ(transport->upload_count, 2U);
 
   auto fetched = run(endpoint->execute(
       obcx::bot::FetchTelegramFileRequest{.installation = target.installation,

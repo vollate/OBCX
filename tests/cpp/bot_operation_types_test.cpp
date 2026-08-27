@@ -280,7 +280,11 @@ TEST(BotOperationTypesTest, TelegramUploadBytesAreBoundedAndRoundTrip) {
       .media = {{.type = "photo",
                  .filename = "image.jpg",
                  .mime_type = "image/jpeg",
-                 .bytes = {0x00, 0x7F, 0x80, 0xFF}}},
+                 .bytes = {0x00, 0x7F, 0x80, 0xFF}},
+                {.type = "photo",
+                 .filename = "image-2.jpg",
+                 .mime_type = "image/jpeg",
+                 .bytes = {0x01, 0x02}}},
       .caption = "upload",
       .maximum_bytes = 16,
   };
@@ -288,10 +292,14 @@ TEST(BotOperationTypesTest, TelegramUploadBytesAreBoundedAndRoundTrip) {
   EXPECT_EQ(
       document.get<obcx::bot::SendTelegramMediaGroupUploadsRequest>().media,
       request.media);
+  EXPECT_NO_THROW(request.validate());
 
   request.maximum_bytes = 3;
   EXPECT_THROW(request.validate(), std::invalid_argument);
   request.maximum_bytes = obcx::bot::maximum_actor_media_bytes + 1;
+  EXPECT_THROW(request.validate(), std::invalid_argument);
+  request.maximum_bytes = 16;
+  request.media.resize(1);
   EXPECT_THROW(request.validate(), std::invalid_argument);
 }
 
@@ -339,6 +347,7 @@ TEST(BotOperationTypesTest, TelegramMediaRejectsWrongTargetAndGroupShape) {
 
   request.target.installation = {.installation_id = "tg-main",
                                  .surface = BotSurface::TelegramBotApi};
+  EXPECT_THROW(request.validate(), std::invalid_argument);
   request.media.clear();
   EXPECT_THROW(request.validate(), std::invalid_argument);
   request.media.resize(11, {.type = "photo", .source = "file-id"});
@@ -485,13 +494,18 @@ TEST(BotOperationTypesTest, EveryClosedActionRequestHasStableJson) {
       .target = telegram_group, .photo = "file-id"});
   expect_stable_round_trip(obcx::bot::SendTelegramMediaGroupUrlsRequest{
       .target = telegram_group,
-      .media = {{.type = "photo", .source = "https://example.test/a"}}});
+      .media = {{.type = "photo", .source = "https://example.test/a"},
+                {.type = "photo", .source = "https://example.test/b"}}});
   expect_stable_round_trip(obcx::bot::SendTelegramMediaGroupUploadsRequest{
       .target = telegram_group,
       .media = {{.type = "photo",
                  .filename = "a.jpg",
                  .mime_type = "image/jpeg",
-                 .bytes = {1, 2, 3}}},
+                 .bytes = {1, 2, 3}},
+                {.type = "photo",
+                 .filename = "b.jpg",
+                 .mime_type = "image/jpeg",
+                 .bytes = {4, 5, 6}}},
       .maximum_bytes = 16});
   expect_stable_round_trip(obcx::bot::FetchTelegramFileRequest{
       .installation = telegram,
