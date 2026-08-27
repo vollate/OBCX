@@ -317,7 +317,8 @@ auto TelegramConnectionManager::download_file(std::string file_id)
 }
 
 auto TelegramConnectionManager::download_file_content(
-    std::string_view download_url) -> asio::awaitable<std::string> {
+    std::string_view download_url, const std::size_t maximum_bytes)
+    -> asio::awaitable<std::string> {
   if (!http_client_) {
     throw std::runtime_error("HTTP client not initialized");
   }
@@ -341,7 +342,8 @@ auto TelegramConnectionManager::download_file_content(
     // browser-like header set we want for the file CDN.
     std::map<std::string, std::string> headers;
 
-    HttpResponse response = co_await http_client_->get(path, headers);
+    HttpResponse response =
+        co_await http_client_->get(path, headers, maximum_bytes);
 
     if (response.is_success()) {
       co_return response.body;

@@ -539,6 +539,20 @@ TEST_F(HttpClientTimeoutTest, CustomResponseBodyLimitAcceptsLargerBody) {
   EXPECT_EQ(response.body.size(), kNineMiB);
 }
 
+TEST_F(HttpClientTimeoutTest, PerRequestBodyLimitOverridesClientDefault) {
+  constexpr std::uint64_t kTenMiB = 10ULL * 1024ULL * 1024ULL;
+  constexpr std::size_t kNineMiB = 9ULL * 1024ULL * 1024ULL;
+  server_->set_response_body(std::string(kNineMiB, 'x'));
+  auto client = create_client(EXTENDED_WAIT);
+
+  auto response =
+      run_awaitable(ioc_, client->get("/large-per-request", {}, kTenMiB));
+
+  EXPECT_EQ(response.body.size(), kNineMiB);
+  EXPECT_EQ(client->response_body_limit(),
+            network::HttpClient::kDefaultResponseBodyLimit);
+}
+
 TEST_F(HttpClientTimeoutTest, CustomResponseBodyLimitRejectsOneByteOver) {
   constexpr std::uint64_t kLimit = 1024;
   server_->set_response_body(std::string(kLimit + 1, 'x'));

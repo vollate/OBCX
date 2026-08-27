@@ -85,9 +85,10 @@ public:
     downloaded_file_id = std::move(file_id);
     co_return download_url;
   }
-  auto download_file_content(std::string_view url)
+  auto download_file_content(std::string_view url, std::size_t maximum_bytes)
       -> asio::awaitable<std::string> override {
     downloaded_url = url;
+    download_maximum_bytes = maximum_bytes;
     co_return file_content;
   }
   auto upload_media_group(
@@ -109,6 +110,7 @@ public:
       R"({"ok":true,"result":[{"message_id":71},{"message_id":72}]})";
   std::string downloaded_file_id;
   std::string downloaded_url;
+  std::size_t download_maximum_bytes{};
   std::string upload_chat;
   std::size_t upload_count{};
 
@@ -314,6 +316,7 @@ TEST(BotOperationComponentTest,
       std::string(fetched.value->bytes.begin(), fetched.value->bytes.end()),
       "file-bytes");
   EXPECT_EQ(transport->downloaded_file_id, "telegram-file");
+  EXPECT_EQ(transport->download_maximum_bytes, 32U);
 
   transport->file_content = std::string(33, 'x');
   fetched = run(endpoint->execute(

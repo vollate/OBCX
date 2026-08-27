@@ -300,11 +300,12 @@ auto TelegramTransportCapability::download_file(std::string file_id)
 }
 
 auto TelegramTransportCapability::download_file_content(
-    const std::string_view url) -> boost::asio::awaitable<std::string> {
+    const std::string_view url, const std::size_t maximum_bytes)
+    -> boost::asio::awaitable<std::string> {
   if (impl_->manager == nullptr) {
     throw BotComponentRuntimeError("Telegram transport is not configured");
   }
-  co_return co_await impl_->manager->download_file_content(url);
+  co_return co_await impl_->manager->download_file_content(url, maximum_bytes);
 }
 
 auto TelegramTransportCapability::upload_media_group(

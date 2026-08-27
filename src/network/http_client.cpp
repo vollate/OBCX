@@ -142,11 +142,14 @@ auto HttpClient::post(std::string_view path, std::string_view body,
 }
 
 auto HttpClient::get(std::string_view path,
-                     const std::map<std::string, std::string> &headers)
+                     const std::map<std::string, std::string> &headers,
+                     const std::optional<std::uint64_t> response_body_limit)
     -> asio::awaitable<HttpResponse> {
   OBCX_DEBUG("GET {}", path);
 
   auto executor = co_await asio::this_coro::executor;
+  const auto body_limit =
+      response_body_limit.value_or(pimpl_->response_body_limit);
 
   try {
     http::request<http::string_body> req{http::verb::get, std::string(path),
@@ -190,7 +193,7 @@ auto HttpClient::get(std::string_view path,
 
       beast::flat_buffer buffer;
       http::response_parser<http::string_body> parser;
-      parser.body_limit(pimpl_->response_body_limit);
+      parser.body_limit(body_limit);
       beast::get_lowest_layer(stream).expires_after(
           pimpl_->config.connect_timeout);
       co_await http::async_read(stream, buffer, parser, asio::use_awaitable);
@@ -219,7 +222,7 @@ auto HttpClient::get(std::string_view path,
 
       beast::flat_buffer buffer;
       http::response_parser<http::string_body> parser;
-      parser.body_limit(pimpl_->response_body_limit);
+      parser.body_limit(body_limit);
       stream.expires_after(pimpl_->config.connect_timeout);
       co_await http::async_read(stream, buffer, parser, asio::use_awaitable);
       auto res = parser.release();

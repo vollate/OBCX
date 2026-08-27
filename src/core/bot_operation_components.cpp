@@ -582,8 +582,8 @@ public:
           bot::BotOperationErrorCode::ProviderRejected,
           "Telegram did not resolve the requested file");
     }
-    const auto content =
-        co_await transport().download_file_content(download_url);
+    const auto content = co_await transport().download_file_content(
+        download_url, request.maximum_bytes);
     if (content.size() > request.maximum_bytes) {
       co_return bot::failed_operation<bot::FetchedTelegramFile>(
           bot::BotOperationErrorCode::MediaTooLarge,

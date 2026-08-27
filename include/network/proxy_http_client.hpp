@@ -61,7 +61,8 @@ public:
    * 通过代理隧道发送请求
    */
   auto get(std::string_view path,
-           const std::map<std::string, std::string> &headers = {})
+           const std::map<std::string, std::string> &headers = {},
+           std::optional<std::uint64_t> response_body_limit = std::nullopt)
       -> asio::awaitable<HttpResponse> override;
 
   /**

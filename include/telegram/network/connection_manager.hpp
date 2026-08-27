@@ -81,7 +81,8 @@ public:
    * @param download_url 文件下载URL
    * @return 文件内容的二进制数据
    */
-  auto download_file_content(std::string_view download_url)
+  auto download_file_content(std::string_view download_url,
+                             std::size_t maximum_bytes)
       -> asio::awaitable<std::string>;
 
   /**

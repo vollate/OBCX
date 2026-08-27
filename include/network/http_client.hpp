@@ -9,6 +9,7 @@
 #include <boost/beast/ssl.hpp>
 #include <cstdint>
 #include <memory>
+#include <optional>
 
 namespace obcx::network {
 
@@ -97,8 +98,9 @@ public:
    * @return 响应的awaitable
    */
   virtual auto get(std::string_view path,
-                   const std::map<std::string, std::string> &headers = {})
-      -> asio::awaitable<HttpResponse>;
+                   const std::map<std::string, std::string> &headers = {},
+                   std::optional<std::uint64_t> response_body_limit =
+                       std::nullopt) -> asio::awaitable<HttpResponse>;
 
   /**
    * @brief 异步发送HEAD请求（协程版本）

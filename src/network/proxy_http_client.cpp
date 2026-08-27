@@ -114,9 +114,12 @@ auto ProxyHttpClient::post(std::string_view path, std::string_view body,
   }
 }
 
-auto ProxyHttpClient::get(std::string_view path,
-                          const std::map<std::string, std::string> &headers)
+auto ProxyHttpClient::get(
+    std::string_view path, const std::map<std::string, std::string> &headers,
+    const std::optional<std::uint64_t> response_body_limit)
     -> asio::awaitable<HttpResponse> {
+  const auto body_limit =
+      response_body_limit.value_or(HttpClient::response_body_limit());
   try {
     auto tunnel_stream = co_await connect_through_proxy_async();
 
@@ -155,7 +158,7 @@ auto ProxyHttpClient::get(std::string_view path,
 
       beast::flat_buffer buffer;
       http::response_parser<http::string_body> parser;
-      parser.body_limit(response_body_limit());
+      parser.body_limit(body_limit);
       beast::get_lowest_layer(ssl_stream).expires_after(get_timeout());
       co_await http::async_read(ssl_stream, buffer, parser,
                                 asio::use_awaitable);
@@ -172,7 +175,7 @@ auto ProxyHttpClient::get(std::string_view path,
 
       beast::flat_buffer buffer;
       http::response_parser<http::string_body> parser;
-      parser.body_limit(response_body_limit());
+      parser.body_limit(body_limit);
       tunnel_stream.expires_after(get_timeout());
       co_await http::async_read(tunnel_stream, buffer, parser,
                                 asio::use_awaitable);
