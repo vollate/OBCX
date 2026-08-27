@@ -143,7 +143,14 @@ protected:
                   "enabled = true\n"
                   "surface = \"onebot11.qq\"\n"
                   "transport = \"http\"\n"
-                  "[bots.primary.connection]\n\n";
+                  "[bots.primary.connection]\n"
+                  "host = \"localhost\"\n"
+                  "port = 3000\n"
+                  "access_token = \"\"\n"
+                  "use_tls = false\n"
+                  "connect_timeout_ms = 5000\n"
+                  "action_timeout_ms = 30000\n"
+                  "poll_interval_ms = 1000\n\n";
     }
     document += "[db.instances.main]\n"
                 "type = \"sqlite\"\n"
@@ -251,7 +258,14 @@ protected:
            "enabled = true\n"
            "surface = \"onebot11.qq\"\n"
            "transport = \"http\"\n"
-           "[bots.primary.connection]\n\n"
+           "[bots.primary.connection]\n"
+           "host = \"localhost\"\n"
+           "port = 3000\n"
+           "access_token = \"\"\n"
+           "use_tls = false\n"
+           "connect_timeout_ms = 5000\n"
+           "action_timeout_ms = 30000\n"
+           "poll_interval_ms = 1000\n\n"
            "[db.instances.main]\n"
            "type = \"sqlite\"\n"
            "path = \"" +

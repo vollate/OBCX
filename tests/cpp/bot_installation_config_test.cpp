@@ -80,7 +80,10 @@ transport = "http"
 [bots.qq_http.connection]
 host = "onebot.internal"
 port = 8443
+access_token = ""
 use_tls = true
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
 poll_interval_ms = 750
 
 [bots.telegram]
@@ -89,8 +92,13 @@ surface = "telegram.bot_api"
 transport = "http"
 
 [bots.telegram.connection]
+host = "api.telegram.org"
+port = 443
 access_token = "YOUR_TELEGRAM_BOT_TOKEN"
 bot_username = "fixture_bot"
+use_tls = true
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
 proxy_host = "127.0.0.1"
 proxy_port = 1080
 proxy_type = "socks5"
@@ -138,37 +146,41 @@ poll_retry_interval_ms = 1200
   EXPECT_EQ(telegram_http.proxy->port, 1080);
 }
 
-TEST_F(BotInstallationConfigTest, AppliesVariantSpecificDefaults) {
-  const auto built = parse(R"(
+TEST_F(BotInstallationConfigTest,
+       RejectsOmittedConnectionOptionsInsteadOfApplyingDefaults) {
+  for (const auto &[document, path] :
+       std::vector<std::pair<std::string, std::string>>{
+           {R"(
 [bots.qq]
 enabled = true
 surface = "onebot11.qq"
 transport = "websocket"
 [bots.qq.connection]
-
+)",
+            "bots.qq.connection.host"},
+           {R"(
+[bots.qq]
+enabled = true
+surface = "onebot11.qq"
+transport = "http"
+[bots.qq.connection]
+)",
+            "bots.qq.connection.host"},
+           {R"(
 [bots.telegram]
 enabled = true
 surface = "telegram.bot_api"
 transport = "http"
 [bots.telegram.connection]
 access_token = "YOUR_TOKEN"
-)");
-  ASSERT_TRUE(built);
-  const auto configs = built.snapshot->get_bot_configs();
-  const auto *qq = find_installation(configs, "qq");
-  const auto *telegram = find_installation(configs, "telegram");
-  ASSERT_NE(qq, nullptr);
-  ASSERT_NE(telegram, nullptr);
-  const auto &websocket =
-      std::get<OneBot11WebSocketConnectionConfig>(qq->connection);
-  EXPECT_EQ(websocket.host, "localhost");
-  EXPECT_EQ(websocket.port, 3001);
-  EXPECT_EQ(websocket.connect_timeout, std::chrono::milliseconds{5000});
-  const auto &http =
-      std::get<TelegramHttpConnectionConfig>(telegram->connection);
-  EXPECT_EQ(http.poll_timeout, std::chrono::milliseconds{25000});
-  EXPECT_EQ(http.poll_force_close, std::chrono::milliseconds{30000});
-  EXPECT_EQ(http.poll_retry_interval, std::chrono::milliseconds{3000});
+)",
+            "bots.telegram.connection.host"}}) {
+    const auto built = parse(document);
+    ASSERT_FALSE(built);
+    ASSERT_TRUE(built.diagnostic.has_value());
+    EXPECT_EQ(built.diagnostic->code, "missing_bot_configuration_value");
+    EXPECT_EQ(built.diagnostic->path, path);
+  }
 }
 
 TEST_F(BotInstallationConfigTest, RejectsUnknownAndLegacyKeysByExactPath) {
@@ -263,7 +275,16 @@ enabled = true
 surface = "telegram.bot_api"
 transport = "http"
 [bots.telegram.connection]
+host = "api.telegram.org"
+port = 443
 access_token = ""
+bot_username = "fixture_bot"
+use_tls = true
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
+poll_timeout_ms = 25000
+poll_force_close_ms = 30000
+poll_retry_interval_ms = 3000
 )",
            R"(
 [bots.qq]
@@ -271,7 +292,13 @@ enabled = true
 surface = "onebot11.qq"
 transport = "http"
 [bots.qq.connection]
+host = "localhost"
+port = 3000
+access_token = ""
+use_tls = false
+connect_timeout_ms = 5000
 action_timeout_ms = 0
+poll_interval_ms = 1000
 )",
            R"(
 [bots.telegram]
@@ -279,7 +306,16 @@ enabled = true
 surface = "telegram.bot_api"
 transport = "http"
 [bots.telegram.connection]
+host = "api.telegram.org"
+port = 443
 access_token = "YOUR_TOKEN"
+bot_username = "fixture_bot"
+use_tls = true
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
+poll_timeout_ms = 25000
+poll_force_close_ms = 30000
+poll_retry_interval_ms = 3000
 proxy_type = "socks5"
 )",
            R"(
@@ -288,9 +324,16 @@ enabled = true
 surface = "telegram.bot_api"
 transport = "http"
 [bots.telegram.connection]
+host = "api.telegram.org"
+port = 443
 access_token = "YOUR_TOKEN"
+bot_username = "fixture_bot"
+use_tls = true
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
 poll_timeout_ms = 30000
 poll_force_close_ms = 20000
+poll_retry_interval_ms = 3000
 )"}) {
     const auto built = parse(document);
     ASSERT_FALSE(built);

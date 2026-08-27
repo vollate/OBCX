@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <chrono>
 #include <memory>
 #include <set>
 #include <string>
@@ -28,12 +29,43 @@ using obcx::core::BotComponentRuntimeError;
 using obcx::core::BotInstallationAssembler;
 using obcx::core::BotInstallationRecipeDescriptor;
 
+auto onebot_websocket_connection() -> OneBot11WebSocketConnectionConfig {
+  return {.host = "localhost",
+          .port = 3001,
+          .access_token = "",
+          .connect_timeout = std::chrono::milliseconds{5000},
+          .action_timeout = std::chrono::milliseconds{30000}};
+}
+
+auto onebot_http_connection() -> OneBot11HttpConnectionConfig {
+  return {.host = "localhost",
+          .port = 3000,
+          .access_token = "",
+          .use_tls = false,
+          .connect_timeout = std::chrono::milliseconds{5000},
+          .action_timeout = std::chrono::milliseconds{30000},
+          .poll_interval = std::chrono::milliseconds{1000}};
+}
+
+auto telegram_http_connection() -> TelegramHttpConnectionConfig {
+  return {.host = "api.telegram.org",
+          .port = 443,
+          .access_token = "YOUR_TELEGRAM_TOKEN",
+          .bot_username = "fixture_bot",
+          .use_tls = true,
+          .connect_timeout = std::chrono::milliseconds{5000},
+          .action_timeout = std::chrono::milliseconds{30000},
+          .poll_timeout = std::chrono::milliseconds{25000},
+          .poll_force_close = std::chrono::milliseconds{30000},
+          .poll_retry_interval = std::chrono::milliseconds{3000}};
+}
+
 auto onebot_websocket_config() -> BotInstallationConfig {
   return {.installation_id = "qq-ws",
           .enabled = true,
           .surface = BotInstallationSurface::OneBot11Qq,
           .transport = BotTransport::WebSocket,
-          .connection = OneBot11WebSocketConnectionConfig{}};
+          .connection = onebot_websocket_connection()};
 }
 
 auto onebot_http_config() -> BotInstallationConfig {
@@ -41,7 +73,7 @@ auto onebot_http_config() -> BotInstallationConfig {
           .enabled = true,
           .surface = BotInstallationSurface::OneBot11Qq,
           .transport = BotTransport::Http,
-          .connection = OneBot11HttpConnectionConfig{}};
+          .connection = onebot_http_connection()};
 }
 
 auto telegram_http_config() -> BotInstallationConfig {
@@ -49,8 +81,7 @@ auto telegram_http_config() -> BotInstallationConfig {
           .enabled = true,
           .surface = BotInstallationSurface::TelegramBotApi,
           .transport = BotTransport::Http,
-          .connection = TelegramHttpConnectionConfig{
-              .access_token = "YOUR_TELEGRAM_TOKEN"}};
+          .connection = telegram_http_connection()};
 }
 
 auto component_ids(const BotInstallationRecipeDescriptor &recipe)
@@ -112,7 +143,7 @@ TEST(BotInstallationAssemblerTest,
       std::make_unique<obcx::core::OneBot11ProtocolComponent>());
   onebot_websocket.add_component(
       std::make_unique<obcx::core::OneBot11WebSocketTransportComponent>(
-          onebot_websocket.executor(), OneBot11WebSocketConnectionConfig{}));
+          onebot_websocket.executor(), onebot_websocket_connection()));
   onebot_websocket.assemble();
   const auto websocket =
       onebot_websocket.capability<obcx::core::OneBot11Transport>(
@@ -126,7 +157,7 @@ TEST(BotInstallationAssemblerTest,
       std::make_unique<obcx::core::OneBot11ProtocolComponent>());
   onebot_http.add_component(
       std::make_unique<obcx::core::OneBot11HttpTransportComponent>(
-          onebot_http.executor(), OneBot11HttpConnectionConfig{}));
+          onebot_http.executor(), onebot_http_connection()));
   onebot_http.assemble();
   EXPECT_FALSE(onebot_http
                    .capability<obcx::core::OneBot11Transport>(
@@ -139,8 +170,7 @@ TEST(BotInstallationAssemblerTest,
       std::make_unique<obcx::core::TelegramProtocolComponent>());
   telegram.add_component(
       std::make_unique<obcx::core::TelegramHttpTransportComponent>(
-          telegram.executor(),
-          TelegramHttpConnectionConfig{.access_token = "YOUR_TELEGRAM_TOKEN"}));
+          telegram.executor(), telegram_http_connection()));
   telegram.assemble();
   EXPECT_FALSE(telegram
                    .capability<obcx::core::TelegramTransport>(

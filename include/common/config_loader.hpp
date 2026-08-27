@@ -37,7 +37,7 @@ enum class BotProxyType : std::uint8_t {
 struct BotProxyConfig {
   std::string host;
   std::uint16_t port{};
-  BotProxyType type = BotProxyType::Http;
+  BotProxyType type{};
   std::string username;
   std::string password;
 
@@ -45,39 +45,39 @@ struct BotProxyConfig {
 };
 
 struct OneBot11WebSocketConnectionConfig {
-  std::string host = "localhost";
-  std::uint16_t port = 3001;
+  std::string host;
+  std::uint16_t port{};
   std::string access_token;
-  std::chrono::milliseconds connect_timeout{5'000};
-  std::chrono::milliseconds action_timeout{30'000};
+  std::chrono::milliseconds connect_timeout{};
+  std::chrono::milliseconds action_timeout{};
 
   auto operator==(const OneBot11WebSocketConnectionConfig &) const
       -> bool = default;
 };
 
 struct OneBot11HttpConnectionConfig {
-  std::string host = "localhost";
-  std::uint16_t port = 3000;
+  std::string host;
+  std::uint16_t port{};
   std::string access_token;
   bool use_tls{};
-  std::chrono::milliseconds connect_timeout{5'000};
-  std::chrono::milliseconds action_timeout{30'000};
-  std::chrono::milliseconds poll_interval{1'000};
+  std::chrono::milliseconds connect_timeout{};
+  std::chrono::milliseconds action_timeout{};
+  std::chrono::milliseconds poll_interval{};
 
   auto operator==(const OneBot11HttpConnectionConfig &) const -> bool = default;
 };
 
 struct TelegramHttpConnectionConfig {
-  std::string host = "api.telegram.org";
-  std::uint16_t port = 443;
+  std::string host;
+  std::uint16_t port{};
   std::string access_token;
   std::string bot_username;
-  bool use_tls = true;
-  std::chrono::milliseconds connect_timeout{5'000};
-  std::chrono::milliseconds action_timeout{30'000};
-  std::chrono::milliseconds poll_timeout{25'000};
-  std::chrono::milliseconds poll_force_close{30'000};
-  std::chrono::milliseconds poll_retry_interval{3'000};
+  bool use_tls{};
+  std::chrono::milliseconds connect_timeout{};
+  std::chrono::milliseconds action_timeout{};
+  std::chrono::milliseconds poll_timeout{};
+  std::chrono::milliseconds poll_force_close{};
+  std::chrono::milliseconds poll_retry_interval{};
   std::optional<BotProxyConfig> proxy;
 
   auto operator==(const TelegramHttpConnectionConfig &) const -> bool = default;

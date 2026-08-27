@@ -133,9 +133,15 @@ protected:
            "surface = \"onebot11.qq\"\n"
            "transport = \"http\"\n\n"
            "[bots.primary.connection]\n"
+           "host = \"localhost\"\n"
+           "port = 3000\n"
            "access_token = \"" +
            token +
-           "\"\n\n"
+           "\"\n"
+           "use_tls = false\n"
+           "connect_timeout_ms = 5000\n"
+           "action_timeout_ms = 30000\n"
+           "poll_interval_ms = 1000\n\n"
            "[db.instances.main]\n"
            "type = \"sqlite\"\n"
            "path = \"" +
@@ -171,6 +177,29 @@ protected:
     if (surface != std::string::npos && bot_type == "telegram") {
       document.replace(surface, std::string{"surface = \"onebot11.qq\""}.size(),
                        "surface = \"telegram.bot_api\"");
+      const std::string onebot_connection = "host = \"localhost\"\n"
+                                            "port = 3000\n"
+                                            "access_token = \"stable-token\"\n"
+                                            "use_tls = false\n"
+                                            "connect_timeout_ms = 5000\n"
+                                            "action_timeout_ms = 30000\n"
+                                            "poll_interval_ms = 1000\n";
+      const std::string telegram_connection =
+          "host = \"api.telegram.org\"\n"
+          "port = 443\n"
+          "access_token = \"stable-token\"\n"
+          "bot_username = \"fixture_bot\"\n"
+          "use_tls = true\n"
+          "connect_timeout_ms = 5000\n"
+          "action_timeout_ms = 30000\n"
+          "poll_timeout_ms = 25000\n"
+          "poll_force_close_ms = 30000\n"
+          "poll_retry_interval_ms = 3000\n";
+      const auto connection = document.find(onebot_connection);
+      if (connection != std::string::npos) {
+        document.replace(connection, onebot_connection.size(),
+                         telegram_connection);
+      }
     }
     return document +
            "\n[command_runtime]\n"
@@ -849,7 +878,14 @@ TEST_F(RuntimeGenerationTest,
               "enabled = false\n"
               "surface = \"onebot11.qq\"\n"
               "transport = \"http\"\n"
-              "[bots.secondary.connection]\n";
+              "[bots.secondary.connection]\n"
+              "host = \"localhost\"\n"
+              "port = 3000\n"
+              "access_token = \"\"\n"
+              "use_tls = false\n"
+              "connect_timeout_ms = 5000\n"
+              "action_timeout_ms = 30000\n"
+              "poll_interval_ms = 1000\n";
   expect_invalid("disabled-collection-installation.toml", std::move(disabled),
                  "target_installation");
 

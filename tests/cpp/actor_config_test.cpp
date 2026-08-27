@@ -111,7 +111,16 @@ surface = "telegram.bot_api"
 transport = "http"
 
 [bots.disabled.connection]
+host = "api.telegram.org"
+port = 443
 access_token = "active-secret-token"
+bot_username = ""
+use_tls = true
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
+poll_timeout_ms = 25000
+poll_force_close_ms = 30000
+poll_retry_interval_ms = 3000
 
 [db.instances.main]
 type = "sqlite"
@@ -125,7 +134,16 @@ surface = "telegram.bot_api"
 transport = "http"
 
 [bots.disabled.connection]
+host = "api.telegram.org"
+port = 443
 access_token = "candidate-secret-token"
+bot_username = ""
+use_tls = true
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
+poll_timeout_ms = 25000
+poll_force_close_ms = 30000
+poll_retry_interval_ms = 3000
 
 [db.instances.main]
 type = "sqlite"
@@ -473,6 +491,9 @@ transport = "websocket"
 [bots.qq.connection]
 host = "localhost"
 port = 3001
+access_token = ""
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
 
 [actors.message_store]
 library = "message_store"

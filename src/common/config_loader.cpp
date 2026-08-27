@@ -132,8 +132,12 @@ void validate_keys(const toml::table &table,
 auto required_string(const toml::table &table, const std::string_view key,
                      const std::string_view path) -> std::string {
   const auto *node = table.get(key);
-  const auto value = node == nullptr ? std::optional<std::string>{}
-                                     : node->value<std::string>();
+  if (node == nullptr) {
+    const auto field = std::string{path} + "." + std::string{key};
+    bot_configuration_error("missing_bot_configuration_value", field,
+                            field + " must be specified explicitly");
+  }
+  const auto value = node->value<std::string>();
   if (!value || value->empty()) {
     const auto field = std::string{path} + "." + std::string{key};
     bot_configuration_error("invalid_bot_configuration_value", field,
@@ -142,12 +146,13 @@ auto required_string(const toml::table &table, const std::string_view key,
   return *value;
 }
 
-auto optional_string(const toml::table &table, const std::string_view key,
-                     const std::string_view path,
-                     std::string default_value = {}) -> std::string {
+auto required_string_value(const toml::table &table, const std::string_view key,
+                           const std::string_view path) -> std::string {
   const auto *node = table.get(key);
   if (node == nullptr) {
-    return default_value;
+    const auto field = std::string{path} + "." + std::string{key};
+    bot_configuration_error("missing_bot_configuration_value", field,
+                            field + " must be specified explicitly");
   }
   const auto value = node->value<std::string>();
   if (!value) {
@@ -171,27 +176,13 @@ auto required_bool(const toml::table &table, const std::string_view key,
   return *value;
 }
 
-auto optional_bool(const toml::table &table, const std::string_view key,
-                   const std::string_view path, const bool default_value)
-    -> bool {
-  const auto *node = table.get(key);
-  if (node == nullptr) {
-    return default_value;
-  }
-  const auto value = node->value<bool>();
-  if (!value) {
-    const auto field = std::string{path} + "." + std::string{key};
-    bot_configuration_error("invalid_bot_configuration_value", field,
-                            field + " must be a boolean");
-  }
-  return *value;
-}
-
-auto optional_port(const toml::table &table, const std::string_view path,
-                   const std::uint16_t default_value) -> std::uint16_t {
+auto required_port(const toml::table &table, const std::string_view path)
+    -> std::uint16_t {
   const auto *node = table.get("port");
   if (node == nullptr) {
-    return default_value;
+    const auto field = std::string{path} + ".port";
+    bot_configuration_error("missing_bot_configuration_value", field,
+                            field + " must be specified explicitly");
   }
   const auto value = node->value<std::int64_t>();
   if (!value || *value <= 0 || *value > 65'535) {
@@ -202,13 +193,14 @@ auto optional_port(const toml::table &table, const std::string_view path,
   return static_cast<std::uint16_t>(*value);
 }
 
-auto optional_duration(const toml::table &table, const std::string_view key,
-                       const std::string_view path,
-                       const std::chrono::milliseconds default_value)
+auto required_duration(const toml::table &table, const std::string_view key,
+                       const std::string_view path)
     -> std::chrono::milliseconds {
   const auto *node = table.get(key);
   if (node == nullptr) {
-    return default_value;
+    const auto field = std::string{path} + "." + std::string{key};
+    bot_configuration_error("missing_bot_configuration_value", field,
+                            field + " must be specified explicitly");
   }
   const auto value = node->value<std::int64_t>();
   constexpr std::int64_t maximum_duration_ms = 300'000;
@@ -271,18 +263,11 @@ auto parse_onebot_websocket_connection(const toml::table &table,
       "action_timeout_ms"};
   validate_keys(table, keys, path, false);
   OneBot11WebSocketConnectionConfig config;
-  config.host = optional_string(table, "host", path, config.host);
-  if (config.host.empty()) {
-    bot_configuration_error("invalid_bot_configuration_value",
-                            std::string{path} + ".host",
-                            std::string{path} + ".host cannot be empty");
-  }
-  config.port = optional_port(table, path, config.port);
-  config.access_token = optional_string(table, "access_token", path);
-  config.connect_timeout = optional_duration(table, "connect_timeout_ms", path,
-                                             config.connect_timeout);
-  config.action_timeout = optional_duration(table, "action_timeout_ms", path,
-                                            config.action_timeout);
+  config.host = required_string(table, "host", path);
+  config.port = required_port(table, path);
+  config.access_token = required_string_value(table, "access_token", path);
+  config.connect_timeout = required_duration(table, "connect_timeout_ms", path);
+  config.action_timeout = required_duration(table, "action_timeout_ms", path);
   return config;
 }
 
@@ -299,21 +284,13 @@ auto parse_onebot_http_connection(const toml::table &table,
       "poll_interval_ms"};
   validate_keys(table, keys, path, false);
   OneBot11HttpConnectionConfig config;
-  config.host = optional_string(table, "host", path, config.host);
-  if (config.host.empty()) {
-    bot_configuration_error("invalid_bot_configuration_value",
-                            std::string{path} + ".host",
-                            std::string{path} + ".host cannot be empty");
-  }
-  config.port = optional_port(table, path, config.port);
-  config.access_token = optional_string(table, "access_token", path);
-  config.use_tls = optional_bool(table, "use_tls", path, config.use_tls);
-  config.connect_timeout = optional_duration(table, "connect_timeout_ms", path,
-                                             config.connect_timeout);
-  config.action_timeout = optional_duration(table, "action_timeout_ms", path,
-                                            config.action_timeout);
-  config.poll_interval =
-      optional_duration(table, "poll_interval_ms", path, config.poll_interval);
+  config.host = required_string(table, "host", path);
+  config.port = required_port(table, path);
+  config.access_token = required_string_value(table, "access_token", path);
+  config.use_tls = required_bool(table, "use_tls", path);
+  config.connect_timeout = required_duration(table, "connect_timeout_ms", path);
+  config.action_timeout = required_duration(table, "action_timeout_ms", path);
+  config.poll_interval = required_duration(table, "poll_interval_ms", path);
   return config;
 }
 
@@ -338,31 +315,23 @@ auto parse_telegram_http_connection(const toml::table &table,
       "proxy_password"};
   validate_keys(table, keys, path, false);
   TelegramHttpConnectionConfig config;
-  config.host = optional_string(table, "host", path, config.host);
-  if (config.host.empty()) {
-    bot_configuration_error("invalid_bot_configuration_value",
-                            std::string{path} + ".host",
-                            std::string{path} + ".host cannot be empty");
-  }
-  config.port = optional_port(table, path, config.port);
+  config.host = required_string(table, "host", path);
+  config.port = required_port(table, path);
   config.access_token = required_string(table, "access_token", path);
-  config.bot_username = optional_string(table, "bot_username", path);
-  config.use_tls = optional_bool(table, "use_tls", path, config.use_tls);
+  config.bot_username = required_string_value(table, "bot_username", path);
+  config.use_tls = required_bool(table, "use_tls", path);
   if (!config.use_tls) {
     bot_configuration_error(
         "invalid_bot_tls_configuration", std::string{path} + ".use_tls",
         std::string{path} + ".use_tls must be true for telegram.bot_api");
   }
-  config.connect_timeout = optional_duration(table, "connect_timeout_ms", path,
-                                             config.connect_timeout);
-  config.action_timeout = optional_duration(table, "action_timeout_ms", path,
-                                            config.action_timeout);
-  config.poll_timeout =
-      optional_duration(table, "poll_timeout_ms", path, config.poll_timeout);
-  config.poll_force_close = optional_duration(table, "poll_force_close_ms",
-                                              path, config.poll_force_close);
-  config.poll_retry_interval = optional_duration(
-      table, "poll_retry_interval_ms", path, config.poll_retry_interval);
+  config.connect_timeout = required_duration(table, "connect_timeout_ms", path);
+  config.action_timeout = required_duration(table, "action_timeout_ms", path);
+  config.poll_timeout = required_duration(table, "poll_timeout_ms", path);
+  config.poll_force_close =
+      required_duration(table, "poll_force_close_ms", path);
+  config.poll_retry_interval =
+      required_duration(table, "poll_retry_interval_ms", path);
   if (config.poll_force_close < config.poll_timeout) {
     bot_configuration_error(
         "invalid_bot_configuration_value",
@@ -371,7 +340,9 @@ auto parse_telegram_http_connection(const toml::table &table,
             ".poll_force_close_ms must be at least poll_timeout_ms");
   }
 
-  const auto proxy_host = optional_string(table, "proxy_host", path);
+  const auto proxy_host = table.contains("proxy_host")
+                              ? required_string(table, "proxy_host", path)
+                              : std::string{};
   const auto proxy_port_node = table.get("proxy_port");
   if (proxy_host.empty() != (proxy_port_node == nullptr)) {
     bot_configuration_error(
@@ -392,11 +363,10 @@ auto parse_telegram_http_connection(const toml::table &table,
       }
       proxy.port = static_cast<std::uint16_t>(*value);
     }
-    proxy.type =
-        parse_proxy_type(optional_string(table, "proxy_type", path, "http"),
-                         std::string{path} + ".proxy_type");
-    proxy.username = optional_string(table, "proxy_username", path);
-    proxy.password = optional_string(table, "proxy_password", path);
+    proxy.type = parse_proxy_type(required_string(table, "proxy_type", path),
+                                  std::string{path} + ".proxy_type");
+    proxy.username = required_string_value(table, "proxy_username", path);
+    proxy.password = required_string_value(table, "proxy_password", path);
     config.proxy = std::move(proxy);
   } else if (table.contains("proxy_type") || table.contains("proxy_username") ||
              table.contains("proxy_password")) {

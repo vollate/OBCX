@@ -186,8 +186,23 @@ auto config_document(std::string fallback = "continue",
   const auto surface =
       std::string{telegram ? "telegram.bot_api" : "onebot11.qq"};
   const auto connection =
-      std::string{telegram ? "access_token = \"YOUR_TELEGRAM_TOKEN\"\n\n"
-                           : "access_token = \"\"\n\n"};
+      std::string{telegram ? "host = \"api.telegram.org\"\n"
+                             "port = 443\n"
+                             "access_token = \"YOUR_TELEGRAM_TOKEN\"\n"
+                             "bot_username = \"fixture_bot\"\n"
+                             "use_tls = true\n"
+                             "connect_timeout_ms = 5000\n"
+                             "action_timeout_ms = 30000\n"
+                             "poll_timeout_ms = 25000\n"
+                             "poll_force_close_ms = 30000\n"
+                             "poll_retry_interval_ms = 3000\n\n"
+                           : "host = \"localhost\"\n"
+                             "port = 3000\n"
+                             "access_token = \"\"\n"
+                             "use_tls = false\n"
+                             "connect_timeout_ms = 5000\n"
+                             "action_timeout_ms = 30000\n"
+                             "poll_interval_ms = 1000\n\n"};
   return "[bots.primary]\n"
          "enabled = true\n"
          "surface = \"" +
@@ -345,11 +360,11 @@ TEST_F(CommandCoordinatorTest, BuildsImmutableRoutesAndDetectionOnlyCatalogs) {
 TEST_F(CommandCoordinatorTest,
        UsesConfiguredTelegramUsernameForExplicitCommandTargets) {
   auto document = config_document("continue", "telegram", "telegram");
-  const auto connection = document.find("[bots.primary.connection]\n");
-  ASSERT_NE(connection, std::string::npos);
-  document.insert(connection +
-                      std::string{"[bots.primary.connection]\n"}.size(),
-                  "bot_username = \"my_bot\"\n");
+  const auto username = document.find("bot_username = \"fixture_bot\"");
+  ASSERT_NE(username, std::string::npos);
+  document.replace(username,
+                   std::string{"bot_username = \"fixture_bot\""}.size(),
+                   "bot_username = \"my_bot\"");
   const auto config = snapshot("telegram-target.toml", document);
   const auto built = table(config);
   ASSERT_TRUE(built) << (built.failure ? built.failure->message : "");

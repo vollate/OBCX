@@ -23,6 +23,13 @@ enabled = true
 surface = \"onebot11.qq\"
 transport = \"http\"
 [bots.primary.connection]
+host = \"localhost\"
+port = 3000
+access_token = \"\"
+use_tls = false
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
+poll_interval_ms = 1000
 
 [actors.test_actor_v2]
 library = \"test_actor_v2\"
@@ -68,6 +75,13 @@ enabled = true
 surface = \"onebot11.qq\"
 transport = \"http\"
 [bots.primary.connection]
+host = \"localhost\"
+port = 3000
+access_token = \"\"
+use_tls = false
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
+poll_interval_ms = 1000
 
 [actors.test_actor_v2]
 library = \"test_actor_v2\"
@@ -106,6 +120,13 @@ enabled = true
 surface = \"onebot11.qq\"
 transport = \"http\"
 [bots.primary.connection]
+host = \"localhost\"
+port = 3000
+access_token = \"\"
+use_tls = false
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
+poll_interval_ms = 1000
 
 [actors.test_actor_v2]
 library = \"test_actor_v2\"
@@ -150,23 +171,55 @@ enabled = true
 surface = \"onebot11.qq\"
 transport = \"http\"
 [bots.qq-a.connection]
+host = \"localhost\"
+port = 3000
+access_token = \"\"
+use_tls = false
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
+poll_interval_ms = 1000
 [bots.tg-a]
 enabled = true
 surface = \"telegram.bot_api\"
 transport = \"http\"
 [bots.tg-a.connection]
+host = \"api.telegram.org\"
+port = 443
 access_token = \"YOUR_TELEGRAM_TOKEN_A\"
+bot_username = \"fixture_a_bot\"
+use_tls = true
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
+poll_timeout_ms = 25000
+poll_force_close_ms = 30000
+poll_retry_interval_ms = 3000
 [bots.qq-b]
 enabled = true
 surface = \"onebot11.qq\"
 transport = \"http\"
 [bots.qq-b.connection]
+host = \"localhost\"
+port = 3000
+access_token = \"\"
+use_tls = false
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
+poll_interval_ms = 1000
 [bots.tg-b]
 enabled = true
 surface = \"telegram.bot_api\"
 transport = \"http\"
 [bots.tg-b.connection]
+host = \"api.telegram.org\"
+port = 443
 access_token = \"YOUR_TELEGRAM_TOKEN_B\"
+bot_username = \"fixture_b_bot\"
+use_tls = true
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
+poll_timeout_ms = 25000
+poll_force_close_ms = 30000
+poll_retry_interval_ms = 3000
 
 [actors.bridge]
 library = \"bridge\"
@@ -278,6 +331,13 @@ enabled = true
 surface = \"onebot11.qq\"
 transport = \"http\"
 [bots.primary.connection]
+host = \"localhost\"
+port = 3000
+access_token = \"\"
+use_tls = false
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
+poll_interval_ms = 1000
 
 [actors.test_actor_v2]
 library = \"${OBCX_TEST_ACTOR}\"
