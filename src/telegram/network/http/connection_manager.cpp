@@ -64,6 +64,19 @@ auto telegram_http_error(const HttpResponse &response) -> std::runtime_error {
 
 } // namespace
 
+auto telegram_api_response_body(const HttpResponse &response) -> std::string {
+  if (response.is_success()) {
+    return response.body;
+  }
+  const auto document = json::parse(response.body, nullptr, false);
+  if (!document.is_discarded() && document.is_object() &&
+      document.contains("ok") && document.at("ok").is_boolean() &&
+      !document.at("ok").get<bool>()) {
+    return response.body;
+  }
+  throw telegram_http_error(response);
+}
+
 auto build_telegram_media_group_multipart(
     std::string_view chat_id,
     const std::vector<core::TelegramMediaUpload> &media,
@@ -237,11 +250,7 @@ auto TelegramConnectionManager::send_action_and_wait_async(
     HttpResponse response =
         co_await http_client_->post(api_path, body, headers);
 
-    if (!response.is_success()) {
-      throw telegram_http_error(response);
-    }
-
-    co_return response.body;
+    co_return telegram_api_response_body(response);
 
   } catch (const std::exception &e) {
     OBCX_ERROR("API request failed: {}", e.what());
@@ -404,11 +413,7 @@ auto TelegramConnectionManager::upload_photo_multipart(
   std::string api_path = "/bot" + config_.access_token + "/sendPhoto";
   HttpResponse response = co_await http_client_->post(api_path, body, headers);
 
-  if (!response.is_success()) {
-    throw telegram_http_error(response);
-  }
-
-  co_return response.body;
+  co_return telegram_api_response_body(response);
 }
 
 auto TelegramConnectionManager::upload_media_group_multipart(
@@ -443,10 +448,7 @@ auto TelegramConnectionManager::upload_media_group_multipart_with_entities(
       "/bot" + config_.access_token + "/sendMediaGroup";
   HttpResponse response =
       co_await http_client_->post(api_path, request.body, headers);
-  if (!response.is_success()) {
-    throw telegram_http_error(response);
-  }
-  co_return response.body;
+  co_return telegram_api_response_body(response);
 }
 
 void TelegramConnectionManager::start_polling() {

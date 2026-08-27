@@ -21,6 +21,9 @@ struct TelegramMultipartRequest {
   std::string content_type;
 };
 
+[[nodiscard]] auto telegram_api_response_body(const HttpResponse &response)
+    -> std::string;
+
 [[nodiscard]] auto build_telegram_media_group_multipart(
     std::string_view chat_id,
     const std::vector<core::TelegramMediaUpload> &media,
