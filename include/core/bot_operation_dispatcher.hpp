@@ -33,6 +33,7 @@ public:
   BotOperationDispatcher() = default;
 
   void register_endpoint(std::shared_ptr<BotOperationEndpoint> endpoint);
+  void clear_endpoints() noexcept;
   [[nodiscard]] auto endpoint_count() const noexcept -> std::size_t;
 
   [[nodiscard]] auto supported_actions(

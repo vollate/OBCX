@@ -93,6 +93,11 @@ void BotOperationDispatcher::register_endpoint(
   }
 }
 
+void BotOperationDispatcher::clear_endpoints() noexcept {
+  std::unique_lock lock(mutex_);
+  endpoints_.clear();
+}
+
 auto BotOperationDispatcher::endpoint_count() const noexcept -> std::size_t {
   std::shared_lock lock(mutex_);
   return endpoints_.size();

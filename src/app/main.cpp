@@ -511,6 +511,7 @@ public:
           reload_controller->shutdown();
         }
 
+        process_bot_operation_dispatcher->clear_endpoints();
         for (auto &bot : bots) {
           bot->stop();
         }

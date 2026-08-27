@@ -113,6 +113,23 @@ TEST(BotOperationDispatcherTest,
   EXPECT_THROW(dispatcher.register_endpoint(invalid), std::invalid_argument);
 }
 
+TEST(BotOperationDispatcherTest, ClearEndpointsReleasesRegisteredOwnership) {
+  obcx::core::BotOperationDispatcher dispatcher;
+  auto endpoint = std::make_shared<RecordingEndpoint>(
+      BotInstallationRef{.installation_id = "telegram-main",
+                         .surface = BotSurface::TelegramBotApi},
+      std::vector{BotAction::SendGroupMessage});
+  const std::weak_ptr<RecordingEndpoint> registered = endpoint;
+
+  dispatcher.register_endpoint(endpoint);
+  endpoint.reset();
+  ASSERT_FALSE(registered.expired());
+
+  dispatcher.clear_endpoints();
+  EXPECT_TRUE(registered.expired());
+  EXPECT_EQ(dispatcher.endpoint_count(), 0U);
+}
+
 TEST(BotOperationDispatcherTest, ReportsOnlyExactEndpointActions) {
   obcx::core::BotOperationDispatcher dispatcher;
   const BotInstallationRef installation{.installation_id = "qq-main",
