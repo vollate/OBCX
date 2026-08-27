@@ -350,6 +350,66 @@ TEST(BotOperationComponentTest,
 }
 
 TEST(BotOperationComponentTest,
+     TelegramSendOperationsEnforceProviderResultShapesAndCounts) {
+  auto transport = std::make_shared<FakeTelegramTransport>();
+  transport->responses = {
+      R"({"ok":true,"result":[{"message_id":31}]})",
+      R"({"ok":true,"result":[{"message_id":32}]})",
+      R"({"ok":true,"result":{"message_id":33}})",
+  };
+  transport->upload_response = R"({"ok":true,"result":[{"message_id":34}]})";
+  obcx::core::BotInstallation installation{
+      "tg-shapes", obcx::common::BotInstallationSurface::TelegramBotApi};
+  installation.add_component(
+      std::make_unique<obcx::core::TelegramProtocolComponent>());
+  installation.add_component(
+      std::make_unique<FakeTelegramTransportComponent>(transport));
+  installation.add_component(
+      std::make_unique<obcx::core::TelegramMediaUploadComponent>());
+  installation.add_component(
+      std::make_unique<obcx::core::TelegramOperationsComponent>("tg-shapes"));
+  installation.start();
+  const auto endpoint = installation.capability<BotOperationEndpoint>(
+      CapabilityId{"bot.operations"});
+  const GroupTarget target{
+      .installation = {.installation_id = "tg-shapes",
+                       .surface = BotSurface::TelegramBotApi},
+      .native_group_id = "-1001",
+  };
+  const auto expect_malformed = [](const auto &result) {
+    ASSERT_FALSE(result.ok());
+    EXPECT_EQ(result.error->code,
+              obcx::bot::BotOperationErrorCode::MalformedResponse);
+    EXPECT_EQ(result.error->submission_safety,
+              obcx::bot::SubmissionSafety::PossiblySubmitted);
+  };
+
+  expect_malformed(
+      run(endpoint->execute(obcx::bot::SendTelegramTopicMessageRequest{
+          .target = {.group = target, .topic_id = 7},
+          .message = text_message()})));
+  expect_malformed(run(endpoint->execute(obcx::bot::SendTelegramPhotoRequest{
+      .target = target, .photo = "file-id"})));
+  expect_malformed(
+      run(endpoint->execute(obcx::bot::SendTelegramMediaGroupUrlsRequest{
+          .target = target,
+          .media = {{.type = "photo", .source = "file-a"},
+                    {.type = "photo", .source = "file-b"}}})));
+  expect_malformed(
+      run(endpoint->execute(obcx::bot::SendTelegramMediaGroupUploadsRequest{
+          .target = target,
+          .media = {{.type = "photo",
+                     .filename = "a.jpg",
+                     .mime_type = "image/jpeg",
+                     .bytes = {1}},
+                    {.type = "photo",
+                     .filename = "b.jpg",
+                     .mime_type = "image/jpeg",
+                     .bytes = {2}}},
+          .maximum_bytes = 16})));
+}
+
+TEST(BotOperationComponentTest,
      TelegramCommandCatalogUsesItsExplicitInstallationCapability) {
   auto transport = std::make_shared<FakeTelegramTransport>();
   transport->responses.push_back(R"({"ok":true,"result":true})");

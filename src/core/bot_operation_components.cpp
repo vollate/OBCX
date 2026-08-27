@@ -82,9 +82,16 @@ auto optional_string(const bot::Json &document, const std::string_view key)
              : std::string{};
 }
 
+enum class TelegramSendResultShape : std::uint8_t {
+  SingleMessage,
+  MediaGroup,
+};
+
 auto telegram_send_result(const bot::BotOperationResult<bot::Json> &parsed,
                           const bot::GroupTarget &target,
-                          const std::string_view operation)
+                          const std::string_view operation,
+                          const TelegramSendResultShape expected_shape,
+                          const std::size_t expected_count = 1U)
     -> bot::BotOperationResult<bot::SendMessageResult> {
   if (!parsed.ok()) {
     return provider_failure<bot::SendMessageResult>(parsed);
@@ -103,12 +110,14 @@ auto telegram_send_result(const bot::BotOperationResult<bot::Json> &parsed,
     messages.push_back({.group = target, .native_message_id = *id});
     return true;
   };
-  if (value.is_object()) {
+  if (expected_shape == TelegramSendResultShape::SingleMessage &&
+      value.is_object()) {
     if (!append(value)) {
       return malformed_side_effect<bot::SendMessageResult>(
           std::string{operation} + " response is missing message_id");
     }
-  } else if (value.is_array() && !value.empty()) {
+  } else if (expected_shape == TelegramSendResultShape::MediaGroup &&
+             value.is_array() && value.size() == expected_count) {
     for (const auto &message : value) {
       if (!message.is_object() || !append(message)) {
         return malformed_side_effect<bot::SendMessageResult>(
@@ -118,7 +127,7 @@ auto telegram_send_result(const bot::BotOperationResult<bot::Json> &parsed,
     }
   } else {
     return malformed_side_effect<bot::SendMessageResult>(
-        std::string{operation} + " response has an invalid result");
+        std::string{operation} + " response has an unexpected result shape");
   }
   return bot::BotOperationResult<bot::SendMessageResult>::success(
       {.messages = std::move(messages)});
@@ -487,7 +496,7 @@ public:
         echo);
     co_return telegram_send_result(
         parse_telegram_operation_response(response, true), request.target.group,
-        "Telegram topic send");
+        "Telegram topic send", TelegramSendResultShape::SingleMessage);
   }
 
   auto execute(const bot::EditTelegramMessageTextRequest &request)
@@ -531,7 +540,7 @@ public:
         co_await transport().send_action(payload.dump(), echo);
     co_return telegram_send_result(
         parse_telegram_operation_response(response, true), request.target,
-        "Telegram photo send");
+        "Telegram photo send", TelegramSendResultShape::SingleMessage);
   }
 
   auto execute(const bot::SendTelegramMediaGroupUrlsRequest &request)
@@ -554,7 +563,8 @@ public:
     const auto response = co_await transport().send_action(payload, echo);
     co_return telegram_send_result(
         parse_telegram_operation_response(response, true), request.target,
-        "Telegram URL media-group send");
+        "Telegram URL media-group send", TelegramSendResultShape::MediaGroup,
+        request.media.size());
   }
 
   auto execute(const bot::SendTelegramMediaGroupUploadsRequest &request)
@@ -569,7 +579,8 @@ public:
         co_await uploader_->upload(request);
     co_return telegram_send_result(
         parse_telegram_operation_response(response, true), request.target,
-        "Telegram multipart media-group send");
+        "Telegram multipart media-group send",
+        TelegramSendResultShape::MediaGroup, request.media.size());
   }
 
   auto execute(const bot::FetchTelegramFileRequest &request)
