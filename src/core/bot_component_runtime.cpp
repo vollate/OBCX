@@ -307,14 +307,14 @@ void BotInstallation::stop() noexcept {
   {
     std::scoped_lock lock(lifecycle_mutex_);
     const auto current = state();
-    if (current == BotInstallationState::Stopped ||
-        current == BotInstallationState::Stopping ||
-        current == BotInstallationState::Constructed) {
-      if (current == BotInstallationState::Constructed) {
-        state_.store(BotInstallationState::Stopped, std::memory_order_release);
-      }
+    if (current == BotInstallationState::Stopping ||
+        current == BotInstallationState::Stopped) {
+      return;
+    }
+    if (current == BotInstallationState::Constructed) {
       accepting_work_.store(false, std::memory_order_release);
       io_context_.stop();
+      state_.store(BotInstallationState::Stopped, std::memory_order_release);
       return;
     }
     state_.store(BotInstallationState::Stopping, std::memory_order_release);

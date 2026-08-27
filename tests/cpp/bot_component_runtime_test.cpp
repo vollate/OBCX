@@ -182,6 +182,28 @@ private:
   std::shared_ptr<CancellableOperation> operation_;
 };
 
+class BlockingStopComponent final : public BotComponent {
+public:
+  BlockingStopComponent(std::shared_ptr<std::promise<void>> entered,
+                        std::shared_future<void> release)
+      : entered_(std::move(entered)), release_(std::move(release)) {}
+
+  [[nodiscard]] auto descriptor() const -> ComponentDescriptor override {
+    return {.id = ComponentId{"blocking-stop"}, .provides = {}, .required = {}};
+  }
+  void install_capabilities(CapabilityRegistry &) override {}
+  void prepare(const CapabilityRegistry &) override {}
+  void start() override {}
+  void stop() override {
+    entered_->set_value();
+    release_.wait();
+  }
+
+private:
+  std::shared_ptr<std::promise<void>> entered_;
+  std::shared_future<void> release_;
+};
+
 auto installation() -> BotInstallation {
   return BotInstallation{"test-installation",
                          BotInstallationSurface::OneBot11Qq};
@@ -343,6 +365,46 @@ TEST(BotComponentRuntimeTest, ConcurrentRepeatedStopIsIdempotent) {
   second.join();
   runtime.stop();
   EXPECT_EQ(observed->stop_calls.load(), 1U);
+  EXPECT_EQ(runtime.state(), BotInstallationState::Stopped);
+}
+
+TEST(BotComponentRuntimeTest, ConcurrentStopDoesNotHaltCancellationDrainOwner) {
+  auto runtime = installation();
+  runtime.add_component(
+      std::make_unique<CancellableOperationComponent>(runtime.executor()));
+  auto stop_entered = std::make_shared<std::promise<void>>();
+  auto stop_entered_future = stop_entered->get_future();
+  std::promise<void> release_stop;
+  runtime.add_component(std::make_unique<BlockingStopComponent>(
+      stop_entered, release_stop.get_future().share()));
+  runtime.start();
+
+  const auto operation = runtime.capability<CancellableOperation>(
+      CapabilityId{"cancellable.operation"});
+  auto operation_future = boost::asio::co_spawn(
+      runtime.executor(), operation->execute(), boost::asio::use_future);
+  EXPECT_EQ(runtime.executor().poll_one(), 1U);
+  ASSERT_TRUE(operation->entered);
+
+  std::thread drain_owner([&runtime] { runtime.stop(); });
+  if (stop_entered_future.wait_for(std::chrono::seconds{1}) !=
+      std::future_status::ready) {
+    release_stop.set_value();
+    drain_owner.join();
+    FAIL() << "stop owner did not enter the blocking component";
+    return;
+  }
+  EXPECT_EQ(runtime.state(), BotInstallationState::Stopping);
+
+  std::thread concurrent([&runtime] { runtime.stop(); });
+  concurrent.join();
+  EXPECT_FALSE(runtime.executor().stopped());
+
+  release_stop.set_value();
+  drain_owner.join();
+  ASSERT_EQ(operation_future.wait_for(std::chrono::seconds{1}),
+            std::future_status::ready);
+  EXPECT_TRUE(operation_future.get());
   EXPECT_EQ(runtime.state(), BotInstallationState::Stopped);
 }
 
