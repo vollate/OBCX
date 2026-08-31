@@ -43,7 +43,7 @@ metadata under `share/obcx/actors/<actor-id>/actor.toml`.
 ## C++ contract
 
 ```cpp
-#include <core/reflected_actor.hpp>
+#include <core/actor/reflected_actor.hpp>
 
 namespace example::events {
 struct Requested { std::string text; };

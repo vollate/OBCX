@@ -1,4 +1,4 @@
-#include "core/bot_event_components.hpp"
+#include "core/bot/bot_event_components.hpp"
 
 #include <boost/asio/io_context.hpp>
 #include <gtest/gtest.h>

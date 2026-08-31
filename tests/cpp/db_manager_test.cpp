@@ -1,5 +1,5 @@
 #include "common/config_loader.hpp"
-#include "core/db_manager.hpp"
+#include "core/infrastructure/db_manager.hpp"
 
 #include <gtest/gtest.h>
 

@@ -18,7 +18,7 @@
 6. Network transports and bot `io_context`s are process-owned and run on one thread per bot; actor generations are reloadable while bots and registry survive (`src/app/main.cpp:284-418`, `src/app/main.cpp:420-510`).
 7. Ingress is adapter JSON -> `common::Event` -> per-bot `EventDispatcher` -> raw actor envelope. Only message and notice events are wired into actor runtime; request/meta/heartbeat/error remain dispatcher-only (`src/app/main.cpp:384-412`).
 8. Canonical event DTOs remain OneBot-oriented (`post_type`, `message_type`, group/guild/channel optionals, message segments), while Telegram maps updates into those fields and retains raw Telegram message JSON (`include/common/message_type.hpp:44-178`; `src/telegram/adapter/protocol_adapter.cpp:51-173`).
-9. Actor envelopes are serializable and carry source platform/account, conversation, correlation/causation, normalized payload and raw JSON (`include/core/actor.hpp:81-110`; `src/core/message_event_ingress.cpp:109-174`), a good boundary for future typed capability requests/results.
+9. Actor envelopes are serializable and carry source platform/account, conversation, correlation/causation, normalized payload and raw JSON (`include/core/actor/actor.hpp:81-110`; `src/core/runtime/message_event_ingress.cpp:109-174`), a good boundary for future typed capability requests/results.
 10. Bridge egress currently crosses the actor boundary back into live C++ bot objects and awaits Asio via `ActorContext::await_asio`; it does not send serializable egress request messages (`local_actor/obcx-actor-bridge/actor/bridge_actor.cpp:129-206`).
 11. `BotRegistry` stores weak bot references and returns a temporary strong reference; application `bots` owns live instances. This avoids registry ownership cycles but means operation lifetime and shutdown races require explicit admission/cancellation policy (`include/core/bot_registry.hpp:15-107`).
 12. Component creation is closed over string types `qq` and `telegram`; Telegram websocket is selectable by config mapping but rejected by `TGBot::connect`, which accepts HTTP only (`src/common/component_manager.cpp:21-61`; `src/core/tg_bot.cpp:20-39`).
@@ -51,8 +51,8 @@
 | F9 | `src/onebot11/adapter/event_converter.cpp:10-67` | OneBot post-type mapping. |
 | F10 | `src/telegram/adapter/protocol_adapter.cpp:51-173` | Telegram recognized update types and message normalization/raw preservation. |
 | F11 | `include/core/event_dispatcher.hpp:22-108` | Typed handlers, variant dispatch, detached coroutine scheduling on bot I/O executor. |
-| F12 | `src/core/message_event_ingress.cpp:21-174` | Conversation identity and raw message/notice envelope construction. |
-| F13 | `include/core/actor.hpp:81-110,174-284` | Envelope/result/services/context and Asio/blocking crossings. |
+| F12 | `src/core/runtime/message_event_ingress.cpp:21-174` | Conversation identity and raw message/notice envelope construction. |
+| F13 | `include/core/actor/actor.hpp:81-110,174-284` | Envelope/result/services/context and Asio/blocking crossings. |
 | F14 | `include/core/bot_registry.hpp:15-107` | Account keys, weak ownership, ambiguity behavior. |
 | F15 | `tests/cpp/bot_registry_test.cpp:9-58` | Multi-account, unambiguous, expired and unregister behavior tests. |
 | F16 | `src/common/component_manager.cpp:21-61,68-170,173-190` | Bot factory, connection selection/config and private `connect` setup. |
@@ -206,8 +206,8 @@ The desirable seam already exists at `MessageEnvelope`/`ActorContext`: introduce
 3. `include/interfaces/telegram_bot.hpp` (lines 14-170) — Telegram extension DTOs/capabilities.
 4. `src/core/tg_bot.cpp` (lines 20-504) — asymmetry/stubs and HTTP lifecycle.
 5. `include/core/bot_registry.hpp` (lines 15-107) — ownership/account resolution.
-6. `src/core/message_event_ingress.cpp` (lines 21-174) — event-to-envelope mapping.
-7. `include/core/actor.hpp` (lines 81-110, 174-284) — actor envelope/services/runtime crossing.
+6. `src/core/runtime/message_event_ingress.cpp` (lines 21-174) — event-to-envelope mapping.
+7. `include/core/actor/actor.hpp` (lines 81-110, 174-284) — actor envelope/services/runtime crossing.
 8. `local_actor/obcx-actor-bridge/dependency/bridge_forwarding_runtime.cpp` (lines 13-112) — Bridge live bot calls.
 9. `local_actor/obcx-actor-bridge/actor/bridge_actor.cpp` (lines 104-250) — Bridge actor service flow.
 10. `src/app/main.cpp` (lines 284-418, 420-510) — process ownership, ingress and reload/shutdown.

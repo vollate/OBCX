@@ -7,9 +7,10 @@ Compose 和包含凭据的本地配置位于 `dev/onebot/`，不属于测试门�
 
 根仓库测试可以覆盖：
 
-- actor runtime、scheduler、Asio/BlockingExecutor、reload 与通用 V2 ABI；
-- 根仓库网络、OneBot/Telegram adapter、CLI 与数据库组件；
-- metadata、registry、packaging、安装后 SDK 与通用 fixture actor。
+- actor runtime、scheduler、Asio/BlockingExecutor、reload 与通用 ABI 2；
+- `BotInstallation`/`BotComponent`/capability registry、固定 recipe、严格 bot
+  configuration、OneBot/Telegram protocol/transport/ingress/operation 组件；
+- CLI、数据库、metadata、registry、packaging、安装后 SDK 与通用 fixture actor。
 
 根测试不得包含生产 actor 的私有头文件、实现源码或业务断言。对应测试归属如下：
 
@@ -17,6 +18,7 @@ Compose 和包含凭据的本地配置位于 `dev/onebot/`，不属于测试门�
 | --- | --- |
 | Bridge 转发、mapping、媒体、重试、真实 Message Store → Bridge pipeline、bot-facing reload | `local_actor/obcx-actor-bridge/tests/` |
 | Message Store schema、持久化、identity、deduplication、MessageStored emission | `local_actor/obcx-actor-message-store/tests/` |
+| Bot component DAG、recipe、严格配置、ingress 与 operation endpoint | 根 `tests/cpp/`、`tests/python/` 与 `tests/fixtures/` |
 | 通用 ABI、same-SONAME staging、dependency isolation、generation cutover | 根 `tests/fixtures/` 与 `tests/cpp/` |
 | 跨仓库安装与构建协调 | 根 conformance CMake 脚本；actor 仓库拥有业务测试源码和 CTest 注册 |
 
@@ -36,7 +38,7 @@ Bridge 使用 `OBCX_BRIDGE_BUILD_TESTS`，Message Store 使用
 ## 目录职责
 
 - `cpp/`：GoogleTest 单元与小型集成测试。
-- `python/`：Python `unittest` metadata、packaging 与架构约束。
+- `python/`：Python `unittest` metadata、packaging、bot 配置 inventory 与架构约束。
 - `cmake/`：由 CTest 调用的 SDK、CLI、inventory 与跨仓库协调脚本。
 - `compile/`：C++ 正向与负向反射编译契约。
 - `fixtures/`：根 runtime 专用的通用 actor DSO 与 standalone SDK consumer。

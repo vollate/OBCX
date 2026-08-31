@@ -1,13 +1,13 @@
 #include "common/config_loader.hpp"
-#include "core/actor_manager.hpp"
-#include "core/actor_messages.hpp"
-#include "core/bot_installation_directory.hpp"
-#include "core/bot_operation_dispatcher.hpp"
-#include "core/command_coordinator.hpp"
-#include "core/db_manager.hpp"
-#include "core/orchestrator.hpp"
-#include "core/process_staging_uuid.hpp"
-#include "core/runtime_generation.hpp"
+#include "core/actor/actor_manager.hpp"
+#include "core/actor/actor_messages.hpp"
+#include "core/bot/bot_installation_directory.hpp"
+#include "core/bot/bot_operation_dispatcher.hpp"
+#include "core/command/command_coordinator.hpp"
+#include "core/infrastructure/db_manager.hpp"
+#include "core/infrastructure/process_staging_uuid.hpp"
+#include "core/runtime/orchestrator.hpp"
+#include "core/runtime/runtime_generation.hpp"
 
 #include <array>
 #include <boost/asio/co_spawn.hpp>

@@ -1,4 +1,4 @@
-#include "core/message_event_ingress.hpp"
+#include "core/runtime/message_event_ingress.hpp"
 
 #include <gtest/gtest.h>
 

@@ -1,5 +1,5 @@
-#include "core/onebot11_bot_operations.hpp"
-#include "core/telegram_bot_operations.hpp"
+#include "core/bot/onebot11_bot_operations.hpp"
+#include "core/bot/telegram_bot_operations.hpp"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>

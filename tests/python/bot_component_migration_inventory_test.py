@@ -85,10 +85,10 @@ class BotComponentMigrationInventoryTest(unittest.TestCase):
 
     def test_dispatch_and_native_endpoints_have_no_live_bot_cast_path(self) -> None:
         paths = (
-            ROOT / "src" / "core" / "bot_operation_dispatcher.cpp",
-            ROOT / "src" / "core" / "bot_operation_components.cpp",
-            ROOT / "include" / "core" / "bot_operation_dispatcher.hpp",
-            ROOT / "include" / "core" / "bot_operation_components.hpp",
+            ROOT / "src" / "core" / "bot" / "bot_operation_dispatcher.cpp",
+            ROOT / "src" / "core" / "bot" / "bot_operation_components.cpp",
+            ROOT / "include" / "core" / "bot" / "bot_operation_dispatcher.hpp",
+            ROOT / "include" / "core" / "bot" / "bot_operation_components.hpp",
         )
         findings: list[str] = []
         for path in paths:

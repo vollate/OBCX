@@ -1,6 +1,6 @@
-#include "core/actor_messages.hpp"
-#include "core/command_coordinator.hpp"
-#include "core/reflected_actor.hpp"
+#include "core/actor/actor_messages.hpp"
+#include "core/actor/reflected_actor.hpp"
+#include "core/command/command_coordinator.hpp"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>

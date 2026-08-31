@@ -35,7 +35,7 @@ README statements must be checked against the following current interfaces:
 - build requirements and preset paths from root `CMakeLists.txt` and
   `CMakePresets.json`;
 - ABI exports from `OBCX_ACTOR_EXPORT_V2` in
-  `include/core/reflected_actor.hpp`;
+  `include/core/actor/reflected_actor.hpp`;
 - runtime configuration and validation from `ConfigLoader`, `DbManager`,
   `BotRegistry`, and the current actor-only architecture guides;
 - supported CLI commands from each script's argument parser;

@@ -1,6 +1,6 @@
-#include "core/bot_command_catalog_component.hpp"
-#include "core/bot_operation_components.hpp"
-#include "core/bot_protocol_components.hpp"
+#include "core/bot/bot_command_catalog_component.hpp"
+#include "core/bot/bot_operation_components.hpp"
+#include "core/bot/bot_protocol_components.hpp"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/io_context.hpp>

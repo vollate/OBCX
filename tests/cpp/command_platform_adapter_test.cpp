@@ -1,4 +1,4 @@
-#include "core/command_platform_adapter.hpp"
+#include "core/command/command_platform_adapter.hpp"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/io_context.hpp>

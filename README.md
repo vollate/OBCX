@@ -1,9 +1,14 @@
 # OBCX
 
-OBCX 是面向 OneBot 11 与 Telegram 的 C++26 机器人运行时。当前版本采用单一
-反射 actor 扩展模型：动态组件继承 `ReflectedActor<Derived>`，以类型化 `handle`
-重载声明输入，并由原生 work-stealing scheduler 执行。异步 handler 可通过
+OBCX 是面向 OneBot 11 与 Telegram 的 C++26 机器人运行时。当前版本采用两层
+运行模型：进程级 `BotInstallation` 由固定 recipe 组装协议、传输、事件入口与操作
+组件；generation 级 ABI 2 actor 继承 `ReflectedActor<Derived>`，以类型化 `handle`
+重载声明业务输入，并由原生 work-stealing scheduler 执行。异步 handler 可通过
 `ActorContext::await_asio` 等待网络、计时器和其他 Boost.Asio 操作。
+
+Actor 看不到 installation、transport、token 或进程 capability registry。Bot 出站
+只能使用 data-only `BotOperationClient`；旧 `IBot`/provider 接口、`QQBot`、
+`TGBot`、`BotRegistry` 与基于 RTTI 的 wrapper 已删除。
 
 ## 构建
 
@@ -63,20 +68,42 @@ sh packaging/actors/restore-sources.sh
 
 ## 运行配置
 
-运行时配置由 bot、actor、数据库与 pipeline 四部分组成。Scheduler 没有引擎
-选择项；`policy` 只控制原生 scheduler 的 work stealing/sharing 行为，`workers =
-0` 表示由统一线程预算自动分配。
+运行时配置包括 bot installation、actor runtime、command route、数据库、actor 与
+pipeline。Bot 配置使用关闭的 typed schema；每个表键就是 ingress 与 operation
+routing 使用的精确
+installation id。当前只接受 `onebot11.qq + websocket`、`onebot11.qq + http` 和
+`telegram.bot_api + http`。缺失、未知或不支持的 `surface`/`transport` 组合直接
+报错，不存在 provider 或 transport 回退。
 
 ```toml
-[bots.qq]
-type = "qq"
+[bots.qq_bot]
 enabled = true
+surface = "onebot11.qq"
+transport = "websocket"
 
-[bots.qq.connection]
-type = "websocket"
+[bots.qq_bot.connection]
 host = "127.0.0.1"
 port = 3001
 access_token = ""
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
+
+[bots.telegram_bot]
+enabled = true
+surface = "telegram.bot_api"
+transport = "http"
+
+[bots.telegram_bot.connection]
+host = "api.telegram.org"
+port = 443
+access_token = "YOUR_TELEGRAM_BOT_TOKEN"
+bot_username = "your_bot_username"
+use_tls = true
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
+poll_timeout_ms = 25000
+poll_force_close_ms = 30000
+poll_retry_interval_ms = 3000
 
 [actor_runtime.scheduler]
 policy = "stealing"
@@ -86,6 +113,9 @@ slow_resume_warning_ms = 10
 
 [actor_runtime.routing]
 hop_limit = 32
+
+[actor_runtime.reload]
+drain_timeout_ms = 5000
 
 [db.instances.main]
 type = "sqlite"
@@ -106,6 +136,21 @@ partition = "source_bot:conversation_id"
 db = "main"
 db_namespace = "bridge"
 
+[actors.bridge.config]
+bridge_files_dir = "/tmp/bridge_files"
+legacy_state_pair = "primary"
+legacy_unresolved_mapping_policy = "fail"
+enable_retry_queue = true
+message_retry_max_attempts = 5
+message_retry_base_interval_sec = 2
+retry_queue_check_interval_sec = 10
+max_retry_interval_sec = 300
+
+[[actors.bridge.config.installation_pairs]]
+id = "primary"
+telegram_installation = "telegram_bot"
+onebot11_installation = "qq_bot"
+
 [pipelines.message]
 source = "obcx::core::events::RawMessageEvent"
 
@@ -124,6 +169,12 @@ output = ["bridge::events::MessageForwarded", "bridge::events::MessageForwardFai
 after = ["persist"]
 mode = "await"
 ```
+
+Bot 表与 connection 表拒绝 legacy `type`、bot-level `plugins`、无 `_ms` 单位的旧
+超时键、未知键和 provider-misplaced 键。完整 recipe、生命周期和迁移表见
+[Bot installation component runtime](docs/architecture/bot-component-runtime.md)。
+Scheduler 没有引擎选择项；`policy` 只控制原生 scheduler 的 work
+stealing/sharing 行为，`workers = 0` 与 `blocking_workers = 0` 由统一线程预算解析。
 
 `library = "message_store"` 这类按名称发现会搜索当前 binary tree 的 `actors/`
 目录，也会搜索已安装可执行文件对应的 `<prefix>/lib/obcx/actors`（以及 `lib64`
@@ -152,15 +203,17 @@ drain_timeout_ms = 5000 # 100..300000
 `reload`。完整错误码与回滚流程见
 [Actor operations](docs/architecture/actor-runtime-v2-operations.md)。
 
-在不创建 scheduler worker、服务、bot 或 ingress 的情况下执行同一套生产校验：
+执行配置和 actor contract 校验：
 
 ```bash
 ./build/actor-dev/src/app/obcx --validate-config config.toml
 ```
 
-`--validate-config` 会校验数据库 provider、actor contract 与依赖，以及 pipeline
-source、stage 依赖和 `await`/`async` mode，但不会创建 scheduler worker、服务、bot
-或 ingress。
+`--validate-config` 会解析 typed bot variant、验证固定 component recipe、数据库
+provider、actor contract 与依赖，以及 pipeline source、stage 依赖和
+`await`/`async` mode。它不会 assemble/start `BotInstallation`、打开 provider
+连接、发布命令目录或建立 bot ingress；actor 侧仍通过生产
+`RuntimeGenerationBuilder` 完成 DSO contract、配置和 generation preparation 校验。
 
 Bridge 的 bot、媒体与群组映射选项可参考
 [actor-config.example.toml](local_actor/obcx-actor-bridge/actor-config.example.toml)；
@@ -225,7 +278,8 @@ bridge 产物，执行 `obcx::core::events::RawMessageEvent ->
 obcx::message_store::events::MessageStored ->
 bridge::events::MessageForwarded` 管线并核对
 数据库副作用和关闭流程；同时还会在保持同一组运行中 bot 实例的前提下修改
-bridge 群组映射并执行 reload，验证切换后的消息只使用新映射。
+bridge 群组映射并执行 reload，验证切换后的消息只使用新映射，同时进程级
+`BotInstallation` 和 transport 保持运行。
 
 ## Actor registry
 
@@ -248,6 +302,8 @@ python3 scripts/generate_api_docs.py
 
 当前架构与运维说明：
 
+- [Bot installation component runtime](docs/architecture/bot-component-runtime.md)
+- [QQ/Telegram operation boundary](docs/architecture/qq-telegram-bot-operations.md)
 - [Actor runtime ADR](docs/architecture/actor-runtime-adr.md)
 - [Actor operations](docs/architecture/actor-runtime-v2-operations.md)
 - [Actor author guide](docs/architecture/actor-v2-migration.md)

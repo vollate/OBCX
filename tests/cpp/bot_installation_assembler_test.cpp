@@ -1,9 +1,9 @@
-#include "core/bot_command_catalog_component.hpp"
-#include "core/bot_event_components.hpp"
-#include "core/bot_installation_assembler.hpp"
-#include "core/bot_operation_dispatcher.hpp"
-#include "core/bot_protocol_components.hpp"
-#include "core/bot_transport_components.hpp"
+#include "core/bot/bot_command_catalog_component.hpp"
+#include "core/bot/bot_event_components.hpp"
+#include "core/bot/bot_installation_assembler.hpp"
+#include "core/bot/bot_operation_dispatcher.hpp"
+#include "core/bot/bot_protocol_components.hpp"
+#include "core/bot/bot_transport_components.hpp"
 
 #include <gtest/gtest.h>
 

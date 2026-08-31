@@ -1,10 +1,21 @@
 # 主流 IM/SNS 能力调研与 OBCX Bot API 拆分
 
-> 调研基线：**2026-08-17**。结论是架构候选，**未冻结 C++ API、ABI、序列化或部署形态**。
+> 调研基线：**2026-08-17**。本目录保存当时的研究证据和候选设计，不是当前
+> runtime/API 合同。其候选数量、类名和拆分建议不能当作已实现能力。
 
-## 结论摘要
+## 与当前实现的关系
 
-九个平台的产品与官方开放能力差异很大，无法用 OneBot 11 风格的巨型 `IBot` 安全统一。建议采用资源模型、动态 capability discovery、类型化 actor request/result/event，以及 process-owned adapter/transport。
+研究确认了巨型通用 Bot 接口不可持续。当前代码已经删除 `IBot`、provider Bot
+接口、`QQBot`/`TGBot`、`BotRegistry` 和 live-bot RTTI wrapper，并落地了较窄的
+实现：每个进程级 `BotInstallation` 使用固定 recipe 组装 protocol、transport、
+event ingress、operation 以及 Telegram 可选组件；Actor 只能看到 data-only
+`BotOperationClient`。当前并未实现本研究提出的 56 项通用 capability 目录，也未
+开放用户自定义 component graph 或 typed ingress。
+
+## 历史候选摘要
+
+九个平台的产品与官方开放能力差异很大，无法用 OneBot 11 风格的巨型接口安全
+统一。以下计数描述研究候选空间，不描述当前 OBCX 已实现组件：
 
 | 类别 | 精确数量 |
 |---|---:|
@@ -25,7 +36,7 @@ Bridge MVP 只覆盖 typed ingress、message send/mutation、media transfer、�
 - WeCom internal app、appchat、group robot、intelligent robot、customer contact、archive 不是一个权限面。
 - X 是 SNS + legacy DM/XChat activity，不强制映射为 guild/group IM。
 - Matrix stable spec、optional module/profile、MSC 与具体客户端实现必须分层；Feishu 与 Lark 也不能假定 parity。
-- business actor 不获得 `IBotEndpoint`、`BotRegistry` 或 live transport；连接、token、cursor、retry 和 media stream 保持 process-owned。
+- business actor 不获得 process component registry、installation 或 live transport；连接、token、cursor、retry 和 media stream 保持 process-owned。当前 Actor Bot 出站面是 `BotOperationClient`。
 
 ## 方法与审计波次
 
@@ -68,4 +79,8 @@ Bridge MVP 只覆盖 typed ingress、message send/mutation、media transfer、�
 
 ## 非目标与冻结状态
 
-本调研不修改 runtime，不选择序列化协议，不承诺非官方协议稳定性，不把 actor 变成连接 owner，也不把商业套餐价格写入稳定合同。已确认的是**组件职责/计数与边界方向**；具体类名、方法签名、ABI、error code、storage、重试策略和部署拆分仍需 ADR、原型与 conformance tests 后冻结。
+本调研文档本身不定义 runtime，不承诺非官方协议稳定性，不把 actor 变成连接
+owner，也不把商业套餐价格写入稳定合同。调研后的当前实现以
+[`bot-component-runtime.md`](../../architecture/bot-component-runtime.md) 和
+[`qq-telegram-bot-operations.md`](../../architecture/qq-telegram-bot-operations.md)
+为准；未来扩展到其他平台仍需独立 ADR、OpenSpec 与 executable conformance tests。

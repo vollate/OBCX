@@ -154,7 +154,7 @@ class ActorArchitectureTest(unittest.TestCase):
 
     def test_blocking_executor_completion_has_no_polling_bridge(self) -> None:
         implementation = (
-            ROOT / "include" / "core" / "blocking_executor.hpp"
+            ROOT / "include" / "core" / "actor" / "blocking_executor.hpp"
         ).read_text(encoding="utf-8")
         for pattern in (
             r"\bstd::future\b",

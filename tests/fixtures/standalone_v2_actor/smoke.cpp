@@ -1,7 +1,7 @@
-#include "core/actor_manager.hpp"
-#include "core/bot_operation_client.hpp"
-#include "core/bot_operation_contract.hpp"
-#include "core/native_actor_scheduler.hpp"
+#include "core/actor/actor_manager.hpp"
+#include "core/actor/native_actor_scheduler.hpp"
+#include "core/bot/bot_operation_client.hpp"
+#include "core/bot/bot_operation_contract.hpp"
 
 #include "common/config_loader.hpp"
 

@@ -22,30 +22,30 @@ add_library(
         onebot11/adapter/event_converter.cpp
         telegram/adapter/protocol_adapter.cpp
         telegram/network/http/connection_manager.cpp
-        core/actor_runtime_reload_controller.cpp
-        core/actor_manager.cpp
-        core/actor_package_stager.cpp
-        core/actor_work_stealing_executor.cpp
-        core/bot_command_catalog_component.cpp
-        core/bot_component_runtime.cpp
-        core/bot_event_components.cpp
-        core/bot_installation_assembler.cpp
-        core/bot_installation_directory.cpp
-        core/bot_operation_components.cpp
-        core/bot_operation_dispatcher.cpp
-        core/bot_operation_response_parser.cpp
-        core/bot_protocol_components.cpp
-        core/bot_transport_components.cpp
-        core/command_coordinator.cpp
-        core/command_matcher.cpp
-        core/command_platform_adapter.cpp
-        core/message_event_ingress.cpp
-        core/native_actor_scheduler.cpp
-        core/db_manager.cpp
-        core/orchestrator.cpp
-        core/process_staging_uuid.cpp
-        core/runtime_thread_budget.cpp
-        core/runtime_generation.cpp)
+        core/actor/actor_manager.cpp
+        core/actor/actor_package_stager.cpp
+        core/actor/actor_work_stealing_executor.cpp
+        core/actor/native_actor_scheduler.cpp
+        core/bot/bot_command_catalog_component.cpp
+        core/bot/bot_component_runtime.cpp
+        core/bot/bot_event_components.cpp
+        core/bot/bot_installation_assembler.cpp
+        core/bot/bot_installation_directory.cpp
+        core/bot/bot_operation_components.cpp
+        core/bot/bot_operation_dispatcher.cpp
+        core/bot/bot_operation_response_parser.cpp
+        core/bot/bot_protocol_components.cpp
+        core/bot/bot_transport_components.cpp
+        core/command/command_coordinator.cpp
+        core/command/command_matcher.cpp
+        core/command/command_platform_adapter.cpp
+        core/infrastructure/db_manager.cpp
+        core/infrastructure/process_staging_uuid.cpp
+        core/runtime/actor_runtime_reload_controller.cpp
+        core/runtime/message_event_ingress.cpp
+        core/runtime/orchestrator.cpp
+        core/runtime/runtime_generation.cpp
+        core/runtime/runtime_thread_budget.cpp)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -123,24 +123,30 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/obcx/common)
 
 install(FILES
-    ${CMAKE_SOURCE_DIR}/include/core/actor.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/actor_commands.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/actor_messages.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/reflected_actor.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/actor_asio.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/actor_manager.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/actor_task.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/actor_work_stealing_executor.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/blocking_executor.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/bot_operation_client.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/bot_operation_contract.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/bot_operation_types.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/bot_operations.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/onebot11_bot_operations.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/telegram_bot_operations.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/db_manager.hpp
-    ${CMAKE_SOURCE_DIR}/include/core/native_actor_scheduler.hpp
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/obcx/core)
+    ${CMAKE_SOURCE_DIR}/include/core/actor/actor.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor/actor_asio.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor/actor_commands.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor/actor_manager.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor/actor_messages.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor/actor_task.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor/actor_work_stealing_executor.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor/blocking_executor.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor/native_actor_scheduler.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/actor/reflected_actor.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/obcx/core/actor)
+
+install(FILES
+    ${CMAKE_SOURCE_DIR}/include/core/bot/bot_operation_client.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/bot/bot_operation_contract.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/bot/bot_operation_types.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/bot/bot_operations.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/bot/onebot11_bot_operations.hpp
+    ${CMAKE_SOURCE_DIR}/include/core/bot/telegram_bot_operations.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/obcx/core/bot)
+
+install(FILES
+    ${CMAKE_SOURCE_DIR}/include/core/infrastructure/db_manager.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/obcx/core/infrastructure)
 
 install(FILES
     ${CMAKE_SOURCE_DIR}/include/network/http_client.hpp

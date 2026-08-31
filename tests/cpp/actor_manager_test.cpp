@@ -1,5 +1,5 @@
-#include "core/actor_manager.hpp"
-#include "core/native_actor_scheduler.hpp"
+#include "core/actor/actor_manager.hpp"
+#include "core/actor/native_actor_scheduler.hpp"
 
 #include <algorithm>
 #include <future>

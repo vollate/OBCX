@@ -283,7 +283,7 @@ index 0000000000000000000000000000000000000000..6a783f27018eca84f9619b930ab69ebd
 @@ -0,0 +1,17 @@
 +#pragma once
 +
-+#include "core/actor.hpp"
++#include "core/actor/actor.hpp"
 +
 +namespace obcx::actors {
 +
@@ -494,8 +494,8 @@ index 6a783f27018eca84f9619b930ab69ebd82847756..bc02425df8c13eaba27ac1d8af247d9f
 @@ -1,17 +1,42 @@
  #pragma once
  
--#include "core/actor.hpp"
-+#include "core/reflected_actor.hpp"
+-#include "core/actor/actor.hpp"
++#include "core/actor/reflected_actor.hpp"
  
  namespace obcx::actors {
  

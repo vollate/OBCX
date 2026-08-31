@@ -1,4 +1,4 @@
-#include "core/bot_operation_dispatcher.hpp"
+#include "core/bot/bot_operation_dispatcher.hpp"
 #include "network/http_client.hpp"
 
 #include <boost/asio/co_spawn.hpp>

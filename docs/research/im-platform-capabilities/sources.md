@@ -357,8 +357,8 @@ Accessed 2026-08-17 UTC.
 | F9 | `src/onebot11/adapter/event_converter.cpp:10-67` | OneBot post-type mapping. |
 | F10 | `src/telegram/adapter/protocol_adapter.cpp:51-173` | Telegram recognized update types and message normalization/raw preservation. |
 | F11 | `include/core/event_dispatcher.hpp:22-108` | Typed handlers, variant dispatch, detached coroutine scheduling on bot I/O executor. |
-| F12 | `src/core/message_event_ingress.cpp:21-174` | Conversation identity and raw message/notice envelope construction. |
-| F13 | `include/core/actor.hpp:81-110,174-284` | Envelope/result/services/context and Asio/blocking crossings. |
+| F12 | `src/core/runtime/message_event_ingress.cpp:21-174` | Conversation identity and raw message/notice envelope construction. |
+| F13 | `include/core/actor/actor.hpp:81-110,174-284` | Envelope/result/services/context and Asio/blocking crossings. |
 | F14 | `include/core/bot_registry.hpp:15-107` | Account keys, weak ownership, ambiguity behavior. |
 | F15 | `tests/cpp/bot_registry_test.cpp:9-58` | Multi-account, unambiguous, expired and unregister behavior tests. |
 | F16 | `src/common/component_manager.cpp:21-61,68-170,173-190` | Bot factory, connection selection/config and private `connect` setup. |

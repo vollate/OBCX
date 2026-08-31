@@ -104,6 +104,19 @@
             else
               let
                 stdenv = pkgs.gcc16Stdenv;
+                # clangd must query the same GCC 16 wrapper that generated
+                # compile_commands.json; otherwise it falls back to an older
+                # libstdc++ search path where the C++26 <meta> header is absent.
+                clangToolsWithGccQuery = pkgs.symlinkJoin {
+                  name = "obcx-clang-tools-${clangP2996Packages.clang.version}";
+                  paths = [ clangTools ];
+                  nativeBuildInputs = [ pkgs.makeWrapper ];
+                  postBuild = ''
+                    rm -f "$out/bin/clangd"
+                    makeWrapper ${clangTools}/bin/clangd "$out/bin/clangd" \
+                      --add-flags "--query-driver=${stdenv.cc}/bin/g++,${stdenv.cc.cc}/bin/g++"
+                  '';
+                };
                 obcxDependencies = with pkgs; [
                   boost
                   brotli
@@ -133,7 +146,7 @@
                   binutils
                   pkg-config
                   cmake-format
-                  clangTools
+                  clangToolsWithGccQuery
                   doxygen
                   ffmpeg
                   perf

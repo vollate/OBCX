@@ -1,4 +1,4 @@
-#include "core/bot_component_runtime.hpp"
+#include "core/bot/bot_component_runtime.hpp"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/redirect_error.hpp>

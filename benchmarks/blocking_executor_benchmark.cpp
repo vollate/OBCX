@@ -1,5 +1,5 @@
-#include "core/blocking_executor.hpp"
-#include "core/native_actor_scheduler.hpp"
+#include "core/actor/blocking_executor.hpp"
+#include "core/actor/native_actor_scheduler.hpp"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/io_context.hpp>

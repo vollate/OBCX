@@ -1,5 +1,5 @@
-#include "core/bot_operation_client.hpp"
-#include "core/reflected_actor.hpp"
+#include "core/actor/reflected_actor.hpp"
+#include "core/bot/bot_operation_client.hpp"
 
 namespace obcx::sdk_fixture::events {
 struct SdkSmoke {};

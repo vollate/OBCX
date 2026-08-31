@@ -1,5 +1,5 @@
 #include "common/config_loader.hpp"
-#include "core/actor.hpp"
+#include "core/actor/actor.hpp"
 #include <algorithm>
 #include <filesystem>
 #include <fstream>

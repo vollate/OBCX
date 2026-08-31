@@ -116,8 +116,8 @@ def actor_bot_calls() -> list[tuple[Path, int, str]]:
 
 def declared_contract_actions() -> set[str]:
     candidates = (
-        ROOT / "include" / "core" / "bot_operations.hpp",
-        ROOT / "include" / "core" / "bot_operation_types.hpp",
+        ROOT / "include" / "core" / "bot" / "bot_operations.hpp",
+        ROOT / "include" / "core" / "bot" / "bot_operation_types.hpp",
     )
     action = re.compile(
         r'"((?:message|telegram|onebot11)\.[a-z0-9_.]+)"'
@@ -162,7 +162,7 @@ class BotOperationScopeTest(unittest.TestCase):
     def test_bridge_state_and_retry_calls_are_installation_scoped(self) -> None:
         bridge_roots = (
             ROOT / "local_actor" / "obcx-actor-bridge" / "actor",
-            ROOT / "local_actor" / "obcx-actor-bridge" / "dependency",
+            ROOT / "local_actor" / "obcx-actor-bridge" / "src",
             ROOT / "local_actor" / "obcx-actor-bridge" / "include",
         )
         forbidden = {
@@ -200,7 +200,7 @@ class BotOperationScopeTest(unittest.TestCase):
             ROOT
             / "local_actor"
             / "obcx-actor-bridge"
-            / "dependency"
+            / "src"
             / "bridge_forwarding_runtime.cpp"
         ).read_text(encoding="utf-8")
         self.assertIn("resolve_bridge_source_pair", runtime)
@@ -218,7 +218,7 @@ class BotOperationScopeTest(unittest.TestCase):
             ROOT
             / "local_actor"
             / "obcx-actor-bridge"
-            / "dependency"
+            / "src"
             / "bridge_state_repository.cpp"
         ).read_text(encoding="utf-8")
 

@@ -46,10 +46,10 @@ None.
 ## Impact
 
 - Public reflected actor dispatch implementation in
-  `include/core/reflected_actor.hpp`; actor source and ABI contracts do not
+  `include/core/actor/reflected_actor.hpp`; actor source and ABI contracts do not
   change.
 - Reload ingress waiter coordination in
-  `src/core/actor_runtime_reload_controller.cpp`.
+  `src/core/runtime/actor_runtime_reload_controller.cpp`.
 - Bot event ingress diagnostics in `src/app/main.cpp`.
 - Installed bridge/message-store reload coverage in
   `tests/cpp/standalone_actor_reload_smoke.cpp`.

@@ -37,23 +37,23 @@ set(_expected_headers
     include/obcx/common/json_utils.hpp
     include/obcx/common/logger.hpp
     include/obcx/common/message_type.hpp
-    include/obcx/core/actor.hpp
-    include/obcx/core/actor_commands.hpp
-    include/obcx/core/actor_messages.hpp
-    include/obcx/core/actor_asio.hpp
-    include/obcx/core/actor_manager.hpp
-    include/obcx/core/actor_task.hpp
-    include/obcx/core/actor_work_stealing_executor.hpp
-    include/obcx/core/db_manager.hpp
-    include/obcx/core/native_actor_scheduler.hpp
-    include/obcx/core/reflected_actor.hpp
-    include/obcx/core/blocking_executor.hpp
-    include/obcx/core/bot_operation_client.hpp
-    include/obcx/core/bot_operation_contract.hpp
-    include/obcx/core/bot_operation_types.hpp
-    include/obcx/core/bot_operations.hpp
-    include/obcx/core/onebot11_bot_operations.hpp
-    include/obcx/core/telegram_bot_operations.hpp
+    include/obcx/core/actor/actor.hpp
+    include/obcx/core/actor/actor_commands.hpp
+    include/obcx/core/actor/actor_messages.hpp
+    include/obcx/core/actor/actor_asio.hpp
+    include/obcx/core/actor/actor_manager.hpp
+    include/obcx/core/actor/actor_task.hpp
+    include/obcx/core/actor/actor_work_stealing_executor.hpp
+    include/obcx/core/infrastructure/db_manager.hpp
+    include/obcx/core/actor/native_actor_scheduler.hpp
+    include/obcx/core/actor/reflected_actor.hpp
+    include/obcx/core/actor/blocking_executor.hpp
+    include/obcx/core/bot/bot_operation_client.hpp
+    include/obcx/core/bot/bot_operation_contract.hpp
+    include/obcx/core/bot/bot_operation_types.hpp
+    include/obcx/core/bot/bot_operations.hpp
+    include/obcx/core/bot/onebot11_bot_operations.hpp
+    include/obcx/core/bot/telegram_bot_operations.hpp
     include/obcx/network/http_client.hpp
     include/obcx/obcx/version.hpp)
 list(SORT _expected_headers)

@@ -1,5 +1,5 @@
-#include "core/native_actor_scheduler.hpp"
-#include "core/reflected_actor.hpp"
+#include "core/actor/native_actor_scheduler.hpp"
+#include "core/actor/reflected_actor.hpp"
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/executor_work_guard.hpp>

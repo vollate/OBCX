@@ -29,8 +29,8 @@ adapter tests. Removed universal-bot methods are not capabilities.
 
 Actors use the installed headers:
 
-- `core/bot_operation_contract.hpp`
-- `core/bot_operation_client.hpp`
+- `core/bot/bot_operation_contract.hpp`
+- `core/bot/bot_operation_client.hpp`
 
 Every request names a `BotInstallationRef` containing the configured bot name
 and exact surface. Group and message references retain that installation;

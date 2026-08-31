@@ -1,9 +1,9 @@
 #include "common/config_loader.hpp"
 #include "common/logger.hpp"
 #include "core/bot_registry.hpp"
-#include "core/db_manager.hpp"
+#include "core/infrastructure/db_manager.hpp"
 #include "core/qq_bot.hpp"
-#include "core/runtime_generation.hpp"
+#include "core/runtime/runtime_generation.hpp"
 #include "core/tg_bot.hpp"
 
 #include <boost/asio/co_spawn.hpp>

@@ -82,8 +82,8 @@ OneBot/Telegram connection
 - `src/telegram/adapter/protocol_adapter.cpp:51-173` 只识别 message、edited message、channel post、edited channel post、callback query；保留 raw Telegram JSON，但 `self_id = "0"`。
 - `include/core/event_dispatcher.hpp:22-108` 做 variant handler dispatch。
 - `src/app/main.cpp:384-412` 当前只把 `MessageEvent`、`NoticeEvent` 注册进 actor runtime；request/meta/heartbeat/error 留在 dispatcher 侧。
-- `src/core/message_event_ingress.cpp:21-174` 已构造含 source platform/account、conversation、correlation/causation、normalized payload、raw JSON 的 envelope。
-- `include/core/actor.hpp:81-110,174-284` 提供 serializable envelope/result/service 与 Asio/blocking crossing。
+- `src/core/runtime/message_event_ingress.cpp:21-174` 已构造含 source platform/account、conversation、correlation/causation、normalized payload、raw JSON 的 envelope。
+- `include/core/actor/actor.hpp:81-110,174-284` 提供 serializable envelope/result/service 与 Asio/blocking crossing。
 
 因此应保留 `MessageEnvelope` 的 routing/correlation/causation 思路，但把主要 payload 从 OneBot 形状换成 typed `MessageCreated` 等事件；原始协议作为 `onebot11.*`/`telegram.*` extension 或受控 `raw_ref`。
 

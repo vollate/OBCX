@@ -1,4 +1,4 @@
-#include "core/bot_operation_response_parser.hpp"
+#include "core/bot/bot_operation_response_parser.hpp"
 
 #include <gtest/gtest.h>
 

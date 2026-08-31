@@ -1,10 +1,10 @@
 #include "common/config_loader.hpp"
-#include "core/actor_manager.hpp"
-#include "core/actor_runtime_reload_controller.hpp"
-#include "core/bot_operation_dispatcher.hpp"
-#include "core/db_manager.hpp"
-#include "core/native_actor_scheduler.hpp"
-#include "core/orchestrator.hpp"
+#include "core/actor/actor_manager.hpp"
+#include "core/actor/native_actor_scheduler.hpp"
+#include "core/bot/bot_operation_dispatcher.hpp"
+#include "core/infrastructure/db_manager.hpp"
+#include "core/runtime/actor_runtime_reload_controller.hpp"
+#include "core/runtime/orchestrator.hpp"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/executor_work_guard.hpp>
