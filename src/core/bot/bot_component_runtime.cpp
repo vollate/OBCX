@@ -196,7 +196,7 @@ auto CapabilityRegistry::capabilities_for(const ComponentId &provider) const
 }
 
 BotInstallation::BotInstallation(std::string installation_id,
-                                 const common::BotInstallationSurface surface)
+                                 const bot::SurfaceId surface)
     : installation_id_(std::move(installation_id)), surface_(surface) {
   if (installation_id_.empty() || installation_id_.size() > 128) {
     throw BotComponentRuntimeError("invalid bot installation id");

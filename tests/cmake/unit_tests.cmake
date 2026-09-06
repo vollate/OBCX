@@ -27,10 +27,55 @@ obcx_add_gtest(bot_installation_config_test
                "unit;bot-runtime;configuration;security")
 obcx_add_gtest(bot_operation_component_test
                "unit;bot-runtime;component;telegram;onebot11")
+target_compile_definitions(bot_operation_component_test PRIVATE
+  OBCX_BOT_GOLDEN_PATH="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/bot_contract/production-baseline.json")
 obcx_add_gtest(bot_operation_dispatcher_test "unit;bot-runtime;dispatch")
 obcx_add_gtest(bot_operation_response_parser_test
                "unit;bot-runtime;telegram;onebot11")
+# SDK contract fixtures never link the combined runtime library.
+function(obcx_add_sdk_contract_test name)
+  add_executable(${name} cpp/${name}.cpp)
+  target_include_directories(${name} PRIVATE
+    ${PROJECT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR})
+  target_link_libraries(${name} PRIVATE
+    nlohmann_json::nlohmann_json GTest::gtest_main)
+  target_compile_definitions(${name} PRIVATE
+    OBCX_BOT_GOLDEN_PATH="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/bot_contract/production-baseline.json")
+  set(labels "unit;bot-runtime;contract")
+  string(REPLACE ";" "\\;" escaped_labels "${labels}")
+  gtest_discover_tests(${name} DISCOVERY_MODE PRE_TEST
+    PROPERTIES LABELS "${escaped_labels}")
+endfunction()
+obcx_add_sdk_contract_test(actor_config_snapshot_test)
+target_sources(actor_config_snapshot_test PRIVATE
+  ${PROJECT_SOURCE_DIR}/src/common/config_snapshot.cpp)
+target_link_libraries(actor_config_snapshot_test PRIVATE tomlplusplus::tomlplusplus)
+obcx_add_sdk_contract_test(bot_common_contract_test)
+obcx_add_sdk_contract_test(bot_onebot_contract_test)
+obcx_add_sdk_contract_test(bot_telegram_contract_test)
+obcx_add_sdk_contract_test(bot_ids_test)
+obcx_add_sdk_contract_test(bot_gateway_test)
+obcx_add_sdk_contract_test(bot_gateway_media_test)
+obcx_add_sdk_contract_test(bot_operation_registry_test)
+target_sources(bot_operation_registry_test PRIVATE
+  ${PROJECT_SOURCE_DIR}/src/core/bot/operation_registry.cpp)
+obcx_add_sdk_contract_test(bot_platform_catalog_test)
+target_sources(bot_platform_catalog_test PRIVATE
+  ${PROJECT_SOURCE_DIR}/src/core/bot/platform_catalog.cpp
+  ${PROJECT_SOURCE_DIR}/src/core/bot/installation_plan.cpp
+  ${PROJECT_SOURCE_DIR}/src/core/bot/bot_component_runtime.cpp)
+target_link_libraries(bot_platform_catalog_test PRIVATE
+  tomlplusplus::tomlplusplus OpenSSL::Crypto Threads::Threads)
+add_executable(bot_echo_runtime_test cpp/bot_echo_runtime_test.cpp
+  fixtures/echo_module/module.cpp)
+target_include_directories(bot_echo_runtime_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(bot_echo_runtime_test PRIVATE obcx_generic_runtime GTest::gtest_main)
+gtest_discover_tests(bot_echo_runtime_test DISCOVERY_MODE PRE_TEST
+  PROPERTIES LABELS "contract\\;isolation\\;bot-runtime")
 obcx_add_gtest(bot_operation_types_test "unit;bot-runtime;contract")
+obcx_add_gtest(bot_operation_golden_test "unit;bot-runtime;contract")
+target_compile_definitions(bot_operation_golden_test PRIVATE
+  OBCX_BOT_GOLDEN_PATH="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/bot_contract/production-baseline.json")
 obcx_add_gtest(cli_handler_test "unit;cli;actor-runtime")
 obcx_add_gtest(command_coordinator_test
                "unit;actor-runtime;routing;bot-runtime;concurrency")
@@ -61,12 +106,14 @@ target_compile_definitions(
 
 add_dependencies(
   runtime_generation_test obcx_test_actor_v2 obcx_activation_failure_actor
-  obcx_private_actor_v1 obcx_private_actor_v2)
+  obcx_private_actor_v1 obcx_private_actor_v2 obcx_schema_probe_1 obcx_schema_probe_999)
 target_compile_definitions(
   runtime_generation_test
   PRIVATE
     OBCX_TEST_ACTOR_V2_LIBRARY="$<TARGET_FILE:obcx_test_actor_v2>"
     OBCX_ACTIVATION_FAILURE_ACTOR="$<TARGET_FILE:obcx_activation_failure_actor>"
+    OBCX_SCHEMA1_PROBE="$<TARGET_FILE:obcx_schema_probe_1>"
+    OBCX_UNKNOWN_SCHEMA_PROBE="$<TARGET_FILE:obcx_schema_probe_999>"
     OBCX_PRIVATE_ACTOR_V1="$<TARGET_FILE:obcx_private_actor_v1>"
     OBCX_PRIVATE_ACTOR_V2="$<TARGET_FILE:obcx_private_actor_v2>")
 
@@ -90,6 +137,7 @@ add_dependencies(
   obcx_invalid_actor
   obcx_test_actor_v2
   obcx_legacy_v2_actor
+  obcx_frozen_schema1_actor
   obcx_missing_v2_factory_actor
   obcx_unsupported_actor
   obcx_contract_missing
@@ -124,6 +172,7 @@ target_compile_definitions(
     OBCX_TEST_INVALID_ACTOR_LIBRARY="$<TARGET_FILE:obcx_invalid_actor>"
     OBCX_TEST_ACTOR_V2_LIBRARY="$<TARGET_FILE:obcx_test_actor_v2>"
     OBCX_TEST_LEGACY_V2_ACTOR_LIBRARY="$<TARGET_FILE:obcx_legacy_v2_actor>"
+    OBCX_TEST_FROZEN_SCHEMA1_LIBRARY="$<TARGET_FILE:obcx_frozen_schema1_actor>"
     OBCX_TEST_MISSING_V2_FACTORY_LIBRARY="$<TARGET_FILE:obcx_missing_v2_factory_actor>"
     OBCX_TEST_UNSUPPORTED_ACTOR_LIBRARY="$<TARGET_FILE:obcx_unsupported_actor>"
     OBCX_TEST_CONTRACT_MISSING_LIBRARY="$<TARGET_FILE:obcx_contract_missing>"

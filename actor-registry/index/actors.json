@@ -27,7 +27,7 @@
         "actor_abi_min": 2,
         "compiler": "gcc>=16.1",
         "cpp_standard": 26,
-        "input_contract_schema": 1,
+        "input_contract_schema": 2,
         "obcx": ">=1.1.0,<2.0.0",
         "reflection_macro": 202506
       },
@@ -40,7 +40,7 @@
       "id": "onebot-cxx.message-store",
       "metadata": {
         "path": "entries/onebot-cxx.message-store/actor.toml",
-        "sha256": "2f94560fc501e2c628a13145caeb06e056180818236addaf2eb8d904a67b42f2"
+        "sha256": "2353241e292cb607b418b2dd07a7eafbc22e4f21e31645299aaa731bc83d18ff"
       },
       "name": "message_store",
       "publication": {
@@ -78,7 +78,7 @@
         "actor_abi_min": 2,
         "compiler": "gcc>=16.1",
         "cpp_standard": 26,
-        "input_contract_schema": 1,
+        "input_contract_schema": 2,
         "obcx": ">=1.1.0,<2.0.0",
         "reflection_macro": 202506
       },
@@ -96,7 +96,7 @@
       "id": "vollate.bridge",
       "metadata": {
         "path": "entries/vollate.bridge/actor.toml",
-        "sha256": "b8f8423afda92ea95a830008cd35174d3fd0081ffb76b68d825754ee683996a6"
+        "sha256": "b63470ac3246987825b9e4da925681761e9161a4b3fcf3d146e68200346db05e"
       },
       "name": "bridge",
       "publication": {

@@ -7,7 +7,7 @@ OBCX 是面向 OneBot 11 与 Telegram 的 C++26 机器人运行时。当前版�
 `ActorContext::await_asio` 等待网络、计时器和其他 Boost.Asio 操作。
 
 Actor 看不到 installation、transport、token 或进程 capability registry。Bot 出站
-只能使用 data-only `BotOperationClient`；旧 `IBot`/provider 接口、`QQBot`、
+只能使用 data-only `BotOperationGateway`；旧 `IBot`/provider 接口、`QQBot`、
 `TGBot`、`BotRegistry` 与基于 RTTI 的 wrapper 已删除。
 
 ## 构建
@@ -249,7 +249,7 @@ obcx_add_actor(example
 
 Actor library 继承 `ReflectedActor<Derived>`，公开精确的同步或异步 `handle`
 重载，并使用 `OBCX_ACTOR_EXPORT_V2` 导出工厂、析构、名称、版本、数值 ABI 和
-强制的 schema-1 输入 contract。需要在 ingress 发布前准备 actor-owned state 的
+强制的 schema-2 输入 contract。需要在 ingress 发布前准备 actor-owned state 的
 actor 可额外实现同步 `prepare_generation(ActorContext&)`，返回 typed `Ready`、
 `Failed` 或 `RestartRequired`；运行时在配置及 generation service 就绪后、scheduler
 注册前调用它。该导出是 ABI 2 的可选附加面，既有未提供该 symbol 的 actor 按

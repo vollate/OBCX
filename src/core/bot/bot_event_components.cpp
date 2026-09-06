@@ -1,8 +1,5 @@
 #include "core/bot/bot_event_components.hpp"
 
-#include "core/bot/bot_installation_assembler.hpp"
-#include "core/bot/bot_transport_components.hpp"
-
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 
@@ -14,7 +11,9 @@ namespace obcx::core {
 BotEventCapability::BotEventCapability(boost::asio::any_io_executor executor,
                                        BotEventContext context)
     : executor_(std::move(executor)), context_(std::move(context)) {
-  if (context_.installation_id.empty()) {
+  context_.surface.validate();
+  if (context_.installation_id.empty() ||
+      !bot::detail::valid_bot_id(context_.platform)) {
     throw BotComponentRuntimeError(
         "bot event capability requires an installation id");
   }
@@ -93,81 +92,5 @@ void BotEventCapability::publish(const common::Event &event) const {
       },
       event);
 }
-
-OneBot11EventIngressComponent::OneBot11EventIngressComponent(
-    boost::asio::any_io_executor executor, std::string installation_id)
-    : events_(std::make_shared<BotEventCapability>(
-          std::move(executor),
-          BotEventContext{.installation_id = std::move(installation_id),
-                          .surface =
-                              common::BotInstallationSurface::OneBot11Qq})) {}
-
-auto OneBot11EventIngressComponent::descriptor() const -> ComponentDescriptor {
-  return {
-      .id = ComponentId{"onebot11.event-ingress"},
-      .provides = {CapabilityId{std::string{bot_capability_ids::events}}},
-      .required =
-          {CapabilityId{std::string{bot_capability_ids::onebot11_protocol}},
-           CapabilityId{std::string{bot_capability_ids::onebot11_transport}}},
-  };
-}
-
-void OneBot11EventIngressComponent::install_capabilities(
-    CapabilityRegistry &registry) {
-  registry.install(ComponentId{"onebot11.event-ingress"},
-                   CapabilityId{std::string{bot_capability_ids::events}},
-                   events_);
-}
-
-void OneBot11EventIngressComponent::prepare(
-    const CapabilityRegistry &registry) {
-  auto transport = registry.get<OneBot11Transport>(
-      CapabilityId{std::string{bot_capability_ids::onebot11_transport}});
-  transport->set_event_callback([events = events_](const common::Event &event) {
-    events->publish(event);
-  });
-  events_->activate();
-}
-
-void OneBot11EventIngressComponent::start() {}
-void OneBot11EventIngressComponent::stop() { events_->close(); }
-
-TelegramEventIngressComponent::TelegramEventIngressComponent(
-    boost::asio::any_io_executor executor, std::string installation_id)
-    : events_(std::make_shared<BotEventCapability>(
-          std::move(executor),
-          BotEventContext{
-              .installation_id = std::move(installation_id),
-              .surface = common::BotInstallationSurface::TelegramBotApi})) {}
-
-auto TelegramEventIngressComponent::descriptor() const -> ComponentDescriptor {
-  return {
-      .id = ComponentId{"telegram.event-ingress"},
-      .provides = {CapabilityId{std::string{bot_capability_ids::events}}},
-      .required =
-          {CapabilityId{std::string{bot_capability_ids::telegram_protocol}},
-           CapabilityId{std::string{bot_capability_ids::telegram_transport}}},
-  };
-}
-
-void TelegramEventIngressComponent::install_capabilities(
-    CapabilityRegistry &registry) {
-  registry.install(ComponentId{"telegram.event-ingress"},
-                   CapabilityId{std::string{bot_capability_ids::events}},
-                   events_);
-}
-
-void TelegramEventIngressComponent::prepare(
-    const CapabilityRegistry &registry) {
-  auto transport = registry.get<TelegramTransport>(
-      CapabilityId{std::string{bot_capability_ids::telegram_transport}});
-  transport->set_event_callback([events = events_](const common::Event &event) {
-    events->publish(event);
-  });
-  events_->activate();
-}
-
-void TelegramEventIngressComponent::start() {}
-void TelegramEventIngressComponent::stop() { events_->close(); }
 
 } // namespace obcx::core

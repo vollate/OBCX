@@ -103,9 +103,11 @@ auto parse_bot_installation_types(const common::json &value, std::string &error)
             "type array";
     return std::nullopt;
   }
-  if (std::ranges::any_of(expected_types,
-                          [](const auto &type) { return type.empty(); })) {
-    error = "actor bot installation constraints require non-empty types";
+  if (std::ranges::any_of(expected_types, [](const auto &type) {
+        return !bot::detail::valid_bot_id(type);
+      })) {
+    error =
+        "actor bot installation constraints require valid exact surface IDs";
     return std::nullopt;
   }
   std::ranges::sort(expected_types);
@@ -145,18 +147,19 @@ auto parse_actor_contract(const char *document,
     error = "actor input contract schema_version must be a positive integer";
     return std::nullopt;
   }
-  const auto signed_schema_version =
-      parsed["schema_version"].get<std::int64_t>();
-  if (signed_schema_version <= 0) {
+  const auto signed_schema_version = contract_integer(parsed["schema_version"]);
+  if (!signed_schema_version || *signed_schema_version <= 0) {
     error = "actor input contract schema_version must be a positive integer";
     return std::nullopt;
   }
-  const auto schema_version = static_cast<std::uint32_t>(signed_schema_version);
-  if (schema_version != 1) {
+  if (*signed_schema_version != 2) {
     error = "unsupported actor input contract schema_version " +
-            std::to_string(schema_version);
+            std::to_string(*signed_schema_version) +
+            "; rebuild the actor with the matching schema-2 OBCX SDK";
     return std::nullopt;
   }
+  const auto schema_version =
+      static_cast<std::uint32_t>(*signed_schema_version);
   if (!parsed.contains("actor") || !parsed["actor"].is_string()) {
     error = "actor input contract actor must be a string";
     return std::nullopt;

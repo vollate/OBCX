@@ -1,5 +1,6 @@
-#include "core/bot/onebot11_bot_operations.hpp"
-#include "core/bot/telegram_bot_operations.hpp"
+#include "core/bot/messaging.hpp"
+#include "onebot11/bot/operations.hpp"
+#include "telegram/bot/operations.hpp"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
@@ -11,18 +12,16 @@
 
 namespace {
 
-using obcx::bot::action_id;
-using obcx::bot::BotAction;
+using obcx::bot::ActionId;
 using obcx::bot::BotInstallationRef;
 using obcx::bot::BotMessageRef;
 using obcx::bot::BotOperationError;
 using obcx::bot::BotOperationErrorCode;
 using obcx::bot::BotOperationResult;
-using obcx::bot::BotSurface;
 using obcx::bot::GroupTarget;
 using obcx::bot::SubmissionSafety;
-using obcx::bot::TelegramTopicTarget;
-using obcx::bot::action_ids::all;
+using obcx::bot::SurfaceId;
+using obcx::telegram::bot::TelegramTopicTarget;
 
 template <typename T> void expect_stable_round_trip(const T &value) {
   const auto first = nlohmann::json(value);
@@ -31,23 +30,32 @@ template <typename T> void expect_stable_round_trip(const T &value) {
   EXPECT_EQ(second.dump(), first.dump());
 }
 
-TEST(BotOperationTypesTest, ClosedActionMatrixContainsThirteenUniqueIds) {
-  const std::set<std::string_view> unique(all.begin(), all.end());
-  EXPECT_EQ(all.size(), 13U);
-  EXPECT_EQ(unique.size(), all.size());
-  for (std::size_t index = 0; index < all.size(); ++index) {
-    const auto action = static_cast<BotAction>(index);
-    EXPECT_EQ(action_id(action), all[index]);
-    EXPECT_EQ(obcx::bot::bot_action_from_id(all[index]), action);
+TEST(BotOperationTypesTest, ProductionWireIdsDoNotDependOnAnEnumOrdinal) {
+  const std::vector<std::string> ids{"message.send_group",
+                                     "message.delete",
+                                     "telegram.message.send_topic",
+                                     "telegram.message.edit_text",
+                                     "telegram.media.send_photo",
+                                     "telegram.media.send_group_urls",
+                                     "telegram.media.send_group_uploads",
+                                     "telegram.media.fetch_file",
+                                     "onebot11.group_member.get",
+                                     "onebot11.forward_message.get",
+                                     "onebot11.group_file.resolve",
+                                     "onebot11.private_file.resolve",
+                                     "onebot11.group.poke"};
+  EXPECT_EQ((std::set<std::string>{ids.begin(), ids.end()}).size(), 13U);
+  for (const auto &id : ids) {
+    const ActionId action{id};
+    EXPECT_EQ(nlohmann::json(action).get<ActionId>(), action);
   }
-  EXPECT_THROW((void)obcx::bot::bot_action_from_id("message.history"),
-               std::invalid_argument);
+  EXPECT_NO_THROW((void)ActionId{"message.history"});
 }
 
 TEST(BotOperationTypesTest, ScopedReferencesRoundTripDeterministically) {
   const BotMessageRef message{
       .group = {.installation = {.installation_id = "telegram-main",
-                                 .surface = BotSurface::TelegramBotApi},
+                                 .surface = SurfaceId{"telegram.bot_api"}},
                 .native_group_id = "-1001"},
       .native_message_id = "42",
   };
@@ -65,7 +73,7 @@ TEST(BotOperationTypesTest, ScopedReferencesRoundTripDeterministically) {
 TEST(BotOperationTypesTest, TelegramTopicRequiresTelegramAndPositiveId) {
   TelegramTopicTarget valid{
       .group = {.installation = {.installation_id = "tg",
-                                 .surface = BotSurface::TelegramBotApi},
+                                 .surface = SurfaceId{"telegram.bot_api"}},
                 .native_group_id = "chat"},
       .topic_id = 7,
   };
@@ -75,14 +83,14 @@ TEST(BotOperationTypesTest, TelegramTopicRequiresTelegramAndPositiveId) {
   valid.topic_id = 0;
   EXPECT_THROW(valid.validate(), std::invalid_argument);
   valid.topic_id = 7;
-  valid.group.installation.surface = BotSurface::OneBot11Qq;
+  valid.group.installation.surface = SurfaceId{"onebot11.qq"};
   EXPECT_THROW(valid.validate(), std::invalid_argument);
 }
 
 TEST(BotOperationTypesTest, ResultRoundTripsSuccessAndFailure) {
   const BotMessageRef message{
       .group = {.installation = {.installation_id = "qq-main",
-                                 .surface = BotSurface::OneBot11Qq},
+                                 .surface = SurfaceId{"onebot11.qq"}},
                 .native_group_id = "123"},
       .native_message_id = "456",
   };
@@ -106,10 +114,10 @@ TEST(BotOperationTypesTest, ResultRoundTripsSuccessAndFailure) {
 }
 
 TEST(BotOperationTypesTest, InvalidJsonAndOutcomeSafetyAreRejected) {
-  EXPECT_THROW((void)nlohmann::json({{"installation_id", "telegram-main"},
-                                     {"surface", "qq.official"}})
-                   .get<BotInstallationRef>(),
-               std::invalid_argument);
+  // References validate syntax; production registration validates support.
+  EXPECT_NO_THROW((void)nlohmann::json({{"installation_id", "telegram-main"},
+                                        {"surface", "qq.official"}})
+                      .get<BotInstallationRef>());
   EXPECT_THROW((void)nlohmann::json({{"surface", "telegram.bot_api"}})
                    .get<BotInstallationRef>(),
                std::invalid_argument);
@@ -131,7 +139,7 @@ TEST(BotOperationTypesTest, InvalidJsonAndOutcomeSafetyAreRejected) {
 TEST(BotOperationTypesTest, CommonAndTelegramMessageRequestsRoundTrip) {
   const GroupTarget qq_target{
       .installation = {.installation_id = "qq-main",
-                       .surface = BotSurface::OneBot11Qq},
+                       .surface = SurfaceId{"onebot11.qq"}},
       .native_group_id = "123",
   };
   const obcx::common::Message payload = {
@@ -146,10 +154,10 @@ TEST(BotOperationTypesTest, CommonAndTelegramMessageRequestsRoundTrip) {
       send_document.get<obcx::bot::SendGroupMessageRequest>();
   EXPECT_EQ(nlohmann::json(decoded_send), send_document);
 
-  const obcx::bot::SendTelegramTopicMessageRequest topic{
+  const obcx::telegram::bot::SendTelegramTopicMessageRequest topic{
       .target = {.group = {.installation = {.installation_id = "tg-main",
                                             .surface =
-                                                BotSurface::TelegramBotApi},
+                                                SurfaceId{"telegram.bot_api"}},
                            .native_group_id = "-1001"},
                  .topic_id = 7},
       .message = payload,
@@ -158,14 +166,15 @@ TEST(BotOperationTypesTest, CommonAndTelegramMessageRequestsRoundTrip) {
   EXPECT_EQ(topic_document.at("action"), "telegram.message.send_topic");
   EXPECT_EQ(
       nlohmann::json(
-          topic_document.get<obcx::bot::SendTelegramTopicMessageRequest>()),
+          topic_document
+              .get<obcx::telegram::bot::SendTelegramTopicMessageRequest>()),
       topic_document);
 }
 
 TEST(BotOperationTypesTest, DeleteAndEditRequestsKeepMessageScope) {
   const BotMessageRef telegram_message{
       .group = {.installation = {.installation_id = "tg-main",
-                                 .surface = BotSurface::TelegramBotApi},
+                                 .surface = SurfaceId{"telegram.bot_api"}},
                 .native_group_id = "-1001"},
       .native_message_id = "42",
   };
@@ -177,25 +186,27 @@ TEST(BotOperationTypesTest, DeleteAndEditRequestsKeepMessageScope) {
   EXPECT_EQ(delete_document.get<obcx::bot::DeleteMessageRequest>().message,
             telegram_message);
 
-  const obcx::bot::EditTelegramMessageTextRequest edit{
+  const obcx::telegram::bot::EditTelegramMessageTextRequest edit{
       .message = telegram_message,
       .text = "edited",
       .parse_mode = "HTML",
   };
   const auto edit_document = nlohmann::json(edit);
-  EXPECT_EQ(nlohmann::json(
-                edit_document.get<obcx::bot::EditTelegramMessageTextRequest>()),
-            edit_document);
+  EXPECT_EQ(
+      nlohmann::json(
+          edit_document
+              .get<obcx::telegram::bot::EditTelegramMessageTextRequest>()),
+      edit_document);
 
   auto wrong_surface = edit;
-  wrong_surface.message.group.installation.surface = BotSurface::OneBot11Qq;
+  wrong_surface.message.group.installation.surface = SurfaceId{"onebot11.qq"};
   EXPECT_THROW(wrong_surface.validate(), std::invalid_argument);
 }
 
 TEST(BotOperationTypesTest, SendAndMutationResultsRoundTrip) {
   const BotMessageRef message{
       .group = {.installation = {.installation_id = "tg-main",
-                                 .surface = BotSurface::TelegramBotApi},
+                                 .surface = SurfaceId{"telegram.bot_api"}},
                 .native_group_id = "-1001"},
       .native_message_id = "42",
   };
@@ -206,15 +217,16 @@ TEST(BotOperationTypesTest, SendAndMutationResultsRoundTrip) {
   const obcx::bot::DeleteMessageResult deleted{.message = message};
   EXPECT_EQ(nlohmann::json(deleted).get<obcx::bot::DeleteMessageResult>(),
             deleted);
-  const obcx::bot::EditMessageTextResult edited{.message = message};
-  EXPECT_EQ(nlohmann::json(edited).get<obcx::bot::EditMessageTextResult>(),
-            edited);
+  const obcx::telegram::bot::EditMessageTextResult edited{.message = message};
+  EXPECT_EQ(
+      nlohmann::json(edited).get<obcx::telegram::bot::EditMessageTextResult>(),
+      edited);
 }
 
 TEST(BotOperationTypesTest, MessageRequestValidationRejectsInvalidPayloads) {
   const auto target = GroupTarget{
       .installation = {.installation_id = "qq-main",
-                       .surface = BotSurface::OneBot11Qq},
+                       .surface = SurfaceId{"onebot11.qq"}},
       .native_group_id = "123",
   };
   EXPECT_THROW(
@@ -235,13 +247,13 @@ TEST(BotOperationTypesTest, MessageRequestValidationRejectsInvalidPayloads) {
 TEST(BotOperationTypesTest, TelegramPhotoAndUrlMediaRequestsRoundTrip) {
   const GroupTarget target{
       .installation = {.installation_id = "tg-main",
-                       .surface = BotSurface::TelegramBotApi},
+                       .surface = SurfaceId{"telegram.bot_api"}},
       .native_group_id = "-1001",
   };
-  const std::vector<obcx::bot::TelegramTextEntity> entities = {
+  const std::vector<obcx::telegram::bot::TelegramTextEntity> entities = {
       {.type = "bold", .offset = 0, .length = 4},
   };
-  const obcx::bot::SendTelegramPhotoRequest photo{
+  const obcx::telegram::bot::SendTelegramPhotoRequest photo{
       .target = target,
       .photo = "telegram-file-id",
       .caption = "test",
@@ -249,11 +261,12 @@ TEST(BotOperationTypesTest, TelegramPhotoAndUrlMediaRequestsRoundTrip) {
   };
   const auto photo_document = nlohmann::json(photo);
   EXPECT_EQ(
-      nlohmann::json(photo_document.get<obcx::bot::SendTelegramPhotoRequest>()),
+      nlohmann::json(
+          photo_document.get<obcx::telegram::bot::SendTelegramPhotoRequest>()),
       photo_document);
 
   const BotMessageRef reply{.group = target, .native_message_id = "40"};
-  const obcx::bot::SendTelegramMediaGroupUrlsRequest media{
+  const obcx::telegram::bot::SendTelegramMediaGroupUrlsRequest media{
       .target = target,
       .media = {{.type = "photo", .source = "https://example.test/a.jpg"},
                 {.type = "photo", .source = "telegram-file-id"}},
@@ -265,17 +278,18 @@ TEST(BotOperationTypesTest, TelegramPhotoAndUrlMediaRequestsRoundTrip) {
   const auto media_document = nlohmann::json(media);
   EXPECT_EQ(
       nlohmann::json(
-          media_document.get<obcx::bot::SendTelegramMediaGroupUrlsRequest>()),
+          media_document
+              .get<obcx::telegram::bot::SendTelegramMediaGroupUrlsRequest>()),
       media_document);
 }
 
 TEST(BotOperationTypesTest, TelegramUploadBytesAreBoundedAndRoundTrip) {
   const GroupTarget target{
       .installation = {.installation_id = "tg-main",
-                       .surface = BotSurface::TelegramBotApi},
+                       .surface = SurfaceId{"telegram.bot_api"}},
       .native_group_id = "-1001",
   };
-  obcx::bot::SendTelegramMediaGroupUploadsRequest request{
+  obcx::telegram::bot::SendTelegramMediaGroupUploadsRequest request{
       .target = target,
       .media = {{.type = "photo",
                  .filename = "image.jpg",
@@ -290,13 +304,14 @@ TEST(BotOperationTypesTest, TelegramUploadBytesAreBoundedAndRoundTrip) {
   };
   const auto document = nlohmann::json(request);
   EXPECT_EQ(
-      document.get<obcx::bot::SendTelegramMediaGroupUploadsRequest>().media,
+      document.get<obcx::telegram::bot::SendTelegramMediaGroupUploadsRequest>()
+          .media,
       request.media);
   EXPECT_NO_THROW(request.validate());
 
   request.maximum_bytes = 3;
   EXPECT_THROW(request.validate(), std::invalid_argument);
-  request.maximum_bytes = obcx::bot::maximum_actor_media_bytes + 1;
+  request.maximum_bytes = obcx::telegram::bot::maximum_actor_media_bytes + 1;
   EXPECT_THROW(request.validate(), std::invalid_argument);
   request.maximum_bytes = 16;
   request.media.resize(1);
@@ -306,9 +321,9 @@ TEST(BotOperationTypesTest, TelegramUploadBytesAreBoundedAndRoundTrip) {
 TEST(BotOperationTypesTest, TelegramFileFetchKeepsMetadataAndByteLimit) {
   const BotInstallationRef installation{
       .installation_id = "tg-main",
-      .surface = BotSurface::TelegramBotApi,
+      .surface = SurfaceId{"telegram.bot_api"},
   };
-  obcx::bot::FetchTelegramFileRequest request{
+  obcx::telegram::bot::FetchTelegramFileRequest request{
       .installation = installation,
       .file = {.file_id = "file-id",
                .file_unique_id = "unique-id",
@@ -319,34 +334,37 @@ TEST(BotOperationTypesTest, TelegramFileFetchKeepsMetadataAndByteLimit) {
       .maximum_bytes = 16,
   };
   const auto request_document = nlohmann::json(request);
-  EXPECT_EQ(request_document.get<obcx::bot::FetchTelegramFileRequest>().file,
-            request.file);
+  EXPECT_EQ(
+      request_document.get<obcx::telegram::bot::FetchTelegramFileRequest>()
+          .file,
+      request.file);
 
-  const obcx::bot::FetchedTelegramFile fetched{
+  const obcx::telegram::bot::FetchedTelegramFile fetched{
       .installation = installation,
       .file = request.file,
       .bytes = {0x52, 0x49, 0x46, 0x46},
   };
-  EXPECT_EQ(nlohmann::json(fetched).get<obcx::bot::FetchedTelegramFile>(),
-            fetched);
+  EXPECT_EQ(
+      nlohmann::json(fetched).get<obcx::telegram::bot::FetchedTelegramFile>(),
+      fetched);
 
   request.file.file_size = 17;
   EXPECT_THROW(request.validate(), std::invalid_argument);
-  request.installation.surface = BotSurface::OneBot11Qq;
+  request.installation.surface = SurfaceId{"onebot11.qq"};
   EXPECT_THROW(request.validate(), std::invalid_argument);
 }
 
 TEST(BotOperationTypesTest, TelegramMediaRejectsWrongTargetAndGroupShape) {
-  obcx::bot::SendTelegramMediaGroupUrlsRequest request{
+  obcx::telegram::bot::SendTelegramMediaGroupUrlsRequest request{
       .target = {.installation = {.installation_id = "qq-main",
-                                  .surface = BotSurface::OneBot11Qq},
+                                  .surface = SurfaceId{"onebot11.qq"}},
                  .native_group_id = "123"},
       .media = {{.type = "photo", .source = "https://example.test/a.jpg"}},
   };
   EXPECT_THROW(request.validate(), std::invalid_argument);
 
   request.target.installation = {.installation_id = "tg-main",
-                                 .surface = BotSurface::TelegramBotApi};
+                                 .surface = SurfaceId{"telegram.bot_api"}};
   EXPECT_THROW(request.validate(), std::invalid_argument);
   request.media.clear();
   EXPECT_THROW(request.validate(), std::invalid_argument);
@@ -357,29 +375,32 @@ TEST(BotOperationTypesTest, TelegramMediaRejectsWrongTargetAndGroupShape) {
 TEST(BotOperationTypesTest, OneBotMemberAndForwardValuesRoundTrip) {
   const GroupTarget target{
       .installation = {.installation_id = "qq-main",
-                       .surface = BotSurface::OneBot11Qq},
+                       .surface = SurfaceId{"onebot11.qq"}},
       .native_group_id = "123",
   };
-  const obcx::bot::GetOneBotGroupMemberRequest request{
+  const obcx::onebot11::bot::GetOneBotGroupMemberRequest request{
       .target = target,
       .user_id = "456",
       .no_cache = false,
   };
   const auto request_document = nlohmann::json(request);
   EXPECT_EQ(nlohmann::json(
-                request_document.get<obcx::bot::GetOneBotGroupMemberRequest>()),
+                request_document
+                    .get<obcx::onebot11::bot::GetOneBotGroupMemberRequest>()),
             request_document);
 
-  const obcx::bot::OneBotGroupMember member{
+  const obcx::onebot11::bot::OneBotGroupMember member{
       .target = target,
       .user_id = "456",
       .nickname = "nickname",
       .card = "group card",
       .title = "title",
   };
-  EXPECT_EQ(nlohmann::json(member).get<obcx::bot::OneBotGroupMember>(), member);
+  EXPECT_EQ(
+      nlohmann::json(member).get<obcx::onebot11::bot::OneBotGroupMember>(),
+      member);
 
-  const obcx::bot::OneBotForwardMessage forward{
+  const obcx::onebot11::bot::OneBotForwardMessage forward{
       .installation = target.installation,
       .forward_id = "forward-7",
       .messages = nlohmann::json::array(
@@ -388,78 +409,81 @@ TEST(BotOperationTypesTest, OneBotMemberAndForwardValuesRoundTrip) {
              nlohmann::json::array(
                  {{{"type", "text"}, {"data", {{"text", "hello"}}}}})}}}),
   };
-  EXPECT_EQ(nlohmann::json(forward).get<obcx::bot::OneBotForwardMessage>(),
-            forward);
+  EXPECT_EQ(
+      nlohmann::json(forward).get<obcx::onebot11::bot::OneBotForwardMessage>(),
+      forward);
 }
 
 TEST(BotOperationTypesTest, OneBotFileAndPokeValuesRoundTrip) {
   const GroupTarget target{
       .installation = {.installation_id = "qq-main",
-                       .surface = BotSurface::OneBot11Qq},
+                       .surface = SurfaceId{"onebot11.qq"}},
       .native_group_id = "123",
   };
-  const obcx::bot::ResolveOneBotGroupFileRequest group_request{
+  const obcx::onebot11::bot::ResolveOneBotGroupFileRequest group_request{
       .target = target,
       .file_id = "group-file",
   };
   EXPECT_EQ(nlohmann::json(group_request)
-                .get<obcx::bot::ResolveOneBotGroupFileRequest>()
+                .get<obcx::onebot11::bot::ResolveOneBotGroupFileRequest>()
                 .file_id,
             "group-file");
-  const obcx::bot::ResolvedOneBotGroupFile group_file{
+  const obcx::onebot11::bot::ResolvedOneBotGroupFile group_file{
       .target = target,
       .file_id = "group-file",
       .url = "https://example.test/group-file",
   };
-  EXPECT_EQ(
-      nlohmann::json(group_file).get<obcx::bot::ResolvedOneBotGroupFile>(),
-      group_file);
+  EXPECT_EQ(nlohmann::json(group_file)
+                .get<obcx::onebot11::bot::ResolvedOneBotGroupFile>(),
+            group_file);
 
-  const obcx::bot::ResolveOneBotPrivateFileRequest private_request{
+  const obcx::onebot11::bot::ResolveOneBotPrivateFileRequest private_request{
       .installation = target.installation,
       .user_id = "456",
       .file_id = "private-file",
   };
   EXPECT_EQ(nlohmann::json(private_request)
-                .get<obcx::bot::ResolveOneBotPrivateFileRequest>()
+                .get<obcx::onebot11::bot::ResolveOneBotPrivateFileRequest>()
                 .user_id,
             "456");
-  const obcx::bot::ResolvedOneBotPrivateFile private_file{
+  const obcx::onebot11::bot::ResolvedOneBotPrivateFile private_file{
       .installation = target.installation,
       .user_id = "456",
       .file_id = "private-file",
       .url = "https://example.test/private-file",
   };
-  EXPECT_EQ(
-      nlohmann::json(private_file).get<obcx::bot::ResolvedOneBotPrivateFile>(),
-      private_file);
+  EXPECT_EQ(nlohmann::json(private_file)
+                .get<obcx::onebot11::bot::ResolvedOneBotPrivateFile>(),
+            private_file);
 
-  const obcx::bot::PokeOneBotGroupRequest poke{
+  const obcx::onebot11::bot::PokeOneBotGroupRequest poke{
+      .target = target,
+      .user_id = "456",
+  };
+  EXPECT_EQ(nlohmann::json(poke)
+                .get<obcx::onebot11::bot::PokeOneBotGroupRequest>()
+                .target,
+            target);
+  const obcx::onebot11::bot::OneBotGroupPokeResult result{
       .target = target,
       .user_id = "456",
   };
   EXPECT_EQ(
-      nlohmann::json(poke).get<obcx::bot::PokeOneBotGroupRequest>().target,
-      target);
-  const obcx::bot::OneBotGroupPokeResult result{
-      .target = target,
-      .user_id = "456",
-  };
-  EXPECT_EQ(nlohmann::json(result).get<obcx::bot::OneBotGroupPokeResult>(),
-            result);
+      nlohmann::json(result).get<obcx::onebot11::bot::OneBotGroupPokeResult>(),
+      result);
 }
 
 TEST(BotOperationTypesTest, OneBotValuesRejectTelegramAndMalformedNodes) {
-  obcx::bot::GetOneBotForwardMessageRequest request{
+  obcx::onebot11::bot::GetOneBotForwardMessageRequest request{
       .installation = {.installation_id = "tg-main",
-                       .surface = BotSurface::TelegramBotApi},
+                       .surface = SurfaceId{"telegram.bot_api"}},
       .forward_id = "forward-7",
   };
   EXPECT_THROW(request.validate(), std::invalid_argument);
 
-  obcx::bot::OneBotForwardMessage response{
+  obcx::onebot11::bot::OneBotForwardMessage response{
       .installation = {.installation_id = "qq-main",
-                       .surface = BotSurface::OneBot11Qq},
+                       .surface = SurfaceId{"onebot11.qq"}},
       .forward_id = "forward-7",
       .messages = nlohmann::json::array({"not-an-object"}),
   };
@@ -468,9 +492,9 @@ TEST(BotOperationTypesTest, OneBotValuesRejectTelegramAndMalformedNodes) {
 
 TEST(BotOperationTypesTest, EveryClosedActionRequestHasStableJson) {
   const BotInstallationRef telegram{.installation_id = "tg-main",
-                                    .surface = BotSurface::TelegramBotApi};
+                                    .surface = SurfaceId{"telegram.bot_api"}};
   const BotInstallationRef onebot{.installation_id = "qq-main",
-                                  .surface = BotSurface::OneBot11Qq};
+                                  .surface = SurfaceId{"onebot11.qq"}};
   const GroupTarget telegram_group{.installation = telegram,
                                    .native_group_id = "-1001"};
   const GroupTarget onebot_group{.installation = onebot,
@@ -486,40 +510,42 @@ TEST(BotOperationTypesTest, EveryClosedActionRequestHasStableJson) {
       .target = onebot_group, .message = text});
   expect_stable_round_trip(
       obcx::bot::DeleteMessageRequest{.message = onebot_message});
-  expect_stable_round_trip(obcx::bot::SendTelegramTopicMessageRequest{
+  expect_stable_round_trip(obcx::telegram::bot::SendTelegramTopicMessageRequest{
       .target = {.group = telegram_group, .topic_id = 7}, .message = text});
-  expect_stable_round_trip(obcx::bot::EditTelegramMessageTextRequest{
+  expect_stable_round_trip(obcx::telegram::bot::EditTelegramMessageTextRequest{
       .message = telegram_message, .text = "edited", .parse_mode = "HTML"});
-  expect_stable_round_trip(obcx::bot::SendTelegramPhotoRequest{
+  expect_stable_round_trip(obcx::telegram::bot::SendTelegramPhotoRequest{
       .target = telegram_group, .photo = "file-id"});
-  expect_stable_round_trip(obcx::bot::SendTelegramMediaGroupUrlsRequest{
-      .target = telegram_group,
-      .media = {{.type = "photo", .source = "https://example.test/a"},
-                {.type = "photo", .source = "https://example.test/b"}}});
-  expect_stable_round_trip(obcx::bot::SendTelegramMediaGroupUploadsRequest{
-      .target = telegram_group,
-      .media = {{.type = "photo",
-                 .filename = "a.jpg",
-                 .mime_type = "image/jpeg",
-                 .bytes = {1, 2, 3}},
-                {.type = "photo",
-                 .filename = "b.jpg",
-                 .mime_type = "image/jpeg",
-                 .bytes = {4, 5, 6}}},
-      .maximum_bytes = 16});
-  expect_stable_round_trip(obcx::bot::FetchTelegramFileRequest{
+  expect_stable_round_trip(
+      obcx::telegram::bot::SendTelegramMediaGroupUrlsRequest{
+          .target = telegram_group,
+          .media = {{.type = "photo", .source = "https://example.test/a"},
+                    {.type = "photo", .source = "https://example.test/b"}}});
+  expect_stable_round_trip(
+      obcx::telegram::bot::SendTelegramMediaGroupUploadsRequest{
+          .target = telegram_group,
+          .media = {{.type = "photo",
+                     .filename = "a.jpg",
+                     .mime_type = "image/jpeg",
+                     .bytes = {1, 2, 3}},
+                    {.type = "photo",
+                     .filename = "b.jpg",
+                     .mime_type = "image/jpeg",
+                     .bytes = {4, 5, 6}}},
+          .maximum_bytes = 16});
+  expect_stable_round_trip(obcx::telegram::bot::FetchTelegramFileRequest{
       .installation = telegram,
       .file = {.file_id = "file-id", .file_type = "photo"},
       .maximum_bytes = 16});
-  expect_stable_round_trip(obcx::bot::GetOneBotGroupMemberRequest{
+  expect_stable_round_trip(obcx::onebot11::bot::GetOneBotGroupMemberRequest{
       .target = onebot_group, .user_id = "456"});
-  expect_stable_round_trip(obcx::bot::GetOneBotForwardMessageRequest{
+  expect_stable_round_trip(obcx::onebot11::bot::GetOneBotForwardMessageRequest{
       .installation = onebot, .forward_id = "forward-id"});
-  expect_stable_round_trip(obcx::bot::ResolveOneBotGroupFileRequest{
+  expect_stable_round_trip(obcx::onebot11::bot::ResolveOneBotGroupFileRequest{
       .target = onebot_group, .file_id = "file-id"});
-  expect_stable_round_trip(obcx::bot::ResolveOneBotPrivateFileRequest{
+  expect_stable_round_trip(obcx::onebot11::bot::ResolveOneBotPrivateFileRequest{
       .installation = onebot, .user_id = "456", .file_id = "file-id"});
-  expect_stable_round_trip(obcx::bot::PokeOneBotGroupRequest{
+  expect_stable_round_trip(obcx::onebot11::bot::PokeOneBotGroupRequest{
       .target = onebot_group, .user_id = "456"});
 }
 
@@ -559,7 +585,7 @@ TEST(BotOperationTypesTest, MissingRoutesAndInvalidJsonShapesAreRejected) {
             {{"installation_id", "tg-main"}, {"surface", "telegram.bot_api"}}},
            {"file", {{"file_id", "id"}, {"file_type", "photo"}}},
            {"maximum_bytes", 0}})
-          .get<obcx::bot::FetchTelegramFileRequest>(),
+          .get<obcx::telegram::bot::FetchTelegramFileRequest>(),
       std::invalid_argument);
   EXPECT_THROW(
       (void)nlohmann::json({{"ok", true}, {"error", {{"message", "invalid"}}}})
@@ -567,19 +593,18 @@ TEST(BotOperationTypesTest, MissingRoutesAndInvalidJsonShapesAreRejected) {
       std::invalid_argument);
 }
 
-TEST(BotOperationTypesTest, SurfaceActionCompatibilityIsClosed) {
-  EXPECT_TRUE(obcx::bot::action_supports_surface(BotAction::SendGroupMessage,
-                                                 BotSurface::TelegramBotApi));
-  EXPECT_TRUE(obcx::bot::action_supports_surface(BotAction::SendGroupMessage,
-                                                 BotSurface::OneBot11Qq));
-  EXPECT_TRUE(obcx::bot::action_supports_surface(BotAction::FetchTelegramFile,
-                                                 BotSurface::TelegramBotApi));
-  EXPECT_FALSE(obcx::bot::action_supports_surface(BotAction::FetchTelegramFile,
-                                                  BotSurface::OneBot11Qq));
-  EXPECT_TRUE(obcx::bot::action_supports_surface(BotAction::PokeOneBotGroup,
-                                                 BotSurface::OneBot11Qq));
-  EXPECT_FALSE(obcx::bot::action_supports_surface(BotAction::PokeOneBotGroup,
-                                                  BotSurface::TelegramBotApi));
+TEST(BotOperationTypesTest, SurfaceCompatibilityBelongsToOperationTraits) {
+  using Common = obcx::bot::OperationTraits<obcx::bot::SendGroupMessageRequest>;
+  using Fetch =
+      obcx::bot::OperationTraits<obcx::telegram::bot::FetchTelegramFileRequest>;
+  using Poke =
+      obcx::bot::OperationTraits<obcx::onebot11::bot::PokeOneBotGroupRequest>;
+  EXPECT_TRUE(Common::supports_surface(SurfaceId{"telegram.bot_api"}));
+  EXPECT_TRUE(Common::supports_surface(SurfaceId{"onebot11.qq"}));
+  EXPECT_TRUE(Fetch::supports_surface(SurfaceId{"telegram.bot_api"}));
+  EXPECT_FALSE(Fetch::supports_surface(SurfaceId{"onebot11.qq"}));
+  EXPECT_TRUE(Poke::supports_surface(SurfaceId{"onebot11.qq"}));
+  EXPECT_FALSE(Poke::supports_surface(SurfaceId{"telegram.bot_api"}));
 }
 
 } // namespace

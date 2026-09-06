@@ -86,7 +86,7 @@ after = ["persist"]
 mode = "await"
 ```
 
-Actor-visible shared services such as `DbManager`, `BotOperationClient`, and
+Actor-visible shared services such as `DbManager`, `BotOperationGateway`, and
 blocking executors are registered in `ActorServices` and resolved through the
 context. Process bot components and their capability directory are not actor
 services. Concrete actor packages stay outside the core library.

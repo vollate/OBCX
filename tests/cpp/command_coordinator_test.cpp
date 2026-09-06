@@ -1,6 +1,7 @@
 #include "core/actor/actor_messages.hpp"
 #include "core/actor/reflected_actor.hpp"
 #include "core/command/command_coordinator.hpp"
+#include "support/bot_platform_fixture.hpp"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -145,7 +146,7 @@ auto command_contract(const bool accept_request = true,
   const auto request_type = std::string{obcx::core::canonical_message_type_name<
       obcx::tests::command_runtime::TestCommand>()};
   auto contract = obcx::core::ActorInputContract{
-      .schema_version = 1,
+      .schema_version = 2,
       .actor = "command_actor",
       .accepted_inputs =
           {
@@ -250,7 +251,8 @@ protected:
       std::ofstream output(path);
       output << document;
     }
-    const auto built = obcx::common::ConfigLoader::build_snapshot(path);
+    const auto built = obcx::common::ConfigLoader::build_snapshot(
+        path, obcx::test::bot_platform_catalog());
     EXPECT_TRUE(built);
     return built.snapshot;
   }
@@ -383,10 +385,12 @@ TEST_F(CommandCoordinatorTest,
        obcx::common::json::array(
            {{{"type", "bot_command"}, {"offset", 0}, {"length", 12}}})},
   };
-  const auto detected = bot.adapter->detect(event, bot.target);
+  const auto detected = bot.adapter->detect(event);
   ASSERT_TRUE(detected.has_value());
   EXPECT_EQ(detected->name, "test");
-  EXPECT_FALSE(bot.adapter->detect(event, "other_bot").has_value());
+  event.raw["text"] = "/test@other_bot";
+  event.raw["entities"][0]["length"] = 15;
+  EXPECT_FALSE(bot.adapter->detect(event).has_value());
 }
 
 TEST_F(CommandCoordinatorTest, AggregatesCommandsFromMultipleActorsPerBot) {

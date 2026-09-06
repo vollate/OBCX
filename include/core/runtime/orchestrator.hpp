@@ -1,7 +1,7 @@
 #ifndef OBCX_INCLUDE_CORE_ORCHESTRATOR_HPP_
 #define OBCX_INCLUDE_CORE_ORCHESTRATOR_HPP_
 
-#include "common/config_loader.hpp"
+#include "common/config_snapshot.hpp"
 #include "core/actor/actor.hpp"
 #include "core/actor/native_actor_scheduler.hpp"
 

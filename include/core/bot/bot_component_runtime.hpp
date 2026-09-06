@@ -1,7 +1,8 @@
 #ifndef OBCX_INCLUDE_CORE_BOT_COMPONENT_RUNTIME_HPP_
 #define OBCX_INCLUDE_CORE_BOT_COMPONENT_RUNTIME_HPP_
 
-#include "common/config_loader.hpp"
+#include "core/bot/component_descriptor.hpp"
+#include "core/bot/ids.hpp"
 
 #include <boost/asio/io_context.hpp>
 
@@ -18,51 +19,6 @@
 #include <vector>
 
 namespace obcx::core {
-
-class BotComponentRuntimeError : public std::runtime_error {
-public:
-  using std::runtime_error::runtime_error;
-};
-
-class ComponentId {
-public:
-  explicit ComponentId(std::string value);
-
-  [[nodiscard]] auto value() const noexcept -> const std::string & {
-    return value_;
-  }
-  auto operator==(const ComponentId &) const -> bool = default;
-
-private:
-  std::string value_;
-};
-
-class CapabilityId {
-public:
-  explicit CapabilityId(std::string value);
-
-  [[nodiscard]] auto value() const noexcept -> const std::string & {
-    return value_;
-  }
-  auto operator==(const CapabilityId &) const -> bool = default;
-
-private:
-  std::string value_;
-};
-
-struct ComponentDescriptor {
-  ComponentId id;
-  std::vector<CapabilityId> provides;
-  std::vector<CapabilityId> required;
-};
-
-struct ComponentRecipeValidation {
-  std::vector<std::size_t> lifecycle_order;
-};
-
-[[nodiscard]] auto validate_component_recipe(
-    const std::vector<ComponentDescriptor> &components)
-    -> ComponentRecipeValidation;
 
 class CapabilityRegistry {
 public:
@@ -146,8 +102,7 @@ enum class BotInstallationState : std::uint8_t {
 
 class BotInstallation {
 public:
-  BotInstallation(std::string installation_id,
-                  common::BotInstallationSurface surface);
+  BotInstallation(std::string installation_id, bot::SurfaceId surface);
   ~BotInstallation();
 
   BotInstallation(const BotInstallation &) = delete;
@@ -164,8 +119,7 @@ public:
   [[nodiscard]] auto installation_id() const noexcept -> const std::string & {
     return installation_id_;
   }
-  [[nodiscard]] auto surface() const noexcept
-      -> common::BotInstallationSurface {
+  [[nodiscard]] auto surface() const noexcept -> const bot::SurfaceId & {
     return surface_;
   }
   [[nodiscard]] auto state() const noexcept -> BotInstallationState {
@@ -197,7 +151,7 @@ private:
   std::vector<std::size_t> lifecycle_order_;
   std::vector<std::size_t> prepared_order_;
   std::string installation_id_;
-  common::BotInstallationSurface surface_;
+  bot::SurfaceId surface_;
   mutable std::mutex lifecycle_mutex_;
   std::atomic<BotInstallationState> state_{BotInstallationState::Constructed};
   std::atomic_bool accepting_work_{false};

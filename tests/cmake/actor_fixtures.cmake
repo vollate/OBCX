@@ -4,6 +4,13 @@ target_link_libraries(obcx_multiple_inheritance_actor PRIVATE obcx_core)
 set_target_properties(obcx_multiple_inheritance_actor
                       PROPERTIES OUTPUT_NAME multiple_inheritance_actor)
 
+# Frozen SDK-compatibility fixture: intentionally no obcx_core/SDK dependency.
+add_library(obcx_frozen_schema1_actor SHARED fixtures/frozen_schema1_actor.cpp)
+foreach(_schema IN ITEMS 1 999)
+  add_library(obcx_schema_probe_${_schema} SHARED fixtures/schema_gate_probe_actor.cpp)
+  target_compile_definitions(obcx_schema_probe_${_schema} PRIVATE OBCX_PROBE_SCHEMA=${_schema})
+endforeach()
+
 add_library(obcx_invalid_actor SHARED fixtures/invalid_actor.cpp)
 set_target_properties(obcx_invalid_actor PROPERTIES OUTPUT_NAME invalid_actor)
 

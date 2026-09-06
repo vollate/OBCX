@@ -186,7 +186,7 @@ TEST(ReflectedActorTest, DerivesNestedAndDealiasedCanonicalNames) {
 
 TEST(ReflectedActorTest, GeneratesSortedUniqueInputContract) {
   const auto contract = common::json::parse(TestActor::input_contract_json());
-  EXPECT_EQ(contract["schema_version"], 1);
+  EXPECT_EQ(contract["schema_version"], 2);
   EXPECT_EQ(contract["actor"], "reflected_test");
   EXPECT_EQ(contract["accepted_inputs"],
             (common::json{

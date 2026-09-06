@@ -2,6 +2,7 @@
 #define OBCX_INCLUDE_NETWORK_HTTP_CLIENT_HPP_
 
 #include "common/message_type.hpp"
+#include "network/connection_config.hpp"
 
 #include <boost/asio.hpp>
 #include <boost/asio/awaitable.hpp>

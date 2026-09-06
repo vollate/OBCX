@@ -35,7 +35,7 @@ The bridge package owns:
 - forwarding, mapping, media, retry, suspension, failure, and shutdown tests.
 
 The bridge depends only on installed SDK headers. QQ and Telegram operations
-are sent through `BotOperationClient` with exact installation/surface DTOs.
+are sent through `BotOperationGateway` with exact installation/surface DTOs.
 Provider components, transports, and authenticated URLs remain process-owned.
 Generic HTTP work uses the installed `HttpClient` API.
 

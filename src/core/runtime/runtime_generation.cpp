@@ -1,10 +1,12 @@
 #include "core/runtime/runtime_generation.hpp"
+#include "core/runtime/process_configuration.hpp"
 
 #include "common/logger.hpp"
 #include "core/actor/actor_manager.hpp"
 #include "core/bot/bot_installation_directory.hpp"
-#include "core/bot/bot_operation_client.hpp"
 #include "core/bot/bot_operation_dispatcher.hpp"
+#include "core/bot/messaging.hpp"
+#include "core/bot/typed_operation.hpp"
 #include "core/command/command_coordinator.hpp"
 #include "core/infrastructure/db_manager.hpp"
 #include "core/infrastructure/process_staging_uuid.hpp"
@@ -125,6 +127,7 @@ auto merge_process_dependency(
 }
 
 auto validate_actor_configuration(const common::RuntimeConfigSnapshot &snapshot,
+                                  const BotPlatformCatalog &catalog,
                                   const std::string &actor,
                                   const ActorInputContract &contract)
     -> std::optional<std::string> {
@@ -161,6 +164,29 @@ auto validate_actor_configuration(const common::RuntimeConfigSnapshot &snapshot,
     }
   }
 
+  const auto check_surfaces =
+      [&](const auto &constraint) -> std::optional<std::string> {
+    for (const auto &surface : constraint.expected_types) {
+      if (!catalog.supports(bot::SurfaceId{surface})) {
+        return actor + "." + constraint.key +
+               " requires an unregistered exact surface";
+      }
+    }
+    return std::nullopt;
+  };
+  for (const auto &constraint : contract.bot_installation_configuration) {
+    if (const auto error = check_surfaces(constraint)) {
+      return error;
+    }
+  }
+  for (const auto &collection :
+       contract.bot_installation_collection_configuration) {
+    for (const auto &constraint : collection.installation_fields) {
+      if (const auto error = check_surfaces(constraint)) {
+        return error;
+      }
+    }
+  }
   const auto bots = snapshot.get_bot_configs();
   const auto validate_installation =
       [&](const std::string &path, const std::string &installation,
@@ -170,20 +196,13 @@ auto validate_actor_configuration(const common::RuntimeConfigSnapshot &snapshot,
       return path + " must name an enabled configured bot";
     }
     const auto bot = std::ranges::find(
-        bots, installation, &common::BotInstallationConfig::installation_id);
+        bots, installation, &common::BotInstallationMetadata::installation_id);
     if (bot == bots.end() || !bot->enabled) {
       return path + " must name an enabled configured bot";
     }
     const auto matches_expected = std::ranges::any_of(
         expected_types, [&bot](const std::string_view expected) {
-          switch (bot->surface) {
-          case common::BotInstallationSurface::OneBot11Qq:
-            return expected == "qq" || expected == "onebot" ||
-                   expected == "onebot11.qq";
-          case common::BotInstallationSurface::TelegramBotApi:
-            return expected == "telegram" || expected == "telegram.bot_api";
-          }
-          return false;
+          return bot->surface.value() == expected;
         });
     if (!matches_expected) {
       std::string expected;
@@ -461,7 +480,7 @@ RuntimeGeneration::RuntimeGeneration(
     common::ProcessOwnedConfigFingerprint process_owned_fingerprint,
     std::shared_ptr<DbManager> db_manager,
     std::shared_ptr<BotInstallationDirectory> bot_installation_directory,
-    std::shared_ptr<bot::BotOperationClient> bot_operation_client,
+    std::shared_ptr<bot::BotOperationGateway> bot_operation_client,
     std::shared_ptr<BlockingExecutor> blocking_executor, fs::path staging_root)
     : staging_owner_(
           std::make_unique<StagingDirectoryOwner>(std::move(staging_root))),
@@ -535,7 +554,7 @@ auto RuntimeGeneration::bot_installation_directory() const noexcept
 }
 
 auto RuntimeGeneration::bot_operation_client() const noexcept
-    -> const std::shared_ptr<bot::BotOperationClient> & {
+    -> const std::shared_ptr<bot::BotOperationGateway> & {
   return bot_operation_client_;
 }
 
@@ -616,13 +635,10 @@ auto RuntimeGeneration::reconcile_command_catalog(CommandBotKey key)
         .code = "command_catalog_bot_unavailable",
         .message = "configured live bot is unavailable",
     };
-    std::shared_ptr<TelegramCommandCatalog> catalog;
+    std::shared_ptr<CommandCatalogPublisher> catalog;
     if (bot_installation_directory_ != nullptr) {
-      const auto surface = key.platform == "telegram"
-                               ? bot::BotSurface::TelegramBotApi
-                               : bot::BotSurface::OneBot11Qq;
-      catalog = bot_installation_directory_->telegram_command_catalog(
-          {.installation_id = key.bot, .surface = surface});
+      catalog = bot_installation_directory_->command_catalog_publisher(
+          bot_binding->installation);
     }
     published = co_await bot_binding->adapter->publish_catalog(
         catalog.get(), bot_binding->catalog);
@@ -804,15 +820,34 @@ void RuntimeGeneration::shutdown() {
   }
 }
 
-auto RuntimeGenerationBuilder::parse_config(const std::string &config_path)
-    -> common::RuntimeConfigBuildResult {
-  return common::ConfigLoader::build_snapshot(config_path);
+RuntimeGenerationBuilder::RuntimeGenerationBuilder(
+    std::shared_ptr<const BotPlatformCatalog> catalog)
+    : catalog_(std::move(catalog)) {
+  if (!catalog_ || !catalog_->sealed()) {
+    throw std::invalid_argument(
+        "generation builder requires an explicit sealed platform catalog");
+  }
+}
+
+auto RuntimeGenerationBuilder::parse_config(
+    const std::string &config_path) const -> common::RuntimeConfigBuildResult {
+  return common::ConfigLoader::build_snapshot(config_path, catalog_);
 }
 
 auto RuntimeGenerationBuilder::build(RuntimeGenerationBuildRequest request)
     const -> RuntimeGenerationBuildResult {
   if (!request.snapshot) {
     return failed("reload_parse_failed", "configuration snapshot is missing");
+  }
+
+  try {
+    if (ProcessConfigAccess::catalog(*request.snapshot) != catalog_) {
+      return failed("reload_configuration_catalog_mismatch",
+                    "snapshot belongs to a different process platform catalog");
+    }
+  } catch (const std::invalid_argument &) {
+    return failed("reload_process_configuration_required",
+                  "actor-only context is not validated process configuration");
   }
 
   auto errors = request.snapshot->validate_actor_runtime_config();
@@ -873,7 +908,17 @@ auto RuntimeGenerationBuilder::build(RuntimeGenerationBuildRequest request)
                   "process-owned runtime services are missing");
   }
   if (!request.bot_operation_client) {
-    request.bot_operation_client = std::make_shared<BotOperationDispatcher>();
+    if (request.purpose == RuntimeGenerationBuildPurpose::ReloadCandidate) {
+      return failed(
+          "reload_process_service_missing",
+          "process operation gateway is missing for reload candidate");
+    }
+    // Validation/startup without live installations uses an explicitly empty
+    // gateway, never a guessed provider or a newly created transport.
+    auto empty_gateway = std::make_shared<BotOperationDispatcher>(
+        [](const bot::SurfaceId &) { return false; });
+    empty_gateway->seal_registrations();
+    request.bot_operation_client = std::move(empty_gateway);
   }
   if (request.purpose == RuntimeGenerationBuildPurpose::ReloadCandidate &&
       !request.blocking_executor) {
@@ -961,7 +1006,7 @@ auto RuntimeGenerationBuilder::build(RuntimeGenerationBuildRequest request)
                     "actor contract identity does not match " + actor.name);
     }
     if (const auto configuration_error = validate_actor_configuration(
-            *request.snapshot, actor.name, *contract)) {
+            *request.snapshot, *catalog_, actor.name, *contract)) {
       return failed("reload_actor_config_invalid", *configuration_error);
     }
     actor_inputs.emplace(actor.name, contract->accepted_input_set);
@@ -988,10 +1033,7 @@ auto RuntimeGenerationBuilder::build(RuntimeGenerationBuildRequest request)
       if (!bot.enabled) {
         continue;
       }
-      const auto surface =
-          bot.surface == common::BotInstallationSurface::TelegramBotApi
-              ? bot::BotSurface::TelegramBotApi
-              : bot::BotSurface::OneBot11Qq;
+      const auto &surface = bot.surface;
       const auto &identity = bot.installation_id;
       const auto available =
           generation->bot_installation_directory_ != nullptr &&
@@ -1022,7 +1064,7 @@ auto RuntimeGenerationBuilder::build(RuntimeGenerationBuildRequest request)
       }));
   generation->orchestrator_->register_service<DbManager>(
       generation->db_manager_);
-  generation->orchestrator_->register_service<bot::BotOperationClient>(
+  generation->orchestrator_->register_service<bot::BotOperationGateway>(
       generation->bot_operation_client_);
   generation->orchestrator_->register_service<common::ActorConfigService>(
       std::make_shared<common::ActorConfigService>(request.snapshot));

@@ -15,24 +15,26 @@ namespace obcx::core {
 
 class BotInstallationDirectory {
 public:
-  void register_installation(const BotInstallation &installation);
+  void register_installation(
+      const BotInstallation &installation,
+      const std::optional<CapabilityId> &publisher_capability);
   void register_capabilities(
       bot::BotInstallationRef installation,
       std::shared_ptr<BotOperationEndpoint> endpoint,
-      std::shared_ptr<TelegramCommandCatalog> command_catalog = {});
+      std::shared_ptr<CommandCatalogPublisher> command_catalog = {});
   void unregister_installation(const std::string &installation_id) noexcept;
 
   [[nodiscard]] auto endpoint(const bot::BotInstallationRef &installation) const
       -> std::shared_ptr<BotOperationEndpoint>;
-  [[nodiscard]] auto telegram_command_catalog(
+  [[nodiscard]] auto command_catalog_publisher(
       const bot::BotInstallationRef &installation) const
-      -> std::shared_ptr<TelegramCommandCatalog>;
+      -> std::shared_ptr<CommandCatalogPublisher>;
 
 private:
   struct Entry {
     bot::BotInstallationRef installation;
     std::weak_ptr<BotOperationEndpoint> endpoint;
-    std::weak_ptr<TelegramCommandCatalog> command_catalog;
+    std::weak_ptr<CommandCatalogPublisher> command_catalog;
   };
 
   mutable std::mutex mutex_;

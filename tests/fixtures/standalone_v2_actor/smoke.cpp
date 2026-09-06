@@ -1,9 +1,13 @@
+#include "actor_config_fixture.hpp"
 #include "core/actor/actor_manager.hpp"
 #include "core/actor/native_actor_scheduler.hpp"
-#include "core/bot/bot_operation_client.hpp"
-#include "core/bot/bot_operation_contract.hpp"
+#include "core/bot/messaging.hpp"
+#include "core/bot/typed_operation.hpp"
+#include "fake_gateway_dispatch.hpp"
+#include "onebot11/bot/operations.hpp"
+#include "telegram/bot/operations.hpp"
 
-#include "common/config_loader.hpp"
+#include "common/config_snapshot.hpp"
 
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/thread_pool.hpp>
@@ -16,30 +20,42 @@
 
 namespace {
 
-class FixtureBotOperationClient final : public obcx::bot::BotOperationClient {
+class FixtureBotOperationGateway final : public obcx::bot::BotOperationGateway {
 public:
+  auto invoke(obcx::bot::OperationEnvelope envelope)
+      -> boost::asio::awaitable<obcx::bot::OperationReply> override {
+    return obcx::tests::dispatch_fake_gateway<
+        obcx::bot::SendGroupMessageRequest>(*this, std::move(envelope));
+  }
+  auto execute(const obcx::bot::SendGroupMessageRequest &request)
+      -> boost::asio::awaitable<
+          obcx::bot::BotOperationResult<obcx::bot::SendMessageResult>> {
+    co_return obcx::bot::BotOperationResult<obcx::bot::SendMessageResult>::
+        success({.messages = {{.group = request.target,
+                               .native_message_id = "sdk-42"}}});
+  }
+
   [[nodiscard]] auto supported_actions(
       const obcx::bot::BotInstallationRef &installation) const
-      -> obcx::bot::BotOperationResult<
-          obcx::bot::SupportedBotActions> override {
+      -> obcx::bot::BotOperationResult<obcx::bot::SupportedActions> override {
     if (installation.installation_id != "standalone-telegram" ||
-        installation.surface != obcx::bot::BotSurface::TelegramBotApi) {
-      return obcx::bot::failed_operation<obcx::bot::SupportedBotActions>(
+        installation.surface != obcx::bot::SurfaceId{"telegram.bot_api"}) {
+      return obcx::bot::failed_operation<obcx::bot::SupportedActions>(
           obcx::bot::BotOperationErrorCode::RouteNotFound,
           "fixture installation not found");
     }
-    return obcx::bot::BotOperationResult<obcx::bot::SupportedBotActions>::
-        success({.installation = installation,
-                 .actions = {obcx::bot::BotAction::SendGroupMessage}});
+    return obcx::bot::BotOperationResult<obcx::bot::SupportedActions>::success(
+        {.installation = installation,
+         .actions = {obcx::bot::SendGroupMessageRequest::action}});
   }
 };
 
 auto bot_operation_contract_smoke() -> bool {
   const obcx::bot::BotInstallationRef installation{
       .installation_id = "standalone-telegram",
-      .surface = obcx::bot::BotSurface::TelegramBotApi,
+      .surface = obcx::bot::SurfaceId{"telegram.bot_api"},
   };
-  const obcx::bot::SendTelegramTopicMessageRequest request{
+  const obcx::telegram::bot::SendTelegramTopicMessageRequest request{
       .target = {.group = {.installation = installation,
                            .native_group_id = "-1001"},
                  .topic_id = 7},
@@ -47,7 +63,8 @@ auto bot_operation_contract_smoke() -> bool {
   };
   const auto request_document = nlohmann::json(request);
   const auto decoded_request =
-      request_document.get<obcx::bot::SendTelegramTopicMessageRequest>();
+      request_document
+          .get<obcx::telegram::bot::SendTelegramTopicMessageRequest>();
   if (nlohmann::json(decoded_request).dump() != request_document.dump()) {
     return false;
   }
@@ -68,14 +85,15 @@ auto bot_operation_contract_smoke() -> bool {
     return false;
   }
 
-  const obcx::bot::PokeOneBotGroupRequest poke{
+  const obcx::onebot11::bot::PokeOneBotGroupRequest poke{
       .target = {.installation = {.installation_id = "standalone-onebot",
-                                  .surface = obcx::bot::BotSurface::OneBot11Qq},
+                                  .surface =
+                                      obcx::bot::SurfaceId{"onebot11.qq"}},
                  .native_group_id = "123"},
       .user_id = "456",
   };
   return nlohmann::json(poke)
-             .get<obcx::bot::PokeOneBotGroupRequest>()
+             .get<obcx::onebot11::bot::PokeOneBotGroupRequest>()
              .user_id == "456";
 }
 
@@ -131,8 +149,7 @@ int main(int argc, char **argv) {
       std::ofstream config(config_path);
       config << "[actors.sdk_v2_fixture.config]\nlabel = \"generation-a\"\n";
     }
-    auto built =
-        obcx::common::ConfigLoader::build_snapshot(config_path.string());
+    auto built = obcx::test::actor_fixture_snapshot(config_path.string());
     if (!built) {
       return 4;
     }
@@ -142,8 +159,8 @@ int main(int argc, char **argv) {
     services->register_service<obcx::common::ActorConfigService>(
         std::make_shared<obcx::common::ActorConfigService>(built.snapshot));
     services->register_service<BlockingExecutor>(blocking_executor);
-    services->register_service<obcx::bot::BotOperationClient>(
-        std::make_shared<FixtureBotOperationClient>());
+    services->register_service<obcx::bot::BotOperationGateway>(
+        std::make_shared<FixtureBotOperationGateway>());
     services->register_service<boost::asio::any_io_executor>(
         std::make_shared<boost::asio::any_io_executor>(
             actor_io_pool.get_executor()));

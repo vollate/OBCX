@@ -9,7 +9,7 @@
 接口、`QQBot`/`TGBot`、`BotRegistry` 和 live-bot RTTI wrapper，并落地了较窄的
 实现：每个进程级 `BotInstallation` 使用固定 recipe 组装 protocol、transport、
 event ingress、operation 以及 Telegram 可选组件；Actor 只能看到 data-only
-`BotOperationClient`。当前并未实现本研究提出的 56 项通用 capability 目录，也未
+`BotOperationGateway`。当前并未实现本研究提出的 56 项通用 capability 目录，也未
 开放用户自定义 component graph 或 typed ingress。
 
 ## 历史候选摘要
@@ -36,7 +36,7 @@ Bridge MVP 只覆盖 typed ingress、message send/mutation、media transfer、�
 - WeCom internal app、appchat、group robot、intelligent robot、customer contact、archive 不是一个权限面。
 - X 是 SNS + legacy DM/XChat activity，不强制映射为 guild/group IM。
 - Matrix stable spec、optional module/profile、MSC 与具体客户端实现必须分层；Feishu 与 Lark 也不能假定 parity。
-- business actor 不获得 process component registry、installation 或 live transport；连接、token、cursor、retry 和 media stream 保持 process-owned。当前 Actor Bot 出站面是 `BotOperationClient`。
+- business actor 不获得 process component registry、installation 或 live transport；连接、token、cursor、retry 和 media stream 保持 process-owned。当前 Actor Bot 出站面是 `BotOperationGateway`。
 
 ## 方法与审计波次
 

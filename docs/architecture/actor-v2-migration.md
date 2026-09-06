@@ -73,7 +73,7 @@ OBCX_ACTOR_EXPORT_V2(ExampleActor)
 ```
 
 The export macro supplies the numeric ABI, factory, destructor, name, version,
-and generated schema-1 input contract. The compiler rejects inherited,
+and generated schema-2 input contract. The compiler rejects inherited,
 non-public, malformed, duplicate, or JSON-inconvertible handler inputs. Wire
 identity is exactly the fully qualified C++ type name; aliases are removed.
 Do not export a second factory or hand-written contract from the same library.
@@ -136,7 +136,7 @@ timeouts.
 ## Services and protocol capabilities
 
 Resolve shared runtime services with `context.get_service<T>()`. Bot egress
-uses the installed `BotOperationClient` plus data-only operation contracts;
+uses the installed `BotOperationGateway` plus data-only operation contracts;
 actor packages must not include process component, provider, transport, or
 connection-manager implementation headers.
 

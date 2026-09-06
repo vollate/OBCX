@@ -1,9 +1,9 @@
 #ifndef OBCX_INCLUDE_CORE_BOT_EVENT_COMPONENTS_HPP_
 #define OBCX_INCLUDE_CORE_BOT_EVENT_COMPONENTS_HPP_
 
-#include "common/config_loader.hpp"
 #include "common/message_type.hpp"
 #include "core/bot/bot_component_runtime.hpp"
+#include "core/bot/ids.hpp"
 
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/awaitable.hpp>
@@ -19,7 +19,8 @@ namespace obcx::core {
 
 struct BotEventContext {
   std::string installation_id;
-  common::BotInstallationSurface surface;
+  bot::SurfaceId surface;
+  std::string platform;
 };
 
 class BotEventCapability {
@@ -52,36 +53,6 @@ private:
   std::vector<MessageHandler> message_handlers_;
   std::vector<NoticeHandler> notice_handlers_;
   std::atomic_bool active_{};
-};
-
-class OneBot11EventIngressComponent final : public BotComponent {
-public:
-  OneBot11EventIngressComponent(boost::asio::any_io_executor executor,
-                                std::string installation_id);
-
-  [[nodiscard]] auto descriptor() const -> ComponentDescriptor override;
-  void install_capabilities(CapabilityRegistry &registry) override;
-  void prepare(const CapabilityRegistry &registry) override;
-  void start() override;
-  void stop() override;
-
-private:
-  std::shared_ptr<BotEventCapability> events_;
-};
-
-class TelegramEventIngressComponent final : public BotComponent {
-public:
-  TelegramEventIngressComponent(boost::asio::any_io_executor executor,
-                                std::string installation_id);
-
-  [[nodiscard]] auto descriptor() const -> ComponentDescriptor override;
-  void install_capabilities(CapabilityRegistry &registry) override;
-  void prepare(const CapabilityRegistry &registry) override;
-  void start() override;
-  void stop() override;
-
-private:
-  std::shared_ptr<BotEventCapability> events_;
 };
 
 } // namespace obcx::core

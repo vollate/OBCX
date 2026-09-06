@@ -2,6 +2,7 @@
 #define OBCX_INCLUDE_TELEGRAM_NETWORK_CONNECTION_MANAGER_HPP_
 
 #include "common/message_type.hpp"
+#include "network/connection_config.hpp"
 #include "network/http_client.hpp"
 #include "telegram/adapter/protocol_adapter.hpp"
 #include "telegram/provider_types.hpp"

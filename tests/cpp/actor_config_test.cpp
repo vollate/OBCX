@@ -1,5 +1,6 @@
-#include "common/config_loader.hpp"
+#include "common/config_snapshot.hpp"
 #include "core/actor/actor.hpp"
+#include "support/bot_platform_fixture.hpp"
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -28,7 +29,7 @@ protected:
 
   void create_test_config(const std::string &content) {
     auto config_path = write_test_config("test_config.toml", content);
-    auto &config_loader = ConfigLoader::instance();
+    auto &config_loader = loader_;
     ASSERT_TRUE(config_loader.load_config(config_path.string()));
   }
 
@@ -41,6 +42,7 @@ protected:
     return config_path;
   }
 
+  ConfigLoader loader_{obcx::test::bot_platform_catalog()};
   std::filesystem::path test_config_dir_;
 };
 
@@ -60,12 +62,13 @@ enabled = true
 bridge_files_dir = "/srv/candidate"
 )");
 
-  auto &loader = ConfigLoader::instance();
+  auto &loader = loader_;
   ASSERT_TRUE(loader.load_config(active_path.string()));
   const auto active = loader.current_snapshot();
   ASSERT_NE(active, nullptr);
 
-  const auto candidate = ConfigLoader::build_snapshot(candidate_path.string());
+  const auto candidate = ConfigLoader::build_snapshot(
+      candidate_path.string(), obcx::test::bot_platform_catalog());
   ASSERT_TRUE(candidate);
   EXPECT_EQ(loader.current_snapshot(), active);
   EXPECT_EQ(active->get_actor_value<std::string>("bridge", "bridge_files_dir"),
@@ -76,9 +79,8 @@ bridge_files_dir = "/srv/candidate"
 }
 
 TEST_F(ActorConfigTest, PublishedSnapshotsRemainImmutableAcrossReloads) {
-  static_assert(
-      std::is_same_v<decltype(ConfigLoader::instance().current_snapshot()),
-                     std::shared_ptr<const RuntimeConfigSnapshot>>);
+  static_assert(std::is_same_v<decltype(loader_.current_snapshot()),
+                               std::shared_ptr<const RuntimeConfigSnapshot>>);
 
   const auto first_path = write_test_config("first.toml", R"(
 [actors.bridge.config]
@@ -89,7 +91,7 @@ bridge_files_dir = "/srv/first"
 bridge_files_dir = "/srv/second"
 )");
 
-  auto &loader = ConfigLoader::instance();
+  auto &loader = loader_;
   ASSERT_TRUE(loader.load_config(first_path.string()));
   const auto first = loader.current_snapshot();
   ASSERT_TRUE(loader.load_config(second_path.string()));
@@ -150,8 +152,10 @@ type = "sqlite"
 path = "state.db"
 )");
 
-  const auto active = ConfigLoader::build_snapshot(active_path.string());
-  const auto candidate = ConfigLoader::build_snapshot(candidate_path.string());
+  const auto active = ConfigLoader::build_snapshot(
+      active_path.string(), obcx::test::bot_platform_catalog());
+  const auto candidate = ConfigLoader::build_snapshot(
+      candidate_path.string(), obcx::test::bot_platform_catalog());
   ASSERT_TRUE(active);
   ASSERT_TRUE(candidate);
   const RuntimeThreadFingerprintInput budget{
@@ -186,10 +190,11 @@ access_token = "do-not-log-this-token"
 broken = [
 )");
 
-  auto &loader = ConfigLoader::instance();
+  auto &loader = loader_;
   ASSERT_TRUE(loader.load_config(active_path.string()));
   const auto active = loader.current_snapshot();
-  const auto candidate = ConfigLoader::build_snapshot(invalid_path.string());
+  const auto candidate = ConfigLoader::build_snapshot(
+      invalid_path.string(), obcx::test::bot_platform_catalog());
 
   EXPECT_FALSE(candidate);
   ASSERT_TRUE(candidate.diagnostic.has_value());
@@ -208,7 +213,8 @@ bridge_files_dir = "/srv/generation"
 [group_mappings]
 owner = "bridge"
 )");
-  const auto built = ConfigLoader::build_snapshot(config_path.string());
+  const auto built = ConfigLoader::build_snapshot(
+      config_path.string(), obcx::test::bot_platform_catalog());
   ASSERT_TRUE(built);
 
   auto services = std::make_shared<obcx::core::ActorServices>();
@@ -237,7 +243,8 @@ bots = ["telegram_bot", "qq_bot"]
 fallback = "consume"
 timeout_ms = 1500
 )");
-  const auto built = ConfigLoader::build_snapshot(config_path.string());
+  const auto built = ConfigLoader::build_snapshot(
+      config_path.string(), obcx::test::bot_platform_catalog());
   ASSERT_TRUE(built);
   const auto commands = built.snapshot->get_command_runtime_config();
   EXPECT_EQ(commands.timeout_ms, 6000);
@@ -265,7 +272,8 @@ bots = ["telegram_bot"]
 fallback = "actor"
 timeout_ms = 999999
 )");
-  const auto built = ConfigLoader::build_snapshot(config_path.string());
+  const auto built = ConfigLoader::build_snapshot(
+      config_path.string(), obcx::test::bot_platform_catalog());
   ASSERT_TRUE(built);
   const auto errors = built.snapshot->validate_actor_runtime_config();
   const auto contains = [&errors](const std::string_view code) {
@@ -297,7 +305,7 @@ db = "main"
 db_namespace = "bridge"
 )");
 
-  const auto actors = ConfigLoader::instance().get_actor_configs();
+  const auto actors = loader_.get_actor_configs();
 
   ASSERT_EQ(actors.size(), 2);
   const auto message_store =
@@ -336,7 +344,7 @@ type = "postgres"
 dsn = "postgres://obcx@example.local/audit"
 )");
 
-  const auto db_instances = ConfigLoader::instance().get_db_instance_configs();
+  const auto db_instances = loader_.get_db_instance_configs();
 
   ASSERT_EQ(db_instances.size(), 2);
   const auto main =
@@ -377,7 +385,7 @@ after = ["persist"]
 mode = "async"
 )");
 
-  const auto pipelines = ConfigLoader::instance().get_pipeline_configs();
+  const auto pipelines = loader_.get_pipeline_configs();
 
   ASSERT_EQ(pipelines.size(), 1);
   EXPECT_EQ(pipelines[0].name, "message");
@@ -411,7 +419,7 @@ library = "message_store"
 enabled = true
 )");
 
-  const auto runtime = ConfigLoader::instance().get_actor_runtime_config();
+  const auto runtime = loader_.get_actor_runtime_config();
   EXPECT_EQ(runtime.policy, ActorSchedulerPolicy::Stealing);
   EXPECT_EQ(runtime.workers, 0);
   EXPECT_EQ(runtime.blocking_workers, 0);
@@ -435,14 +443,14 @@ hop_limit = 48
 drain_timeout_ms = 7500
 )");
 
-  const auto runtime = ConfigLoader::instance().get_actor_runtime_config();
+  const auto runtime = loader_.get_actor_runtime_config();
   EXPECT_EQ(runtime.policy, ActorSchedulerPolicy::Sharing);
   EXPECT_EQ(runtime.workers, 6);
   EXPECT_EQ(runtime.blocking_workers, 3);
   EXPECT_EQ(runtime.slow_resume_warning_ms, 25);
   EXPECT_EQ(runtime.routing_hop_limit, 48);
   EXPECT_EQ(runtime.reload_drain_timeout_ms, 7500);
-  EXPECT_TRUE(ConfigLoader::instance().validate_actor_runtime_config().empty());
+  EXPECT_TRUE(loader_.validate_actor_runtime_config().empty());
 }
 
 TEST_F(ActorConfigTest, RejectsInvalidActorRuntimeConfig) {
@@ -460,7 +468,7 @@ hop_limit = 0
 drain_timeout_ms = 99
 )");
 
-  const auto errors = ConfigLoader::instance().validate_actor_runtime_config();
+  const auto errors = loader_.validate_actor_runtime_config();
   ASSERT_EQ(errors.size(), 6);
   EXPECT_EQ(errors[0].code, "invalid_actor_scheduler_policy");
   EXPECT_EQ(errors[1].code, "invalid_actor_worker_count");
@@ -477,8 +485,8 @@ TEST_F(ActorConfigTest,
 enabled = true
 )");
 
-  EXPECT_TRUE(ConfigLoader::instance().get_actor_configs().empty());
-  EXPECT_TRUE(ConfigLoader::instance().get_pipeline_configs().empty());
+  EXPECT_TRUE(loader_.get_actor_configs().empty());
+  EXPECT_TRUE(loader_.get_pipeline_configs().empty());
 }
 
 TEST_F(ActorConfigTest, ParsesTypedBotConnectionWithoutExtensionLists) {
@@ -503,16 +511,15 @@ enabled = true
 source = "obcx::core::events::RawMessageEvent"
 )");
 
-  const auto bots = ConfigLoader::instance().get_bot_configs();
+  const auto bots = loader_.get_bot_configs();
   ASSERT_EQ(bots.size(), 1);
   EXPECT_EQ(bots[0].installation_id, "qq");
-  EXPECT_EQ(bots[0].surface, BotInstallationSurface::OneBot11Qq);
-  EXPECT_EQ(bots[0].transport, BotTransport::WebSocket);
+  EXPECT_EQ(bots[0].surface, obcx::bot::SurfaceId{"onebot11.qq"});
+  EXPECT_EQ(bots[0].transport, "websocket");
   EXPECT_TRUE(bots[0].enabled);
-  const auto &connection =
-      std::get<OneBot11WebSocketConnectionConfig>(bots[0].connection);
-  EXPECT_EQ(connection.host, "localhost");
-  EXPECT_EQ(connection.port, 3001);
+  EXPECT_EQ(bots[0].ingress_platform, "qq");
+  EXPECT_TRUE(bots[0].command_target.empty());
+  EXPECT_FALSE(loader_.get_section("bots.qq.connection").has_value());
 }
 
 TEST_F(ActorConfigTest, ValidatesActorPipelineReferences) {
@@ -540,8 +547,7 @@ after = ["missing_stage"]
 mode = "await"
 )");
 
-  const auto errors =
-      ConfigLoader::instance().validate_actor_pipeline_configs();
+  const auto errors = loader_.validate_actor_pipeline_configs();
 
   ASSERT_EQ(errors.size(), 2);
   EXPECT_EQ(errors[0].code, "missing_actor");
@@ -568,8 +574,7 @@ db = "missing"
 db_namespace = "message_store"
 )");
 
-  const auto errors =
-      ConfigLoader::instance().validate_actor_pipeline_configs();
+  const auto errors = loader_.validate_actor_pipeline_configs();
 
   ASSERT_EQ(errors.size(), 1);
   EXPECT_EQ(errors[0].code, "missing_db_instance");
@@ -585,8 +590,7 @@ enabled = false
 db = "missing"
 )");
 
-  EXPECT_TRUE(
-      ConfigLoader::instance().validate_actor_pipeline_configs().empty());
+  EXPECT_TRUE(loader_.validate_actor_pipeline_configs().empty());
 }
 
 TEST_F(ActorConfigTest, ValidatesPipelineDependencyCycles) {
@@ -619,8 +623,7 @@ after = ["persist"]
 mode = "await"
 )");
 
-  const auto errors =
-      ConfigLoader::instance().validate_actor_pipeline_configs();
+  const auto errors = loader_.validate_actor_pipeline_configs();
 
   ASSERT_EQ(errors.size(), 1);
   EXPECT_EQ(errors[0].code, "stage_dependency_cycle");
@@ -657,8 +660,7 @@ after = ["persist"]
 mode = "await"
 )");
 
-  EXPECT_TRUE(
-      ConfigLoader::instance().validate_actor_pipeline_configs().empty());
+  EXPECT_TRUE(loader_.validate_actor_pipeline_configs().empty());
 }
 
 TEST_F(ActorConfigTest, ValidatesActorDependencies) {
@@ -679,8 +681,7 @@ enabled = true
 requires = ["bridge"]
 )");
 
-  const auto errors =
-      ConfigLoader::instance().validate_actor_pipeline_configs();
+  const auto errors = loader_.validate_actor_pipeline_configs();
   ASSERT_EQ(errors.size(), 2);
   EXPECT_EQ(errors[0].code, "missing_actor_dependency");
   EXPECT_EQ(errors[0].actor, "message_store");
@@ -708,8 +709,7 @@ actor = "message_store"
 input = "obcx::core::events::RawMessageEvent"
 )");
 
-  const auto errors =
-      ConfigLoader::instance().validate_actor_pipeline_configs();
+  const auto errors = loader_.validate_actor_pipeline_configs();
   ASSERT_EQ(errors.size(), 1);
   EXPECT_EQ(errors.front().code, "duplicate_stage_name");
   EXPECT_EQ(errors.front().pipeline, "message");
@@ -733,8 +733,7 @@ output = "obcx::message_store::events::MessageStored"
 mode = "asyc"
 )");
 
-  const auto errors =
-      ConfigLoader::instance().validate_actor_pipeline_configs();
+  const auto errors = loader_.validate_actor_pipeline_configs();
   ASSERT_EQ(errors.size(), 2);
   EXPECT_EQ(errors[0].code, "unknown_pipeline_source");
   EXPECT_EQ(errors[0].input, "obcx::core::events::RawMessageEven");
@@ -759,8 +758,7 @@ input = "obcx::core::events::RawNoticeEvent"
 mode = "await"
 )");
 
-  const auto errors =
-      ConfigLoader::instance().validate_actor_pipeline_configs();
+  const auto errors = loader_.validate_actor_pipeline_configs();
   EXPECT_TRUE(errors.empty());
 }
 
@@ -780,8 +778,7 @@ input = "obcx::tests::events::SdkSmoke"
 mode = "await"
 )");
 
-  EXPECT_TRUE(
-      ConfigLoader::instance().validate_actor_pipeline_configs().empty());
+  EXPECT_TRUE(loader_.validate_actor_pipeline_configs().empty());
 }
 
 TEST_F(ActorConfigTest, ValidatesConfiguredInputsAgainstActorContracts) {
@@ -816,8 +813,7 @@ after = ["persist"]
           {"message_store", {"obcx::core::events::RawMessageEvent"}},
           {"bridge", {"obcx::message_store::events::MessageStored"}},
       };
-  const auto errors =
-      ConfigLoader::instance().validate_actor_pipeline_contracts(contracts);
+  const auto errors = loader_.validate_actor_pipeline_contracts(contracts);
   ASSERT_EQ(errors.size(), 1);
   EXPECT_EQ(errors.front().code, "unsupported_actor_input");
   EXPECT_EQ(errors.front().pipeline, "message");
@@ -846,9 +842,6 @@ output = ["unreachable::One", "unreachable::Two"]
       contracts = {
           {"message_store", {"obcx::core::events::RawMessageEvent"}},
       };
-  EXPECT_TRUE(
-      ConfigLoader::instance().validate_actor_pipeline_configs().empty());
-  EXPECT_TRUE(ConfigLoader::instance()
-                  .validate_actor_pipeline_contracts(contracts)
-                  .empty());
+  EXPECT_TRUE(loader_.validate_actor_pipeline_configs().empty());
+  EXPECT_TRUE(loader_.validate_actor_pipeline_contracts(contracts).empty());
 }

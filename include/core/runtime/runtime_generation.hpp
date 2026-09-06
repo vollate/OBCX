@@ -1,10 +1,11 @@
 #ifndef OBCX_INCLUDE_CORE_RUNTIME_GENERATION_HPP_
 #define OBCX_INCLUDE_CORE_RUNTIME_GENERATION_HPP_
 
-#include "common/config_loader.hpp"
+#include "common/config_snapshot.hpp"
 #include "core/actor/actor_package_stager.hpp"
 #include "core/actor/blocking_executor.hpp"
 #include "core/actor/native_actor_scheduler.hpp"
+#include "core/bot/typed_operation.hpp"
 #include "core/command/command_coordinator.hpp"
 #include "core/runtime/runtime_thread_budget.hpp"
 
@@ -22,13 +23,14 @@
 #include <vector>
 
 namespace obcx::bot {
-class BotOperationClient;
+class BotOperationGateway;
 }
 
 namespace obcx::core {
 
 class ActorManager;
 class BotInstallationDirectory;
+class BotPlatformCatalog;
 class DbManager;
 class Orchestrator;
 struct OrchestratorResult;
@@ -85,7 +87,7 @@ public:
   [[nodiscard]] auto bot_installation_directory() const noexcept
       -> const std::shared_ptr<BotInstallationDirectory> &;
   [[nodiscard]] auto bot_operation_client() const noexcept
-      -> const std::shared_ptr<bot::BotOperationClient> &;
+      -> const std::shared_ptr<bot::BotOperationGateway> &;
   [[nodiscard]] auto blocking_executor() const noexcept
       -> const std::shared_ptr<BlockingExecutor> &;
   [[nodiscard]] auto command_routing_table() const noexcept
@@ -118,7 +120,7 @@ private:
       common::ProcessOwnedConfigFingerprint process_owned_fingerprint,
       std::shared_ptr<DbManager> db_manager,
       std::shared_ptr<BotInstallationDirectory> bot_installation_directory,
-      std::shared_ptr<bot::BotOperationClient> bot_operation_client,
+      std::shared_ptr<bot::BotOperationGateway> bot_operation_client,
       std::shared_ptr<BlockingExecutor> blocking_executor,
       std::filesystem::path staging_root);
 
@@ -143,7 +145,7 @@ private:
   std::shared_ptr<NativeActorScheduler> scheduler_;
   std::shared_ptr<DbManager> db_manager_;
   std::shared_ptr<BotInstallationDirectory> bot_installation_directory_;
-  std::shared_ptr<bot::BotOperationClient> bot_operation_client_;
+  std::shared_ptr<bot::BotOperationGateway> bot_operation_client_;
   std::shared_ptr<BlockingExecutor> blocking_executor_;
   std::shared_ptr<Orchestrator> orchestrator_;
   std::shared_ptr<const CommandRoutingTable> command_routing_table_;
@@ -166,7 +168,7 @@ struct RuntimeGenerationBuildRequest {
   std::size_t configured_io_sources = 1;
   std::shared_ptr<DbManager> db_manager;
   std::shared_ptr<BotInstallationDirectory> bot_installation_directory;
-  std::shared_ptr<bot::BotOperationClient> bot_operation_client;
+  std::shared_ptr<bot::BotOperationGateway> bot_operation_client;
   std::shared_ptr<BlockingExecutor> blocking_executor;
   bool require_registered_bots = false;
   std::optional<common::ProcessOwnedConfigFingerprint>
@@ -199,10 +201,15 @@ struct RuntimeGenerationBuildResult {
 
 class RuntimeGenerationBuilder {
 public:
-  [[nodiscard]] static auto parse_config(const std::string &config_path)
+  explicit RuntimeGenerationBuilder(
+      std::shared_ptr<const BotPlatformCatalog> catalog);
+  [[nodiscard]] auto parse_config(const std::string &config_path) const
       -> common::RuntimeConfigBuildResult;
   [[nodiscard]] auto build(RuntimeGenerationBuildRequest request) const
       -> RuntimeGenerationBuildResult;
+
+private:
+  const std::shared_ptr<const BotPlatformCatalog> catalog_;
 };
 
 } // namespace obcx::core

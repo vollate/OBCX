@@ -1,9 +1,6 @@
 #ifndef OBCX_INCLUDE_CORE_COMMAND_PLATFORM_ADAPTER_HPP_
 #define OBCX_INCLUDE_CORE_COMMAND_PLATFORM_ADAPTER_HPP_
 
-#include "core/actor/actor.hpp"
-#include "core/actor/actor_commands.hpp"
-
 #include <boost/asio/awaitable.hpp>
 #include <memory>
 #include <optional>
@@ -12,6 +9,8 @@
 #include <vector>
 
 namespace obcx::core {
+
+struct MessageEnvelope;
 
 struct DetectedCommand {
   std::string name;
@@ -32,16 +31,16 @@ struct CommandCatalogPublishResult {
   std::string message;
 };
 
-class TelegramCommandCatalog {
+class CommandCatalogPublisher {
 public:
-  TelegramCommandCatalog() = default;
-  TelegramCommandCatalog(const TelegramCommandCatalog &) = delete;
-  auto operator=(const TelegramCommandCatalog &)
-      -> TelegramCommandCatalog & = delete;
-  TelegramCommandCatalog(TelegramCommandCatalog &&) = delete;
-  auto operator=(TelegramCommandCatalog &&)
-      -> TelegramCommandCatalog & = delete;
-  virtual ~TelegramCommandCatalog() = default;
+  CommandCatalogPublisher() = default;
+  CommandCatalogPublisher(const CommandCatalogPublisher &) = delete;
+  auto operator=(const CommandCatalogPublisher &)
+      -> CommandCatalogPublisher & = delete;
+  CommandCatalogPublisher(CommandCatalogPublisher &&) = delete;
+  auto operator=(CommandCatalogPublisher &&)
+      -> CommandCatalogPublisher & = delete;
+  virtual ~CommandCatalogPublisher() = default;
 
   virtual auto publish(const std::vector<CommandCatalogEntry> &catalog)
       -> boost::asio::awaitable<CommandCatalogPublishResult> = 0;
@@ -59,21 +58,17 @@ public:
   virtual ~ICommandPlatformAdapter() = default;
 
   [[nodiscard]] virtual auto platform() const noexcept -> std::string_view = 0;
-  [[nodiscard]] virtual auto detect(const MessageEnvelope &event,
-                                    std::string_view bot_target) const
+  [[nodiscard]] virtual auto detect(const MessageEnvelope &event) const
       -> std::optional<DetectedCommand> = 0;
   [[nodiscard]] virtual auto validate_catalog(
       const std::vector<CommandCatalogEntry> &catalog) const
       -> std::optional<std::string> = 0;
   [[nodiscard]] virtual auto supports_catalog_publication() const noexcept
       -> bool = 0;
-  virtual auto publish_catalog(TelegramCommandCatalog *catalog,
+  virtual auto publish_catalog(CommandCatalogPublisher *catalog,
                                const std::vector<CommandCatalogEntry> &entries)
       -> boost::asio::awaitable<CommandCatalogPublishResult> = 0;
 };
-
-[[nodiscard]] auto command_platform_adapter(std::string_view platform)
-    -> std::shared_ptr<ICommandPlatformAdapter>;
 
 } // namespace obcx::core
 

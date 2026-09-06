@@ -1,7 +1,7 @@
 #ifndef OBCX_INCLUDE_CORE_ACTOR_HPP_
 #define OBCX_INCLUDE_CORE_ACTOR_HPP_
 
-#include "common/config_loader.hpp"
+#include "common/config_snapshot.hpp"
 #include "common/json_utils.hpp"
 #include "core/actor/actor_asio.hpp"
 #include "core/actor/actor_task.hpp"

@@ -1,5 +1,6 @@
 #include "core/actor/reflected_actor.hpp"
-#include "core/bot/bot_operation_client.hpp"
+#include "core/bot/messaging.hpp"
+#include "core/bot/typed_operation.hpp"
 
 namespace obcx::sdk_fixture::events {
 struct SdkSmoke {};
@@ -46,18 +47,18 @@ public:
     label = co_await context.run_blocking(
         [label = std::move(label)]() mutable { return std::move(label); });
     const auto bot_operations =
-        context.get_service<obcx::bot::BotOperationClient>();
+        context.get_service<obcx::bot::BotOperationGateway>();
     const obcx::bot::BotInstallationRef installation{
         .installation_id = "standalone-telegram",
-        .surface = obcx::bot::BotSurface::TelegramBotApi,
+        .surface = obcx::bot::SurfaceId{"telegram.bot_api"},
     };
     const auto bot_operation_client_available = [&] {
       if (bot_operations == nullptr) {
         return false;
       }
       const auto supported = bot_operations->supported_actions(installation);
-      return supported.ok() &&
-             supported.value->supports(obcx::bot::BotAction::SendGroupMessage);
+      return supported.ok() && supported.value->supports(
+                                   obcx::bot::SendGroupMessageRequest::action);
     }();
 
     auto result = obcx::core::ActorResult::success();

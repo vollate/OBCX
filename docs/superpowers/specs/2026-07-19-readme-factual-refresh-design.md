@@ -61,7 +61,7 @@ with the current evidence verifier.
 
 Describe the bridge as an ABI 2 reflected actor that consumes
 `MessageStored`. State that `OBCX_ACTOR_EXPORT_V2` supplies the ABI generation,
-factory, destructor, name, version, and schema-1 input contract instead of
+factory, destructor, name, version, and schema-2 input contract instead of
 claiming one exported entry point. Document the effective CMake 3.30/GCC 16.1
 baseline, shared `DbManager` ownership, `requires = ["message_store"]`, and the
 current requirement that platform-only bot lookup resolve to exactly one live

@@ -4,50 +4,58 @@
 TBD - created by archiving change restore-bridge-actor-message-retry. Update Purpose after archive.
 ## Requirements
 ### Requirement: Enabled bridge message retry is operational in actor mode
-When `actors.bridge.config.enable_retry_queue` is true, the bridge actor SHALL
-create one message retry manager for its runtime generation, register both
-supported target-platform callbacks, and provide that manager to the QQ and
-Telegram forwarding handlers before processing a send. An enabled generation
-MUST NOT report a failed send as retry-disabled.
+When `actors.bridge.config.enable_retry_queue` is true, the bridge actor SHALL create one message retry manager for its runtime generation, register every configured exact target installation, and provide that manager to the QQ and Telegram forwarding handlers before processing a send. The one generation-owned manager SHALL multiplex pairs and conversations without creating a worker per pair or group. An enabled generation MUST NOT report a failed send as retry-disabled.
 
 #### Scenario: QQ-to-Telegram initial send fails
-- **WHEN** actor-mode QQ-to-Telegram forwarding fails before a target message id is obtained and retry is enabled
-- **THEN** the bridge persists and schedules one Telegram-target retry containing the outgoing message, source identity, target group, and target topic metadata
+- **WHEN** forwarding from one exact OneBot installation/group conversation to its paired Telegram installation/chat fails definitely before submission and retry is enabled
+- **THEN** Bridge persists and schedules one retry containing both complete conversation-scoped identities, the outgoing message, and target topic metadata
 
 #### Scenario: Telegram-to-QQ initial send fails
-- **WHEN** actor-mode Telegram-to-QQ forwarding fails before a target message id is obtained and retry is enabled
-- **THEN** the bridge persists and schedules one QQ-target retry containing the outgoing message and source and target group identities
+- **WHEN** forwarding from one exact Telegram installation/chat conversation to its paired OneBot installation/group fails definitely before submission and retry is enabled
+- **THEN** Bridge persists and schedules one retry containing both complete conversation-scoped identities and the outgoing message
 
 #### Scenario: Retry is explicitly disabled
-- **WHEN** the same send failure occurs in a generation whose bridge configuration explicitly disables retry
-- **THEN** the bridge creates no retry worker or retry row and may report that retry is disabled
+- **WHEN** the same send failure occurs in a generation whose Bridge configuration explicitly disables retry
+- **THEN** Bridge creates no retry worker or retry row and may report that retry is disabled
 
 #### Scenario: Enabled retry cannot initialize
-- **WHEN** retry is enabled but its worker, repository, or callbacks cannot be initialized
-- **THEN** bridge forwarding fails with a retry-unavailable diagnostic and does not report that retry was disabled
+- **WHEN** retry is enabled but its worker, repository, exact-installation callbacks, exact-conversation schema, or migration cannot initialize
+- **THEN** Bridge forwarding fails with a retry-unavailable diagnostic and does not report that retry was disabled
+
+#### Scenario: Two pairs fail concurrently
+- **WHEN** retryable sends fail for two configured pairs
+- **THEN** the one generation worker retains two installation-scoped entries and neither replaces or dispatches the other
+
+#### Scenario: Equal ids fail in two conversations
+- **WHEN** retryable sends use equal native source ids in different chats or groups on the same installations
+- **THEN** the one generation worker retains independent conversation-scoped entries and neither replaces or dispatches the other
 
 ### Requirement: Retry callbacks resend through process-owned bots
-The bridge retry worker SHALL submit QQ group sends, Telegram group sends, and Telegram topic sends through `BotOperationClient` using the single exact target installation configured for the Bridge actor. It MUST NOT resolve `BotRegistry`, retain `IBot` or a provider interface, use a concrete/dynamic cast, or invoke a connection manager. It SHALL accept a retry as successful only when the typed result contains a valid target message reference and SHALL distinguish definitely retryable failure, terminal failure, and possibly submitted outcome.
+The bridge retry worker SHALL submit QQ group sends, Telegram group sends, and Telegram topic sends through `BotOperationClient` using the exact target installation and target conversation persisted in each retry. It MUST NOT select a callback or conversation by platform, current route, current pair order, pair alias, or native message id alone; resolve `BotRegistry`; retain `IBot` or a provider interface; use a concrete/dynamic cast; invoke a connection manager; or call a provider message-lookup action. It SHALL accept a retry as successful only when the typed result contains a valid target message reference for the persisted installation/conversation and SHALL distinguish definitely retryable failure, terminal failure, and possibly submitted outcome.
 
 #### Scenario: Telegram group retry succeeds
-- **WHEN** a QQ-origin retry targets the configured Telegram installation and group without a positive topic id and typed dispatch returns a target message reference
-- **THEN** the worker records that message id and completes the retry
+- **WHEN** a QQ-origin retry names an enabled Telegram target installation/chat without a positive topic id and typed dispatch returns a matching target message reference
+- **THEN** the worker records that complete target identity and completes only that conversation-scoped retry
 
 #### Scenario: Telegram topic retry succeeds
-- **WHEN** a QQ-origin retry has a positive Telegram topic id and typed dispatch returns a target message reference
-- **THEN** the worker uses `telegram.message.send_topic`, records that message id, and completes the retry
+- **WHEN** a QQ-origin retry names a Telegram chat plus positive topic id and typed dispatch returns a matching target message reference
+- **THEN** the worker uses `telegram.message.send_topic`, records the containing chat identity and native message id, and completes only that retry
 
 #### Scenario: QQ group retry succeeds
-- **WHEN** a Telegram-origin retry targets the configured `onebot11.qq` installation and typed dispatch returns a target message reference
-- **THEN** the worker records that message id and completes the retry
+- **WHEN** a Telegram-origin retry names an enabled `onebot11.qq` target installation/group and typed dispatch returns a matching target message reference
+- **THEN** the worker records that complete target identity and completes only that retry
 
 #### Scenario: Target failure is definitely retryable
-- **WHEN** routing or the wrapper reports a retryable failure proven to occur before provider submission
-- **THEN** the worker records an unsuccessful attempt and retains the retry while attempts remain
+- **WHEN** exact dispatch reports a retryable failure proven to occur before provider submission
+- **THEN** the worker records an unsuccessful attempt and retains the same conversation-scoped retry while attempts remain
 
 #### Scenario: Target outcome may have been submitted
-- **WHEN** typed dispatch reports `PossiblySubmitted`
+- **WHEN** exact dispatch reports `PossiblySubmitted`
 - **THEN** the worker stops automatic attempts for that entry according to the existing finite-attempt policy and reports an outcome-unknown diagnostic
+
+#### Scenario: Persisted target installation or conversation is unavailable
+- **WHEN** a restored retry names an installation or conversation that is no longer an exact configured dispatch route
+- **THEN** the worker reports the typed unavailable route and never sends through another installation, group, or chat
 
 ### Requirement: Message retry policy is configuration-driven and bounded
 The bridge actor SHALL derive message maximum attempts, base backoff, queue check interval, and maximum backoff from its immutable generation configuration. Attempt and interval values MUST be positive, base and check intervals MUST NOT exceed the maximum interval, and invalid settings MUST fail actor-aware configuration validation. Only typed failures marked retryable and `DefinitelyNotSubmitted` SHALL be rescheduled; terminal or `PossiblySubmitted` outcomes MUST NOT be automatically retried.
@@ -69,26 +77,39 @@ The bridge actor SHALL derive message maximum attempts, base backoff, queue chec
 - **THEN** startup or reload rejects that actor configuration before it becomes active
 
 ### Requirement: Persistent retry state and message mappings remain consistent
-The bridge SHALL persist retry identity by source platform, source message id,
-and target platform. It SHALL preserve pending attempts across process restart
-and actor-runtime reload. After a successful resend, it SHALL persist the
-source-to-target message mapping and remove the corresponding retry row.
-
-#### Scenario: The same failure is enqueued again
-- **WHEN** a failed source message with the same source platform, source message id, and target platform is added more than once
-- **THEN** the durable queue contains one retry identity rather than parallel duplicate entries
+The bridge SHALL persist retry identity by complete source installation/platform/conversation/message identity and exact target installation/platform/conversation. It SHALL preserve pending attempts across process restart and actor-runtime reload. After a successful resend, it SHALL persist a complete source-to-target message mapping and remove only the corresponding conversation-scoped retry row. Pending version-2 retries MUST migrate exactly to version 3 or block migration; they MUST NOT be silently archived, dropped, or retargeted.
 
 #### Scenario: A worker starts with pending rows
-- **WHEN** the active bridge generation starts its retry worker and durable pending rows exist
-- **THEN** it restores their message content, target metadata, attempt counts, limits, and next-attempt times before processing them
+- **WHEN** the active Bridge generation starts its retry worker and version-3 pending rows exist
+- **THEN** it restores exact installations, conversations, message content, target topic metadata, attempt counts, limits, and next-attempt times before processing them
 
 #### Scenario: A retry succeeds
-- **WHEN** a callback returns a valid target message id and repository operations succeed
-- **THEN** the source-to-target mapping is queryable and the retry row is no longer pending
+- **WHEN** a callback returns a target message reference matching the persisted target installation/conversation and repository operations succeed
+- **THEN** the complete source-to-target mapping is queryable and only that exact retry row is no longer pending
 
 #### Scenario: Completion persistence fails
-- **WHEN** mapping persistence or retry-row cleanup fails after a target response is received
-- **THEN** the bridge reports the persistence failure and keeps local state safe for idempotent recovery rather than silently claiming complete cleanup
+- **WHEN** complete mapping persistence or exact retry-row cleanup fails after a target response is received
+- **THEN** Bridge reports the persistence failure and keeps local state safe for idempotent recovery rather than silently claiming complete cleanup
+
+#### Scenario: The same complete failure is enqueued again
+- **WHEN** a failed source message with the same complete source and target scopes is added more than once
+- **THEN** the durable queue contains one retry identity rather than parallel duplicate entries
+
+#### Scenario: Equal native failures belong to different conversations or pairs
+- **WHEN** equal platform/message ids are enqueued for different source conversations, target conversations, source installations, or target installations
+- **THEN** the durable queue retains independent rows and completing one does not update or remove another
+
+#### Scenario: Pre-send mapping already exists
+- **WHEN** the worker finds an existing mapping for the retry's complete source and target scopes
+- **THEN** it performs no provider call and removes only the corresponding retry row according to existing cleanup safety
+
+#### Scenario: A different conversation is already mapped
+- **WHEN** an equal native source id has a mapping in another conversation
+- **THEN** the worker does not treat that mapping as completion of the current retry
+
+#### Scenario: Version-2 retry lacks a conversation
+- **WHEN** schema-version-3 preflight cannot derive both conversations for a pending retry
+- **THEN** migration fails before actor activation and no retry is sent, archived, or removed automatically
 
 ### Requirement: One actor generation owns retry processing at a time
 The retry worker SHALL be owned by its bridge actor generation and SHALL stop
@@ -113,15 +134,16 @@ ingress can initialize the candidate worker against the same persistent queue.
 - **THEN** new attempts are rejected and shutdown waits for bounded cancellation or completion before releasing callback captures and actor code
 
 ### Requirement: Retry diagnostics are accurate and secret-safe
-Bridge retry diagnostics SHALL distinguish disabled configuration,
-initialization failure, successful enqueue, failed attempt, successful retry,
-and terminal exhaustion. Diagnostics MUST NOT include message content, bot
-tokens, proxy credentials, or complete API responses.
+Bridge retry diagnostics SHALL distinguish disabled configuration, initialization failure, successful enqueue, failed attempt, unavailable exact installation, successful retry, outcome unknown, and terminal exhaustion. Diagnostics SHALL identify pair/installation direction where needed to distinguish concurrent accounts, and MUST NOT include message content, bot tokens, proxy credentials, signed URLs, or complete API responses.
 
 #### Scenario: Enabled failed send is queued
-- **WHEN** retry is enabled and a failed send is durably enqueued
-- **THEN** the bridge reports the queue identity and scheduling outcome and does not emit `消息发送失败且未启用重试`
+- **WHEN** retry is enabled and a failed send is durably enqueued for one pair
+- **THEN** the bridge reports the scoped queue identity and scheduling outcome and does not emit `消息发送失败且未启用重试`
 
 #### Scenario: Retry attempt is logged
 - **WHEN** the worker attempts or completes a resend
-- **THEN** diagnostics include platform direction and attempt outcome without including the outgoing message or credentials
+- **THEN** diagnostics include exact non-secret installation direction and attempt outcome without including the outgoing message or credentials
+
+#### Scenario: Two equal native identities are diagnosed
+- **WHEN** two pairs contain retries with equal platform and native message ids
+- **THEN** diagnostics distinguish them by installation without exposing payload data

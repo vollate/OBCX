@@ -2,8 +2,10 @@
 #include "core/actor/native_actor_scheduler.hpp"
 
 #include <algorithm>
+#include <dlfcn.h>
 #include <future>
 #include <gtest/gtest.h>
+#include <memory>
 
 using namespace obcx::core;
 
@@ -37,7 +39,7 @@ TEST(ActorManagerTest, DiscoversContractWithoutConstructingActor) {
   EXPECT_EQ(manager.get_actor("test_actor_v2"), nullptr);
   const auto *contract = manager.get_actor_contract("test_actor_v2");
   ASSERT_NE(contract, nullptr);
-  EXPECT_EQ(contract->schema_version, 1);
+  EXPECT_EQ(contract->schema_version, 2);
   EXPECT_EQ(contract->actor, "test_actor_v2");
   EXPECT_EQ(contract->accepted_inputs, (std::vector<std::string>{
                                            "obcx::tests::events::SdkCommand",
@@ -61,7 +63,7 @@ TEST(ActorManagerTest, DiscoversContractWithoutConstructingActor) {
   EXPECT_EQ(contract->bot_installation_configuration.front().key,
             "target_installation");
   EXPECT_EQ(contract->bot_installation_configuration.front().expected_types,
-            (std::vector<std::string>{"qq", "telegram"}));
+            (std::vector<std::string>{"onebot11.qq", "telegram.bot_api"}));
   EXPECT_EQ(contract->bot_installation_configuration.front().alternative_group,
             "target_form");
   ASSERT_EQ(contract->bot_installation_collection_configuration.size(), 1U);
@@ -76,7 +78,7 @@ TEST(ActorManagerTest, DiscoversContractWithoutConstructingActor) {
   ASSERT_EQ(collection.installation_fields.size(), 1U);
   EXPECT_EQ(collection.installation_fields.front().key, "target_installation");
   EXPECT_EQ(collection.installation_fields.front().expected_types,
-            (std::vector<std::string>{"qq", "telegram"}));
+            (std::vector<std::string>{"onebot11.qq", "telegram.bot_api"}));
   ASSERT_EQ(contract->collection_identity_reference_configuration.size(), 1U);
   const auto &reference =
       contract->collection_identity_reference_configuration.front();
@@ -90,6 +92,30 @@ TEST(ActorManagerTest, DiscoversContractWithoutConstructingActor) {
 
   ASSERT_TRUE(manager.activate_actor("test_actor_v2"));
   EXPECT_TRUE(manager.is_actor_loaded("test_actor_v2"));
+}
+
+TEST(ActorManagerTest, RejectsFrozenSchema1BeforeFactoryAndPreparation) {
+  const auto close_library = [](void *handle) { (void)dlclose(handle); };
+  std::unique_ptr<void, decltype(close_library)> library{
+      dlopen(OBCX_TEST_FROZEN_SCHEMA1_LIBRARY, RTLD_NOW | RTLD_LOCAL),
+      close_library};
+  ASSERT_NE(library, nullptr);
+  const auto factory_calls = reinterpret_cast<unsigned (*)()>(
+      dlsym(library.get(), "obcx_frozen_factory_calls"));
+  const auto preparation_calls = reinterpret_cast<unsigned (*)()>(
+      dlsym(library.get(), "obcx_frozen_preparation_calls"));
+  ASSERT_NE(factory_calls, nullptr);
+  ASSERT_NE(preparation_calls, nullptr);
+  ActorManager manager;
+  EXPECT_FALSE(
+      manager.discover_actor_from_path(OBCX_TEST_FROZEN_SCHEMA1_LIBRARY));
+  EXPECT_NE(manager.last_error().find("rebuild"), std::string::npos);
+  EXPECT_FALSE(manager.load_actor_from_path(OBCX_TEST_FROZEN_SCHEMA1_LIBRARY));
+  EXPECT_NE(manager.last_error().find("schema_version 1"), std::string::npos);
+  EXPECT_EQ(manager.get_actor_contract("frozen_schema1_actor"), nullptr);
+  EXPECT_TRUE(manager.get_loaded_actor_names().empty());
+  EXPECT_EQ(factory_calls(), 0U);
+  EXPECT_EQ(preparation_calls(), 0U);
 }
 
 TEST(ActorManagerTest, RunsOptionalGenerationPreparationWithTypedStatus) {

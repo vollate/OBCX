@@ -1,7 +1,8 @@
 #ifndef OBCX_INCLUDE_CORE_COMMAND_COORDINATOR_HPP_
 #define OBCX_INCLUDE_CORE_COMMAND_COORDINATOR_HPP_
 
-#include "common/config_loader.hpp"
+#include "common/config_snapshot.hpp"
+#include "core/actor/actor_commands.hpp"
 #include "core/actor/actor_manager.hpp"
 #include "core/command/command_matcher.hpp"
 #include "core/command/command_platform_adapter.hpp"
@@ -70,6 +71,7 @@ struct ActiveCommandPattern {
 
 struct ActiveCommandBot {
   CommandBotKey key;
+  bot::BotInstallationRef installation;
   std::string target;
   std::shared_ptr<ICommandPlatformAdapter> adapter;
   std::vector<CommandCatalogEntry> catalog;

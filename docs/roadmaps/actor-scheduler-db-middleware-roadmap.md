@@ -1,5 +1,9 @@
 # Actor Scheduler And DB Middleware Roadmap
 
+> Historical SDK note: this document records the earlier migration. References
+> to `BotOperationClient` or schema-1 input contracts describe the retired SDK;
+> see the [current modular SDK migration](../architecture/modular-bot-sdk-migration.md) for schema 2.
+
 > Historical implementation roadmap. Use the current actor architecture,
 > operations, and database guides for supported configuration and package
 > paths.

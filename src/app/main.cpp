@@ -1,5 +1,6 @@
+#include "builtin_bot_platforms.hpp"
 #include "common/cli_handler.hpp"
-#include "common/config_loader.hpp"
+#include "common/config_snapshot.hpp"
 #include "common/logger.hpp"
 #include "core/bot/bot_event_components.hpp"
 #include "core/bot/bot_installation_assembler.hpp"
@@ -9,6 +10,7 @@
 #include "core/runtime/actor_runtime_reload_controller.hpp"
 #include "core/runtime/message_event_ingress.hpp"
 #include "core/runtime/orchestrator.hpp"
+#include "core/runtime/process_configuration.hpp"
 #include "core/runtime/runtime_generation.hpp"
 #include "core/runtime/runtime_thread_budget.hpp"
 #include "tui/tui_app.hpp"
@@ -111,17 +113,6 @@ void print_help(const po::options_description &desc) {
   fmt::print("\n");
   fmt::print("CONFIG_FILE:\n");
   fmt::print("  Path to TOML configuration file (default: config.toml)\n");
-}
-
-auto normalized_platform_name(
-    const obcx::common::BotInstallationSurface surface) -> std::string {
-  switch (surface) {
-  case obcx::common::BotInstallationSurface::OneBot11Qq:
-    return "qq";
-  case obcx::common::BotInstallationSurface::TelegramBotApi:
-    return "telegram";
-  }
-  return {};
 }
 
 auto actor_search_directories(const char *argv0)
@@ -258,7 +249,9 @@ public:
                         boost::posix_time::second_clock::local_time())),
         use_tui);
 
-    core::RuntimeGenerationBuilder generation_builder;
+    const auto platform_catalog =
+        obcx::app::make_builtin_bot_platform_catalog();
+    core::RuntimeGenerationBuilder generation_builder{platform_catalog};
     auto parsed = generation_builder.parse_config(config_path);
     if (!parsed) {
       fmt::print(std::cerr, "Failed to load configuration from: {}\n",
@@ -267,9 +260,10 @@ public:
     }
     auto config_snapshot = std::move(parsed.snapshot);
     auto bot_configs = config_snapshot->get_bot_configs();
+    const auto &bot_plans = core::ProcessConfigAccess::plans(*config_snapshot);
     try {
-      for (const auto &bot_config : bot_configs) {
-        (void)core::BotInstallationAssembler::validate(bot_config);
+      for (const auto &plan : bot_plans) {
+        (void)core::BotInstallationAssembler::validate(*plan);
       }
     } catch (const std::exception &error) {
       OBCX_ERROR("Bot installation recipe validation failed: {}", error.what());
@@ -287,7 +281,10 @@ public:
     auto process_bot_installation_directory =
         std::make_shared<core::BotInstallationDirectory>();
     auto process_bot_operation_dispatcher =
-        std::make_shared<core::BotOperationDispatcher>();
+        std::make_shared<core::BotOperationDispatcher>(
+            [platform_catalog](const bot::SurfaceId &surface) {
+              return platform_catalog->supports(surface);
+            });
 
     OBCX_INFO("OBCX Robot Framework starting...");
     OBCX_INFO("Configuration loaded from: {}", config_path);
@@ -318,7 +315,6 @@ public:
       return 0;
     }
 
-    common::ConfigLoader::instance().publish_snapshot(config_snapshot);
     auto actor_runtime = std::move(actor_runtime_build.generation);
 
     if (bot_configs.empty()) {
@@ -343,17 +339,18 @@ public:
     // Route leases retain retired generations until their final descendant.
     actor_runtime.reset();
 
-    for (const auto &config : bot_configs) {
+    for (const auto &plan : bot_plans) {
+      const auto &config = plan->metadata();
       if (!config.enabled) {
         OBCX_INFO("Skipping disabled bot installation: {}",
                   config.installation_id);
         continue;
       }
 
-      const auto bot_platform = normalized_platform_name(config.surface);
+      const auto &bot_platform = config.ingress_platform;
       const auto bot_instance = config.installation_id;
       try {
-        auto installation = core::BotInstallationAssembler::assemble(config);
+        auto installation = core::BotInstallationAssembler::assemble(*plan);
         auto events = installation->capability<core::BotEventCapability>(
             core::CapabilityId{"bot.events"});
         if (reload_controller && !bot_platform.empty()) {
@@ -386,25 +383,25 @@ public:
                                     const common::MessageEvent &event)
                   -> boost::asio::awaitable<void> {
                 co_await process_actor_event(
-                    "message", core::raw_message_envelope_from_event(
-                                   normalized_platform_name(context.surface),
-                                   context.installation_id, event));
+                    "message",
+                    core::raw_message_envelope_from_event(
+                        context.platform, context.installation_id, event));
               });
           events->subscribe_notices(
               [process_actor_event](const core::BotEventContext &context,
                                     const common::NoticeEvent &event)
                   -> boost::asio::awaitable<void> {
                 co_await process_actor_event(
-                    "notice", core::raw_notice_envelope_from_event(
-                                  normalized_platform_name(context.surface),
-                                  context.installation_id, event));
+                    "notice",
+                    core::raw_notice_envelope_from_event(
+                        context.platform, context.installation_id, event));
               });
         }
 
         OBCX_INFO("Starting bot installation: {}", config.installation_id);
         installation->start();
         process_bot_installation_directory->register_installation(
-            *installation);
+            *installation, plan->recipe().command_publisher);
         process_bot_operation_dispatcher->register_endpoint(
             installation->capability<core::BotOperationEndpoint>(
                 core::CapabilityId{"bot.operations"}));
@@ -433,6 +430,7 @@ public:
       }
     }
 
+    process_bot_operation_dispatcher->seal_registrations();
     if (bots.empty()) {
       OBCX_ERROR("No bot components started successfully");
       return 1;

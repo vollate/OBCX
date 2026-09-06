@@ -30,7 +30,7 @@ def reloadable_actor_sources() -> list[Path]:
 def migrated_bot_actor_sources() -> list[Path]:
     roots = (
         ROOT / "local_actor" / "obcx-actor-bridge" / "actor",
-        ROOT / "local_actor" / "obcx-actor-bridge" / "dependency",
+        ROOT / "local_actor" / "obcx-actor-bridge" / "src",
         ROOT / "local_actor" / "obcx-actor-bridge" / "include",
         ROOT / "local_actor" / "chat_llm",
     )
@@ -128,6 +128,17 @@ class ActorArchitectureTest(unittest.TestCase):
                 r"bot_command_catalog_component)|"
                 r"[^>\"]*connection_manager)\.hpp[>\"]"
             ),
+            re.compile(
+                r"#\s*include\s*[<\"](?:core/bot/(?:operation_registry|"
+                r"operation_handler|platform_catalog|installation_plan|bot_component_runtime|"
+                r"bot_installation_assembler|bot_installation_directory|"
+                r"bot_operation_components|bot_transport_components|"
+                r"bot_event_components|bot_protocol_components|"
+                r"bot_command_catalog_component)|core/runtime/process_configuration|(?:onebot11|telegram)/bot/"
+                r"(?:operation_component|operation_definitions|response_parser|configuration|recipe|"
+                r"transport|protocol|event_ingress|command_adapter|command_catalog_component|capability_ids))\.hpp[>\"]"
+            ),
+            re.compile(r"\bBotOperationClient\b"),
             re.compile(r"\bBotRegistry\b"),
             re.compile(r"\b(?:IBot|IQQBot|ITelegramBot)\b"),
             re.compile(
@@ -138,19 +149,19 @@ class ActorArchitectureTest(unittest.TestCase):
             re.compile(r"\bget_service\s*<[^>]*BotRegistry[^>]*>"),
         )
         findings: list[str] = []
-        seen_operation_client: set[str] = set()
+        seen_operation_gateway: set[str] = set()
         for path in migrated_bot_actor_sources():
             content = path.read_text(encoding="utf-8")
             relative = path.relative_to(ROOT)
-            if "BotOperationClient" in content:
-                seen_operation_client.add(relative.parts[1])
+            if "BotOperationGateway" in content:
+                seen_operation_gateway.add(relative.parts[1])
             for pattern in banned:
                 for match in pattern.finditer(content):
                     line = content.count("\n", 0, match.start()) + 1
                     findings.append(f"{relative}:{line}: {match.group(0)}")
         self.assertEqual(findings, [], "\n" + "\n".join(findings))
-        self.assertIn("obcx-actor-bridge", seen_operation_client)
-        self.assertIn("chat_llm", seen_operation_client)
+        self.assertIn("obcx-actor-bridge", seen_operation_gateway)
+        self.assertIn("chat_llm", seen_operation_gateway)
 
     def test_blocking_executor_completion_has_no_polling_bridge(self) -> None:
         implementation = (

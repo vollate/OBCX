@@ -1,280 +1,158 @@
 #include "core/bot/bot_operation_dispatcher.hpp"
 
-#include "network/http_client.hpp"
-
-#include <boost/asio/awaitable.hpp>
-
 #include <mutex>
-#include <stdexcept>
-#include <utility>
+#include <shared_mutex>
+#include <unordered_map>
 
 namespace obcx::core {
+namespace {
 
-auto BotOperationDispatcher::classify_exception(
-    const std::exception &error, const bool side_effecting) noexcept
-    -> ExceptionClassification {
-  if (!side_effecting) {
-    return {.code = bot::BotOperationErrorCode::TransportFailure,
-            .retryable = true,
-            .submission_safety = bot::SubmissionSafety::DefinitelyNotSubmitted};
-  }
-
-  const auto *http_error =
-      dynamic_cast<const network::HttpClientError *>(&error);
-  if (http_error != nullptr &&
-      http_error->submission_state() ==
-          network::HttpRequestSubmissionState::DefinitelyNotSubmitted) {
-    return {.code = bot::BotOperationErrorCode::TransportFailure,
-            .retryable = true,
-            .submission_safety = bot::SubmissionSafety::DefinitelyNotSubmitted};
-  }
-
-  return {.code = bot::BotOperationErrorCode::OutcomeUnknown,
-          .retryable = false,
-          .submission_safety = bot::SubmissionSafety::PossiblySubmitted};
+template <typename T>
+auto reject(const bot::BotOperationErrorCode code, const std::string &message)
+    -> bot::BotOperationResult<T> {
+  return bot::BotOperationResult<T>::failure(
+      {.code = code,
+       .message = message,
+       .retryable = false,
+       .submission_safety = bot::SubmissionSafety::DefinitelyNotSubmitted});
 }
 
-auto BotOperationEndpoint::supported_actions(
-    const bot::BotInstallationRef &requested) const
-    -> bot::BotOperationResult<bot::SupportedBotActions> {
-  try {
-    requested.validate();
-  } catch (const std::exception &error) {
-    return bot::failed_operation<bot::SupportedBotActions>(
-        bot::BotOperationErrorCode::InvalidRequest, error.what());
-  }
+} // namespace
 
-  const auto actual = installation();
-  if (requested.installation_id != actual.installation_id) {
-    return bot::failed_operation<bot::SupportedBotActions>(
-        bot::BotOperationErrorCode::RouteNotFound,
-        "bot endpoint does not own the requested installation");
-  }
-  if (requested.surface != actual.surface) {
-    return bot::failed_operation<bot::SupportedBotActions>(
-        bot::BotOperationErrorCode::SurfaceMismatch,
-        "bot endpoint surface does not match the request");
-  }
+struct BotOperationDispatcher::State {
+  explicit State(SurfaceValidator validator)
+      : surface_registered(std::move(validator)) {}
+  const SurfaceValidator surface_registered;
+  mutable std::shared_mutex mutex;
+  std::unordered_map<std::string, std::shared_ptr<OperationRegistry>> endpoints;
+  bool sealed = false;
+  bool closed = false;
+};
 
-  bot::SupportedBotActions supported{.installation = actual,
-                                     .actions = declared_actions()};
-  try {
-    supported.validate();
-  } catch (const std::exception &error) {
-    return bot::failed_operation<bot::SupportedBotActions>(
-        bot::BotOperationErrorCode::InvalidRequest, error.what());
+BotOperationDispatcher::BotOperationDispatcher(
+    SurfaceValidator surface_registered) {
+  if (!surface_registered) {
+    throw std::invalid_argument(
+        "dispatcher requires registered-surface validation");
   }
-  return bot::BotOperationResult<bot::SupportedBotActions>::success(
-      std::move(supported));
+  state_ = std::make_shared<State>(std::move(surface_registered));
 }
+
+BotOperationDispatcher::~BotOperationDispatcher() { clear_endpoints(); }
 
 void BotOperationDispatcher::register_endpoint(
-    std::shared_ptr<BotOperationEndpoint> endpoint) {
+    std::shared_ptr<OperationRegistry> endpoint) {
   if (!endpoint) {
-    throw std::invalid_argument("bot operation endpoint cannot be null");
+    throw std::invalid_argument("operation endpoint cannot be null");
   }
   const auto installation = endpoint->installation();
   installation.validate();
-  auto supported = endpoint->supported_actions(installation);
+  if (!state_->surface_registered(installation.surface)) {
+    throw std::invalid_argument("operation endpoint surface is not registered");
+  }
+  const auto supported = endpoint->supported_actions(installation);
   supported.validate();
   if (!supported.ok()) {
-    const auto message = supported.error ? supported.error.value().message
-                                         : "missing typed endpoint error";
-    throw std::invalid_argument("bot operation endpoint actions are invalid: " +
-                                message);
+    throw std::invalid_argument(
+        "operation endpoint must be prepared before registration");
   }
+  std::unique_lock lock(state_->mutex);
+  if (state_->sealed || state_->closed) {
+    throw std::logic_error(
+        "operation endpoint registration is sealed or closed");
+  }
+  if (!state_->endpoints
+           .emplace(installation.installation_id, std::move(endpoint))
+           .second) {
+    throw std::invalid_argument("duplicate operation installation id");
+  }
+}
 
-  std::unique_lock lock(mutex_);
-  const auto [_, inserted] =
-      endpoints_.emplace(installation.installation_id, std::move(endpoint));
-  if (!inserted) {
-    throw std::invalid_argument("duplicate bot installation id: " +
-                                installation.installation_id);
+void BotOperationDispatcher::seal_registrations() {
+  std::unique_lock lock(state_->mutex);
+  if (state_->closed) {
+    throw std::logic_error("operation dispatcher is closed");
   }
+  state_->sealed = true;
 }
 
 void BotOperationDispatcher::clear_endpoints() noexcept {
-  std::unique_lock lock(mutex_);
-  endpoints_.clear();
+  decltype(State::endpoints) retired;
+  {
+    std::unique_lock lock(state_->mutex);
+    state_->closed = true;
+    retired.swap(state_->endpoints);
+  }
+  for (const auto &[id, endpoint] : retired) {
+    (void)id;
+    endpoint->close();
+  }
 }
 
 auto BotOperationDispatcher::endpoint_count() const noexcept -> std::size_t {
-  std::shared_lock lock(mutex_);
-  return endpoints_.size();
-}
-
-auto BotOperationDispatcher::find_endpoint(
-    const bot::BotInstallationRef &installation) const
-    -> std::shared_ptr<BotOperationEndpoint> {
-  std::shared_lock lock(mutex_);
-  const auto found = endpoints_.find(installation.installation_id);
-  return found == endpoints_.end() ? nullptr : found->second;
+  std::shared_lock lock(state_->mutex);
+  return state_->endpoints.size();
 }
 
 auto BotOperationDispatcher::supported_actions(
     const bot::BotInstallationRef &installation) const
-    -> bot::BotOperationResult<bot::SupportedBotActions> {
+    -> bot::BotOperationResult<bot::SupportedActions> {
   try {
     installation.validate();
-  } catch (const std::exception &error) {
-    return bot::failed_operation<bot::SupportedBotActions>(
-        bot::BotOperationErrorCode::InvalidRequest, error.what());
+  } catch (...) {
+    return reject<bot::SupportedActions>(
+        bot::BotOperationErrorCode::InvalidRequest,
+        "operation installation is invalid");
   }
-  auto endpoint = find_endpoint(installation);
-  if (!endpoint) {
-    return bot::failed_operation<bot::SupportedBotActions>(
-        bot::BotOperationErrorCode::RouteNotFound,
-        "bot installation is not registered: " + installation.installation_id);
+  std::shared_ptr<OperationRegistry> endpoint;
+  {
+    std::shared_lock lock(state_->mutex);
+    if (state_->closed) {
+      return reject<bot::SupportedActions>(
+          bot::BotOperationErrorCode::Cancelled,
+          "operation dispatcher is closed");
+    }
+    const auto found = state_->endpoints.find(installation.installation_id);
+    if (found == state_->endpoints.end()) {
+      return reject<bot::SupportedActions>(
+          bot::BotOperationErrorCode::RouteNotFound,
+          "operation installation was not found");
+    }
+    endpoint = found->second;
   }
   return endpoint->supported_actions(installation);
 }
 
-auto BotOperationDispatcher::execute(
-    const bot::SendGroupMessageRequest &request)
-    -> boost::asio::awaitable<bot::BotOperationResult<bot::SendMessageResult>> {
-  co_return co_await dispatch<bot::SendMessageResult>(
-      request, bot::BotAction::SendGroupMessage,
-      [](BotOperationEndpoint &endpoint,
-         const bot::SendGroupMessageRequest &operation) {
-        return endpoint.execute(operation);
-      });
+auto BotOperationDispatcher::invoke(bot::OperationEnvelope envelope)
+    -> boost::asio::awaitable<bot::OperationReply> {
+  return invoke_owned(state_, std::move(envelope));
 }
 
-auto BotOperationDispatcher::execute(const bot::DeleteMessageRequest &request)
-    -> boost::asio::awaitable<
-        bot::BotOperationResult<bot::DeleteMessageResult>> {
-  co_return co_await dispatch<bot::DeleteMessageResult>(
-      request, bot::BotAction::DeleteMessage,
-      [](BotOperationEndpoint &endpoint,
-         const bot::DeleteMessageRequest &operation) {
-        return endpoint.execute(operation);
-      });
-}
-
-auto BotOperationDispatcher::execute(
-    const bot::SendTelegramTopicMessageRequest &request)
-    -> boost::asio::awaitable<bot::BotOperationResult<bot::SendMessageResult>> {
-  co_return co_await dispatch<bot::SendMessageResult>(
-      request, bot::BotAction::SendTelegramTopicMessage,
-      [](BotOperationEndpoint &endpoint,
-         const bot::SendTelegramTopicMessageRequest &operation) {
-        return endpoint.execute(operation);
-      });
-}
-
-auto BotOperationDispatcher::execute(
-    const bot::EditTelegramMessageTextRequest &request)
-    -> boost::asio::awaitable<
-        bot::BotOperationResult<bot::EditMessageTextResult>> {
-  co_return co_await dispatch<bot::EditMessageTextResult>(
-      request, bot::BotAction::EditTelegramMessageText,
-      [](BotOperationEndpoint &endpoint,
-         const bot::EditTelegramMessageTextRequest &operation) {
-        return endpoint.execute(operation);
-      });
-}
-
-auto BotOperationDispatcher::execute(
-    const bot::SendTelegramPhotoRequest &request)
-    -> boost::asio::awaitable<bot::BotOperationResult<bot::SendMessageResult>> {
-  co_return co_await dispatch<bot::SendMessageResult>(
-      request, bot::BotAction::SendTelegramPhoto,
-      [](BotOperationEndpoint &endpoint,
-         const bot::SendTelegramPhotoRequest &operation) {
-        return endpoint.execute(operation);
-      });
-}
-
-auto BotOperationDispatcher::execute(
-    const bot::SendTelegramMediaGroupUrlsRequest &request)
-    -> boost::asio::awaitable<bot::BotOperationResult<bot::SendMessageResult>> {
-  co_return co_await dispatch<bot::SendMessageResult>(
-      request, bot::BotAction::SendTelegramMediaGroupUrls,
-      [](BotOperationEndpoint &endpoint,
-         const bot::SendTelegramMediaGroupUrlsRequest &operation) {
-        return endpoint.execute(operation);
-      });
-}
-
-auto BotOperationDispatcher::execute(
-    const bot::SendTelegramMediaGroupUploadsRequest &request)
-    -> boost::asio::awaitable<bot::BotOperationResult<bot::SendMessageResult>> {
-  co_return co_await dispatch<bot::SendMessageResult>(
-      request, bot::BotAction::SendTelegramMediaGroupUploads,
-      [](BotOperationEndpoint &endpoint,
-         const bot::SendTelegramMediaGroupUploadsRequest &operation) {
-        return endpoint.execute(operation);
-      });
-}
-
-auto BotOperationDispatcher::execute(
-    const bot::FetchTelegramFileRequest &request)
-    -> boost::asio::awaitable<
-        bot::BotOperationResult<bot::FetchedTelegramFile>> {
-  co_return co_await dispatch<bot::FetchedTelegramFile>(
-      request, bot::BotAction::FetchTelegramFile,
-      [](BotOperationEndpoint &endpoint,
-         const bot::FetchTelegramFileRequest &operation) {
-        return endpoint.execute(operation);
-      });
-}
-
-auto BotOperationDispatcher::execute(
-    const bot::GetOneBotGroupMemberRequest &request)
-    -> boost::asio::awaitable<bot::BotOperationResult<bot::OneBotGroupMember>> {
-  co_return co_await dispatch<bot::OneBotGroupMember>(
-      request, bot::BotAction::GetOneBotGroupMember,
-      [](BotOperationEndpoint &endpoint,
-         const bot::GetOneBotGroupMemberRequest &operation) {
-        return endpoint.execute(operation);
-      });
-}
-
-auto BotOperationDispatcher::execute(
-    const bot::GetOneBotForwardMessageRequest &request)
-    -> boost::asio::awaitable<
-        bot::BotOperationResult<bot::OneBotForwardMessage>> {
-  co_return co_await dispatch<bot::OneBotForwardMessage>(
-      request, bot::BotAction::GetOneBotForwardMessage,
-      [](BotOperationEndpoint &endpoint,
-         const bot::GetOneBotForwardMessageRequest &operation) {
-        return endpoint.execute(operation);
-      });
-}
-
-auto BotOperationDispatcher::execute(
-    const bot::ResolveOneBotGroupFileRequest &request)
-    -> boost::asio::awaitable<
-        bot::BotOperationResult<bot::ResolvedOneBotGroupFile>> {
-  co_return co_await dispatch<bot::ResolvedOneBotGroupFile>(
-      request, bot::BotAction::ResolveOneBotGroupFile,
-      [](BotOperationEndpoint &endpoint,
-         const bot::ResolveOneBotGroupFileRequest &operation) {
-        return endpoint.execute(operation);
-      });
-}
-
-auto BotOperationDispatcher::execute(
-    const bot::ResolveOneBotPrivateFileRequest &request)
-    -> boost::asio::awaitable<
-        bot::BotOperationResult<bot::ResolvedOneBotPrivateFile>> {
-  co_return co_await dispatch<bot::ResolvedOneBotPrivateFile>(
-      request, bot::BotAction::ResolveOneBotPrivateFile,
-      [](BotOperationEndpoint &endpoint,
-         const bot::ResolveOneBotPrivateFileRequest &operation) {
-        return endpoint.execute(operation);
-      });
-}
-
-auto BotOperationDispatcher::execute(const bot::PokeOneBotGroupRequest &request)
-    -> boost::asio::awaitable<
-        bot::BotOperationResult<bot::OneBotGroupPokeResult>> {
-  co_return co_await dispatch<bot::OneBotGroupPokeResult>(
-      request, bot::BotAction::PokeOneBotGroup,
-      [](BotOperationEndpoint &endpoint,
-         const bot::PokeOneBotGroupRequest &operation) {
-        return endpoint.execute(operation);
-      });
+auto BotOperationDispatcher::invoke_owned(std::shared_ptr<State> state,
+                                          bot::OperationEnvelope envelope)
+    -> boost::asio::awaitable<bot::OperationReply> {
+  try {
+    envelope.validate();
+  } catch (...) {
+    co_return reject<bot::Json>(bot::BotOperationErrorCode::InvalidRequest,
+                                "operation envelope is invalid");
+  }
+  std::shared_ptr<OperationRegistry> endpoint;
+  {
+    std::shared_lock lock(state->mutex);
+    if (state->closed) {
+      co_return reject<bot::Json>(bot::BotOperationErrorCode::Cancelled,
+                                  "operation dispatcher is closed");
+    }
+    const auto found =
+        state->endpoints.find(envelope.installation.installation_id);
+    if (found == state->endpoints.end()) {
+      co_return reject<bot::Json>(bot::BotOperationErrorCode::RouteNotFound,
+                                  "operation installation was not found");
+    }
+    endpoint = found->second;
+  }
+  co_return co_await endpoint->invoke(std::move(envelope));
 }
 
 } // namespace obcx::core

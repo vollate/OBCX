@@ -1,10 +1,12 @@
-#include "common/config_loader.hpp"
+#include "common/config_snapshot.hpp"
 #include "core/actor/actor_manager.hpp"
 #include "core/actor/native_actor_scheduler.hpp"
 #include "core/bot/bot_operation_dispatcher.hpp"
+#include "core/bot/typed_operation.hpp"
 #include "core/infrastructure/db_manager.hpp"
 #include "core/runtime/actor_runtime_reload_controller.hpp"
 #include "core/runtime/orchestrator.hpp"
+#include "support/bot_platform_fixture.hpp"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/executor_work_guard.hpp>
@@ -208,8 +210,9 @@ protected:
     const auto config_path =
         root_ / (generation + "-" + std::to_string(id) + ".toml");
     write_file(config_path, config_document(generation, mode, with_command));
-    auto parsed = obcx::core::RuntimeGenerationBuilder::parse_config(
-        config_path.string());
+    auto parsed =
+        obcx::core::RuntimeGenerationBuilder{obcx::test::bot_platform_catalog()}
+            .parse_config(config_path.string());
     EXPECT_TRUE(parsed);
     if (!parsed) {
       return nullptr;
@@ -245,7 +248,7 @@ protected:
     if (built.generation) {
       EXPECT_EQ(built.generation->bot_operation_client(), operation_client_);
       EXPECT_EQ(built.generation->services()
-                    ->get_service<obcx::bot::BotOperationClient>(),
+                    ->get_service<obcx::bot::BotOperationGateway>(),
                 operation_client_);
     }
     return std::move(built.generation);
@@ -309,8 +312,9 @@ protected:
         root_ / ("private-generation-" + std::to_string(id) + ".toml");
     write_file(config_path,
                dependency_config_document(rebuilt_actor, private_actor));
-    auto parsed = obcx::core::RuntimeGenerationBuilder::parse_config(
-        config_path.string());
+    auto parsed =
+        obcx::core::RuntimeGenerationBuilder{obcx::test::bot_platform_catalog()}
+            .parse_config(config_path.string());
     EXPECT_TRUE(parsed);
     if (!parsed) {
       return nullptr;
@@ -406,10 +410,12 @@ protected:
   asio::io_context io_;
   std::optional<WorkGuard> work_guard_;
   std::thread io_thread_;
-  obcx::core::RuntimeGenerationBuilder builder_;
+  obcx::core::RuntimeGenerationBuilder builder_{
+      obcx::test::bot_platform_catalog()};
   std::shared_ptr<obcx::core::DbManager> database_;
-  std::shared_ptr<obcx::bot::BotOperationClient> operation_client_ =
-      std::make_shared<obcx::core::BotOperationDispatcher>();
+  std::shared_ptr<obcx::bot::BotOperationGateway> operation_client_ =
+      std::make_shared<obcx::core::BotOperationDispatcher>(
+          [](const obcx::bot::SurfaceId &) { return false; });
   std::shared_ptr<obcx::core::ActorRuntimeReloadController> controller_;
 };
 
@@ -722,10 +728,9 @@ TEST_F(RuntimeReloadControllerTest,
   EXPECT_EQ(metrics.failed, 0);
   EXPECT_EQ(metrics.busy, 1);
   EXPECT_EQ(metrics.drain_timeouts, 0);
-  ASSERT_TRUE(obcx::common::ConfigLoader::instance().current_snapshot());
-  EXPECT_EQ(
-      obcx::common::ConfigLoader::instance().current_snapshot()->config_path(),
-      candidate_config.string());
+  ASSERT_TRUE(controller_->active_generation()->config_snapshot());
+  EXPECT_EQ(controller_->active_generation()->config_snapshot()->config_path(),
+            candidate_config.string());
   EXPECT_EQ(
       observed_generation(process(message("started", "started-route")).get()),
       "started");

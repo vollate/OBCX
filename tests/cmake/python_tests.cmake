@@ -20,5 +20,7 @@ obcx_add_python_unittest(bot_component_migration_inventory_test
                          "architecture;bot-runtime;migration")
 obcx_add_python_unittest(bot_configuration_inventory_test
                          "architecture;bot-runtime;configuration;security")
+obcx_add_python_unittest(bot_platform_modularity_test
+                         "architecture;bot-runtime;isolation")
 obcx_add_python_unittest(bot_operation_scope_test
                          "architecture;actor-runtime;bot-operation")

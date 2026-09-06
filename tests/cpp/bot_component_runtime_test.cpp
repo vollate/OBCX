@@ -20,7 +20,6 @@
 
 namespace {
 
-using obcx::common::BotInstallationSurface;
 using obcx::core::BotComponent;
 using obcx::core::BotComponentRuntimeError;
 using obcx::core::BotInstallation;
@@ -206,7 +205,7 @@ private:
 
 auto installation() -> BotInstallation {
   return BotInstallation{"test-installation",
-                         BotInstallationSurface::OneBot11Qq};
+                         obcx::bot::SurfaceId{"onebot11.qq"}};
 }
 
 TEST(BotComponentRuntimeTest, StableIdsRejectInvalidValues) {
@@ -417,7 +416,7 @@ TEST(BotComponentRuntimeTest, CapabilitiesAreInstallationScoped) {
   first.assemble();
 
   BotInstallation second{"other-installation",
-                         BotInstallationSurface::OneBot11Qq};
+                         obcx::bot::SurfaceId{"onebot11.qq"}};
   second.assemble();
   EXPECT_EQ(
       first.capability<ProbeCapability>(CapabilityId{"private.api"})->provider,
@@ -455,7 +454,7 @@ TEST(BotComponentRuntimeTest,
   bool executor_alive_during_destruction = false;
   {
     auto runtime = std::make_unique<BotInstallation>(
-        "destruction-test", BotInstallationSurface::TelegramBotApi);
+        "destruction-test", obcx::bot::SurfaceId{"telegram.bot_api"});
     auto component = std::make_unique<ProbeComponent>(
         "single", std::vector<std::string>{"single.api"},
         std::vector<std::string>{}, events, FailurePhase::Stop);

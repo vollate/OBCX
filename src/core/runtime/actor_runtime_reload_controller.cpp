@@ -1,4 +1,5 @@
 #include "core/runtime/actor_runtime_reload_controller.hpp"
+#include "core/runtime/process_configuration.hpp"
 
 #include "common/logger.hpp"
 #include "core/runtime/orchestrator.hpp"
@@ -158,8 +159,11 @@ public:
 
 ActorRuntimeReloadController::ActorRuntimeReloadController(
     std::shared_ptr<RuntimeGeneration> active_generation)
-    : active_generation_(std::move(active_generation)),
-      gate_state_(std::make_shared<GateState>()) {
+    : active_generation_(active_generation),
+      gate_state_(std::make_shared<GateState>()),
+      builder_(active_generation ? ProcessConfigAccess::catalog(
+                                       *active_generation->config_snapshot())
+                                 : nullptr) {
   // Construct the neutral release executor on the owning thread. The final
   // keepalive cannot be released on reload_pool_, because the controller
   // destructor joins that pool.
@@ -535,8 +539,6 @@ auto ActorRuntimeReloadController::cutover(
       co_return result;
     }
     active_generation_.store(candidate, std::memory_order_release);
-    common::ConfigLoader::instance().publish_snapshot(
-        candidate->config_snapshot());
   }
 
   previous->shutdown();

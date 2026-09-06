@@ -33,7 +33,8 @@ file(GLOB_RECURSE _installed_headers
      "${_install_dir}/include/*")
 list(SORT _installed_headers)
 set(_expected_headers
-    include/obcx/common/config_loader.hpp
+    include/obcx/common/config_snapshot.hpp
+    include/obcx/common/bot_installation_metadata.hpp
     include/obcx/common/json_utils.hpp
     include/obcx/common/logger.hpp
     include/obcx/common/message_type.hpp
@@ -48,13 +49,28 @@ set(_expected_headers
     include/obcx/core/actor/native_actor_scheduler.hpp
     include/obcx/core/actor/reflected_actor.hpp
     include/obcx/core/actor/blocking_executor.hpp
-    include/obcx/core/bot/bot_operation_client.hpp
-    include/obcx/core/bot/bot_operation_contract.hpp
-    include/obcx/core/bot/bot_operation_types.hpp
-    include/obcx/core/bot/bot_operations.hpp
-    include/obcx/core/bot/onebot11_bot_operations.hpp
-    include/obcx/core/bot/telegram_bot_operations.hpp
+    include/obcx/core/bot/ids.hpp
+    include/obcx/core/bot/json_codec.hpp
+    include/obcx/core/bot/validation.hpp
+    include/obcx/core/bot/references.hpp
+    include/obcx/core/bot/operation_error.hpp
+    include/obcx/core/bot/operation_result.hpp
+    include/obcx/core/bot/operation_traits.hpp
+    include/obcx/core/bot/messaging.hpp
+    include/obcx/core/bot/gateway_codec.hpp
+    include/obcx/core/bot/operation_gateway.hpp
+    include/obcx/core/bot/typed_operation.hpp
+    include/obcx/core/bot/messaging_client.hpp
+    include/obcx/onebot11/bot/actions.hpp
+    include/obcx/onebot11/bot/types.hpp
+    include/obcx/onebot11/bot/operations.hpp
+    include/obcx/onebot11/bot/client.hpp
+    include/obcx/telegram/bot/actions.hpp
+    include/obcx/telegram/bot/types.hpp
+    include/obcx/telegram/bot/operations.hpp
+    include/obcx/telegram/bot/client.hpp
     include/obcx/network/http_client.hpp
+    include/obcx/network/connection_config.hpp
     include/obcx/obcx/version.hpp)
 list(SORT _expected_headers)
 if(NOT "${_installed_headers}" STREQUAL "${_expected_headers}")

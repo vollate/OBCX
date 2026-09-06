@@ -59,7 +59,7 @@ INTERFACE_HEADERS = (
 
 PRODUCTION_ROOTS = (
     ROOT / "local_actor" / "obcx-actor-bridge" / "actor",
-    ROOT / "local_actor" / "obcx-actor-bridge" / "dependency",
+    ROOT / "local_actor" / "obcx-actor-bridge" / "src",
     ROOT / "local_actor" / "obcx-actor-bridge" / "include",
     ROOT / "local_actor" / "chat_llm",
 )
@@ -116,8 +116,9 @@ def actor_bot_calls() -> list[tuple[Path, int, str]]:
 
 def declared_contract_actions() -> set[str]:
     candidates = (
-        ROOT / "include" / "core" / "bot" / "bot_operations.hpp",
-        ROOT / "include" / "core" / "bot" / "bot_operation_types.hpp",
+        ROOT / "include" / "core" / "bot" / "messaging.hpp",
+        ROOT / "include" / "onebot11" / "bot" / "actions.hpp",
+        ROOT / "include" / "telegram" / "bot" / "actions.hpp",
     )
     action = re.compile(
         r'"((?:message|telegram|onebot11)\.[a-z0-9_.]+)"'

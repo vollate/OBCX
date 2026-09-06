@@ -38,7 +38,7 @@ The supported matrix SHALL be `onebot11.qq` with `websocket`, `onebot11.qq` with
 - **THEN** the reviewed OneBot HTTP component recipe is selected
 
 ### Requirement: Connection keys and units are explicit and validated
-The parser SHALL maintain a closed key set per connection variant, SHALL use `_ms` suffixes for millisecond durations, and SHALL validate ports, positive and bounded timeouts, TLS/proxy combinations, required credentials, and provider-specific polling fields. Unknown, misspelled, ignored, or misplaced keys MUST cause a path-specific diagnostic.
+The parser SHALL maintain a closed key set per connection variant, require every mandatory option explicitly, use `_ms` suffixes for millisecond durations, and validate ports, positive and bounded timeouts, TLS/proxy combinations, required credentials, and provider-specific polling fields. Unknown, misspelled, ignored, misplaced, or missing mandatory keys MUST cause a path-specific secret-safe diagnostic. Disabled installations SHALL receive the same validation. The optional proxy group MAY be absent as a whole; when supplied, every required proxy field MUST be explicit. No connection-option defaults SHALL be supplied.
 
 #### Scenario: Legacy timeout key is present
 - **WHEN** a connection contains `timeout` rather than a supported explicit `_ms` field
@@ -48,9 +48,13 @@ The parser SHALL maintain a closed key set per connection variant, SHALL use `_m
 - **WHEN** an OneBot WebSocket connection contains a Telegram polling field
 - **THEN** validation rejects that field instead of ignoring it
 
-#### Scenario: Optional field is omitted
-- **WHEN** a valid connection omits an optional timeout or proxy field
-- **THEN** the typed variant receives the documented provider-specific default
+#### Scenario: Mandatory field is omitted
+- **WHEN** a connection omits a mandatory option such as `action_timeout_ms`, or a configured proxy omits `proxy_username` or `proxy_password`
+- **THEN** parsing rejects the exact missing path instead of supplying a default, including for disabled installations
+
+#### Scenario: Proxy group is absent
+- **WHEN** a valid Telegram connection supplies no proxy fields
+- **THEN** parsing represents no proxy rather than inventing proxy option values
 
 ### Requirement: Legacy bot schema is a hard migration error
 The canonical parser SHALL reject legacy `type = "qq"`, `type = "telegram"`, bot-level `plugins`, legacy `timeout`, and other keys that were previously ignored or ambiguously mapped. Diagnostics SHALL identify the replacement surface, transport, or explicit field where one exists.

@@ -1,58 +1,67 @@
 # Bot Installation Component Runtime
 
-OBCX process runtime models each configured bot as a `BotInstallation`. An
-installation owns one exact id, surface, executor, capability registry,
-components, and lifecycle. It is not a universal bot object and does not
-inherit messaging or provider interfaces.
+Each `BotInstallation` owns one exact id, surface, executor, capability registry,
+components, and lifecycle. It is not a universal bot object. Actors receive
+`BotOperationGateway`, not installations, platform catalogs, provider connections,
+component registries, or process command publishers.
 
-Actor packages do not see this runtime. Their only bot egress service is the
-installed, data-only `BotOperationClient` API.
+## Module ownership and composition
 
-## Reviewed recipes
+`src/app/builtin_bot_platforms.hpp` explicitly registers the two production
+modules into a `BotPlatformCatalog`, seals it, and injects it into configuration
+and generation building. No static self-registration or global config loader is
+used. A reload keeps the same process catalog, gateway and installations.
 
-Configuration selects one closed recipe:
-
-| Surface | Transport | Components |
+| Surface | Transport | Owning recipe components |
 | --- | --- | --- |
 | `onebot11.qq` | `websocket` | protocol, WebSocket transport, event ingress, operations |
 | `onebot11.qq` | `http` | protocol, HTTP transport, event ingress, operations |
 | `telegram.bot_api` | `http` | protocol, HTTP transport, event ingress, media upload, operations, command catalog |
 
-Telegram WebSocket, official QQ, aliases such as `ws`, and unknown combinations
-are rejected before an installation or socket is created. Users cannot provide
-arbitrary component class names.
+Each module owns its closed connection parser, typed connection values, component
+factories, operation definitions, ingress platform and bound command adapter.
+The generic loader validates only the common bot table and resolves the exact
+surface/transport registration. Its immutable installation plan retains typed
+configuration in a process-only factory: assembly never reparses raw TOML.
+Duplicate recipe keys, unknown surfaces/transports, `qq.official`, `ws` aliases,
+and arbitrary component lists fail before transport construction.
 
-Components declare stable ids plus provided and required capability ids.
-Assembly rejects duplicate providers, missing dependencies, undeclared
-capabilities, and cycles. Independent components retain recipe order.
-Capabilities are typed, installation-scoped process values; the registry is
-not installed in `ActorServices`.
+`obcx_generic_runtime` can be linked without either production module. The
+application combines generic, OneBot and Telegram implementation objects into
+its existing runtime library. A separate `test.echo` translation unit proves
+parse/describe/assemble/dispatch/stop without production platform linkage; it is
+never registered in the application.
 
-## Lifecycle
+## Lifecycle and executable operations
 
-An installation performs these phases:
+Components declare stable ids and provided/required capabilities. Assembly
+validates the DAG and installs capabilities. It rejects duplicates, missing or
+undeclared capabilities, cycles, and factories that differ from their manifests.
+Independent components retain recipe order; dependency lists are sets.
 
-1. construct all components without provider I/O;
-2. install capabilities and validate the dependency DAG;
-3. prepare callbacks and ingress subscriptions in topological order;
-4. start transports and other components in topological order;
-5. close admission and stop in reverse order;
-6. cancel or drain provider work before destroying components;
-7. destroy the installation executor last.
+Before any component starts, all components prepare in topological order. Then
+components start in that order. Failure rolls back prepared components; shutdown
+closes admission, cancels/drains admitted work, stops in reverse order and destroys
+the executor last. Stop is idempotent. Event subscribers attach before `start()`.
+Ingress receives explicit owning installation, surface and module-provided
+`qq`/`telegram` platform metadata, not an inferred platform fallback.
 
-Prepare/start failure rolls back every prepared component in reverse order.
-Stop is idempotent. Message and notice subscribers attach to `bot.events`
-before `start()`, so a transport cannot publish before actor ingress is ready.
-Ingress carries the owning installation id and exact surface as data.
+Operations components prepare sealed `OperationRegistry` endpoints. Each action
+binds typed SDK codecs, scope checks, dependency requirements and a handler.
+Static manifests and live registrations use the same platform definitions; the
+union remains the reviewed [13 actions](qq-telegram-bot-operations.md). Telegram
+upload adds an explicit same-installation uploader dependency. An upload-free
+test recipe removes both that dependency and the advertised upload action.
 
-Operation components implement `BotOperationEndpoint` directly. The shared
-process `BotOperationDispatcher` registers those endpoint capabilities by exact
-installation id and surface. Supported actions come from the endpoint and the
-same installation's optional capabilities; no RTTI or provider-object lookup
-is used. The closed 13-action matrix remains documented in
-[qq-telegram-bot-operations.md](qq-telegram-bot-operations.md).
+Command detection belongs to the module and captures its validated target name.
+The directory exposes an optional generic `CommandCatalogPublisher` selected by
+the recipe's capability id. Reconciliation publishes complete aggregates only
+after activation/cutover; failure preserves local routing and bounded retries.
 
 ## Canonical configuration
+
+These are illustrative explicit values, **not defaults**. Replace credential
+placeholders outside version control; the loader does not expand `${...}`.
 
 ```toml
 [bots.qq_main]
@@ -63,7 +72,7 @@ transport = "websocket"
 [bots.qq_main.connection]
 host = "127.0.0.1"
 port = 3001
-access_token = "${ONEBOT_ACCESS_TOKEN}"
+access_token = "YOUR_ONEBOT_ACCESS_TOKEN"
 connect_timeout_ms = 5000
 action_timeout_ms = 30000
 
@@ -75,41 +84,54 @@ transport = "http"
 [bots.telegram_main.connection]
 host = "api.telegram.org"
 port = 443
-access_token = "${TELEGRAM_BOT_TOKEN}"
+access_token = "YOUR_TELEGRAM_BOT_TOKEN"
 bot_username = "example_bot"
 use_tls = true
+connect_timeout_ms = 5000
+action_timeout_ms = 30000
 poll_timeout_ms = 25000
 poll_force_close_ms = 30000
 poll_retry_interval_ms = 3000
 ```
 
-The parser is closed per variant. Unknown, misplaced, ignored, and legacy keys
-are errors with a configuration path. Telegram credentials are required;
-credentials and proxy passwords are never included in diagnostics, logs, or
-operator summaries.
+For OneBot HTTP, explicitly supply `host`, `port`, `access_token`, `use_tls`,
+`connect_timeout_ms`, `action_timeout_ms`, and `poll_interval_ms`. OneBot's token
+may be explicitly empty; Telegram's token may not. Telegram requires TLS.
 
-### Legacy migration table
+The Telegram proxy group can be absent as a whole. When used, explicitly supply
+all five fields in its connection table: `proxy_host`, `proxy_port`, `proxy_type`,
+`proxy_username`, and `proxy_password`; anonymous credentials use explicit empty
+strings. No timeout, transport, TLS or proxy credential is filled in implicitly.
+Disabled bots undergo the same schema validation. Unknown, misplaced, ignored,
+legacy and missing keys produce path-specific diagnostics without credential
+values.
 
-| Legacy field/value | Canonical replacement |
-| --- | --- |
-| `bots.<id>.type = "qq"` | `surface = "onebot11.qq"` plus explicit `transport` |
-| `bots.<id>.type = "telegram"` | `surface = "telegram.bot_api"` and `transport = "http"` |
-| `connection.type = "websocket"` | bot-level `transport = "websocket"` |
-| `connection.type = "http"` | bot-level `transport = "http"` |
-| `use_ssl` | `use_tls` where supported |
-| `connect_timeout` | `connect_timeout_ms` |
-| `action_timeout` | `action_timeout_ms` |
-| `poll_timeout` | `poll_timeout_ms` |
-| `poll_force_close` | `poll_force_close_ms` |
-| `poll_retry_interval` | `poll_retry_interval_ms` |
-| bot-level `plugins` | remove; actors and pipelines own behavior |
-| generic `timeout`, `secret`, ignored heartbeat keys | remove or select an explicit supported field |
+## Actor configuration boundary: option A
 
-Deploy the migrated configuration and new binary together. Validate first with
-`obcx --validate-config <path>`. Binary rollback also requires restoring the
-previous configuration format; there is no automatic dual-schema fallback.
+The installed `common/config_snapshot.hpp` exposes Actor views and
+`ActorConfigSnapshotBuilder::build(actor_document, bot_metadata, config_path)`.
+This is an explicit data-only construction API, **not** a full process loader.
+It rejects a `bots` table in its document; callers supply non-secret installation
+metadata separately. Independent Actor tests construct their contexts here.
+Full connection-schema tests stay in core/platform integration suites.
 
-Credential-shaped values previously present in development configuration must
-be treated as exposed: replace them with placeholders, rotate the real
-OneBot/Telegram credentials outside the repository, and remove sensitive
-history according to the repository's incident procedure.
+Process snapshots reconstruct `bots` from allowlisted metadata, rather than
+redacting selected fields from the original connection table. Neither nested
+getters nor root-section views expose private Bot values. Actor-owned parameters,
+such as Chat LLM's model API key, remain available to that Actor. No process-config
+or host SDK is published.
+
+Fingerprints include every installation (also disabled), complete normalized
+connection digests, recipe/component/action descriptions, identity, enabled
+state, and existing process budgets. A secret-only change requires restart even
+when public metadata is unchanged. Actor-only views cannot be published as
+validated process snapshots.
+
+## Validation and deployment
+
+`obcx --validate-config <path>` parses plans and validates manifests/contracts
+without constructing Bot transports, starting workers, publishing command menus
+or calling providers. See [modular-bot-sdk-migration.md](modular-bot-sdk-migration.md)
+for the schema-2 rebuild gate, whole-artifact restart/rollback and test procedure.
+This SDK change keeps canonical TOML and Bridge schema 3 unchanged; historical
+pre-component configuration/database migrations are not rerun for it.

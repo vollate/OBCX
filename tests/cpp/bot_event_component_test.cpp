@@ -14,7 +14,8 @@ TEST(BotEventComponentTest,
   obcx::core::BotEventCapability events{
       io.get_executor(),
       {.installation_id = "telegram-secondary",
-       .surface = obcx::common::BotInstallationSurface::TelegramBotApi}};
+       .surface = obcx::bot::SurfaceId{"telegram.bot_api"},
+       .platform = "telegram"}};
   std::vector<std::string> observed;
   events.subscribe_messages(
       [&observed](const obcx::core::BotEventContext &context,
@@ -22,8 +23,7 @@ TEST(BotEventComponentTest,
           -> boost::asio::awaitable<void> {
         observed.push_back(context.installation_id +
                            ":message:" + event.message_id);
-        EXPECT_EQ(context.surface,
-                  obcx::common::BotInstallationSurface::TelegramBotApi);
+        EXPECT_EQ(context.surface, obcx::bot::SurfaceId{"telegram.bot_api"});
         co_return;
       });
   events.subscribe_notices(

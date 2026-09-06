@@ -2,6 +2,7 @@
 #define OBCX_INCLUDE_ONEBOT11_NETWORK_HTTP_CONNECTION_MANAGER_HPP_
 
 #include "common/message_type.hpp"
+#include "network/connection_config.hpp"
 #include "network/http_client.hpp"
 #include "onebot11/adapter/protocol_adapter.hpp"
 

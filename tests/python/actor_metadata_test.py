@@ -47,7 +47,7 @@ def valid_document() -> dict[str, object]:
             "cpp_standard": 26,
             "compiler": "gcc>=16.1",
             "reflection_macro": 202506,
-            "input_contract_schema": 1,
+            "input_contract_schema": 2,
         },
         "publication": {
             "repository": "https://github.com/Onebot-CXX/example-actor",
@@ -130,6 +130,15 @@ class ActorMetadataValidationTest(unittest.TestCase):
             "[dependencies].actors must not depend on the actor itself", errors
         )
 
+    def test_rejects_old_or_unknown_input_contract_schema(self) -> None:
+        for schema in (1, 999):
+            document = valid_document()
+            document["compatibility"]["input_contract_schema"] = schema
+            self.assertIn(
+                "[compatibility].input_contract_schema must equal 2",
+                metadata.validate_metadata(document),
+            )
+
     def test_rejects_missing_publication_field_by_name(self) -> None:
         document = valid_document()
         del document["publication"]["repository"]  # type: ignore[index]
@@ -170,7 +179,7 @@ actor_abi_max = 2
 cpp_standard = 26
 compiler = "gcc>=16.1"
 reflection_macro = 202506
-input_contract_schema = 1
+input_contract_schema = 2
 
 [publication]
 repository = "https://github.com/Onebot-CXX/example-actor"

@@ -3,6 +3,7 @@
 #include "common/logger.hpp"
 #include "core/actor/actor_messages.hpp"
 #include "core/actor/reflected_actor.hpp"
+#include "core/runtime/process_configuration.hpp"
 
 #include <algorithm>
 #include <boost/asio/async_result.hpp>
@@ -32,24 +33,6 @@ auto command_failure(std::string code, std::string message)
               .message = std::move(message),
           },
   };
-}
-
-auto configured_bot_target(const common::BotInstallationConfig &bot)
-    -> std::string {
-  const auto *telegram =
-      std::get_if<common::TelegramHttpConnectionConfig>(&bot.connection);
-  return telegram == nullptr ? std::string{} : telegram->bot_username;
-}
-
-auto command_platform(const common::BotInstallationSurface surface)
-    -> std::string {
-  switch (surface) {
-  case common::BotInstallationSurface::OneBot11Qq:
-    return "qq";
-  case common::BotInstallationSurface::TelegramBotApi:
-    return "telegram";
-  }
-  return {};
 }
 
 auto find_registration(const ActorInputContract &contract,
@@ -359,14 +342,6 @@ auto normalize_command_platform(std::string platform) -> std::string {
                          [](const unsigned char character) {
                            return static_cast<char>(std::tolower(character));
                          });
-  if (platform.find("telegram") != std::string::npos ||
-      platform.find("tg") != std::string::npos) {
-    return "telegram";
-  }
-  if (platform.find("qq") != std::string::npos ||
-      platform.find("onebot") != std::string::npos) {
-    return "qq";
-  }
   return platform;
 }
 
@@ -412,10 +387,14 @@ auto build_command_routing_table(
       actors.emplace(actor.name, actor);
     }
   }
-  std::unordered_map<std::string, common::BotInstallationConfig> bots;
-  for (const auto &bot : snapshot.get_bot_configs()) {
+  std::unordered_map<std::string, common::BotInstallationMetadata> bots;
+  std::unordered_map<std::string, std::shared_ptr<ICommandPlatformAdapter>>
+      adapters;
+  for (const auto &plan : ProcessConfigAccess::plans(snapshot)) {
+    const auto &bot = plan->metadata();
     if (bot.enabled) {
       bots.emplace(bot.installation_id, bot);
+      adapters.emplace(bot.installation_id, plan->command_adapter());
     }
   }
 
@@ -437,7 +416,7 @@ auto build_command_routing_table(
                                "command route repeats a platform scope: " +
                                    platform);
       }
-      if (!command_platform_adapter(platform)) {
+      if (!ProcessConfigAccess::catalog(snapshot)->supports_ingress(platform)) {
         return command_failure("command_platform_adapter_unavailable",
                                "command route platform has no adapter: " +
                                    platform);
@@ -481,14 +460,14 @@ auto build_command_routing_table(
             "command_bot_unavailable",
             "command route references a missing or disabled bot: " + bot_name);
       }
-      const auto platform = command_platform(configured_bot->second.surface);
+      const auto &platform = configured_bot->second.ingress_platform;
       if (!platforms.contains(platform)) {
         return command_failure(
             "command_bot_platform_mismatch",
             "command route bot platform is outside the configured scope: " +
                 bot_name);
       }
-      auto adapter = command_platform_adapter(platform);
+      auto adapter = adapters.at(bot_name);
       if (!adapter) {
         return command_failure(
             "command_platform_adapter_unavailable",
@@ -498,13 +477,15 @@ auto build_command_routing_table(
 
       const CommandBotKey bot_key{.platform = platform, .bot = bot_name};
       auto [active_bot, inserted] = table->bots_.try_emplace(
-          bot_key, ActiveCommandBot{
-                       .key = bot_key,
-                       .target = configured_bot_target(configured_bot->second),
-                       .adapter = std::move(adapter),
-                   });
-      if (!inserted && active_bot->second.target !=
-                           configured_bot_target(configured_bot->second)) {
+          bot_key,
+          ActiveCommandBot{
+              .key = bot_key,
+              .installation = {bot_name, configured_bot->second.surface},
+              .target = configured_bot->second.command_target,
+              .adapter = std::move(adapter),
+          });
+      if (!inserted &&
+          active_bot->second.target != configured_bot->second.command_target) {
         return command_failure("command_bot_metadata_conflict",
                                "command bot target metadata is inconsistent");
       }
@@ -625,7 +606,7 @@ auto CommandCoordinator::process(MessageEnvelope message,
     co_return co_await orchestrator_->process(std::move(message),
                                               std::move(route_lifetime));
   }
-  const auto detected = bot->adapter->detect(message, bot->target);
+  const auto detected = bot->adapter->detect(message);
   if (!detected) {
     co_return co_await orchestrator_->process(std::move(message),
                                               std::move(route_lifetime));

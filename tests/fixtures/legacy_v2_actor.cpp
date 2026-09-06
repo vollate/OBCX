@@ -43,5 +43,5 @@ extern "C" auto obcx_get_actor_name_v2() -> const char * {
 extern "C" auto obcx_get_actor_version_v2() -> const char * { return "2.0.0"; }
 
 extern "C" auto obcx_get_actor_contract() -> const char * {
-  return R"({"schema_version":1,"actor":"legacy_v2_actor","accepted_inputs":["obcx::tests::events::LegacyProbe"]})";
+  return R"({"schema_version":2,"actor":"legacy_v2_actor","accepted_inputs":["obcx::tests::events::LegacyProbe"]})";
 }

@@ -27,21 +27,61 @@ adapter tests. Removed universal-bot methods are not capabilities.
 
 ## SDK and ownership
 
-Actors use the installed headers:
+Use independently exported `obcx::bot_common_sdk`, `obcx::bot_onebot11_sdk`,
+and `obcx::bot_telegram_sdk` targets. The platform targets depend only on common;
+none links the combined process library merely to encode/call SDK operations.
 
-- `core/bot/bot_operation_contract.hpp`
-- `core/bot/bot_operation_client.hpp`
+- `core/bot/messaging_client.hpp`: existing common group-send/delete.
+- `onebot11/bot/client.hpp`: OneBot member/forward/file/poke contracts.
+- `telegram/bot/client.hpp`: Telegram topic/edit/entity/media contracts.
+- `core/bot/operation_gateway.hpp`: the fixed, platform-neutral service.
 
-Every request names a `BotInstallationRef` containing the configured bot name
-and exact surface. Group and message references retain that installation;
-Telegram chat id and message id are separate values.
+Every request retains exact installation/group/message identity. `SurfaceId`
+and `ActionId` own explicit strings of 1–128 lowercase ASCII letters, digits,
+`.`, `_`, or `-`; they have no default identity, enum ordinal, case conversion,
+or platform aliases. Valid syntax does not imply registered support:
+`SurfaceId{"test.echo"}` is valid data but unavailable in the production catalog.
+Telegram chat and message ids remain separate; topic targets belong to Telegram.
 
-`BotOperationClient` is the only actor-visible bot service. Process-owned
-OneBot and Telegram operation components implement native endpoints and parse
-provider response envelopes. `BotOperationDispatcher` routes those endpoint
-capabilities by exact installation and surface. Tokens, clients, transports,
-component registries, executors, and Telegram tokenized file URLs do not enter
-actor code.
+`BotOperationGateway` is the only Actor-visible Bot service. Its envelope carries
+exact installation, action and SDK DTO values. The generic dispatcher routes to
+a sealed endpoint-local operation registry; owning module handlers decode,
+validate and call existing protocol/transports. Payload installation/action and
+all target/reply references must agree with the envelope before provider I/O.
+Supported actions come from executable definitions, not arbitrary strings or
+provider method prefixes. Tokens, process catalogs, handler registrations,
+transports and tokenized Telegram file URLs are unavailable through this API.
+
+For example, inside an existing tracked Asio operation, with a retained gateway
+and targets selected by validated routing:
+
+```cpp
+#include <onebot11/bot/client.hpp>
+obcx::onebot11::bot::Client client{gateway};
+auto result = co_await client.execute(
+    obcx::onebot11::bot::PokeOneBotGroupRequest{
+        .target = group_target, .user_id = "42"});
+```
+
+```cpp
+#include <telegram/bot/client.hpp>
+obcx::telegram::bot::Client client{gateway};
+auto result = co_await client.execute(
+    obcx::telegram::bot::SendTelegramTopicMessageRequest{
+        .target = topic_target,
+        .message = {{.type = "text", .data = {{"text", "hello"}}}}});
+```
+
+Each example needs only its own platform SDK. `obcx::bot::invoke(gateway,
+request)` is the equivalent typed helper and pairs Request/Result at compile
+time. Actor handlers enter Asio through their existing
+`ActorContext::await_asio(executor, callback)` lifecycle, retaining gateway and
+request values across suspension. Do not detach work. A thread id alone does
+not make a Telegram event a forum topic.
+
+Public DTO JSON stays unchanged. Internal Telegram upload/fetch gateway codecs
+move bounded byte buffers through `Json::binary`, not per-byte JSON numbers;
+that representation is not a dump/parse persistence or network protocol.
 
 The former universal/provider bot interfaces, concrete `QQBot`/`TGBot`, live
 bot registry, and RTTI wrappers have been removed. See
@@ -57,7 +97,9 @@ Operations return typed success or `BotOperationError`. Errors include
   failure, and TLS-handshake failure before HTTP request writing are definite;
 - once HTTP request writing begins, malformed send success, timeout,
   disconnect, or response failure is possibly submitted unless proven
-  otherwise.
+  otherwise;
+- malformed SDK success decoding after a side effect is also conservative:
+  it cannot fabricate success/mappings or reclassify delivery as safely retryable.
 
 Bridge automatically retries only a retryable `DefinitelyNotSubmitted` result.
 A possibly submitted initial send creates no mapping and no retry row. A
@@ -65,7 +107,11 @@ possibly submitted retry is terminalized in the existing retry table by its
 finite-attempt fields. There is no generic outbox or crash-safe reconciliation;
 a process crash at the provider boundary remains deferred work.
 
-## Bridge installation pairs and state migration
+## Existing Bridge pairs and schema-3 state
+
+The following business behavior and older migration facilities are retained;
+**the modular SDK change adds no database migration**. An already-schema-3
+installation keeps its existing rows, pair routing and retry identities.
 
 Bridge supports named, disjoint Telegram/OneBot installation pairs:
 

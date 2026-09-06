@@ -1,7 +1,7 @@
 #ifndef OBCX_INCLUDE_CORE_DB_MANAGER_HPP_
 #define OBCX_INCLUDE_CORE_DB_MANAGER_HPP_
 
-#include "common/config_loader.hpp"
+#include "common/config_snapshot.hpp"
 
 #include <cstdint>
 #include <exception>

@@ -1,5 +1,9 @@
 # Actor-Only Runtime Breaking Change
 
+> Historical SDK note: this document records the earlier migration. References
+> to `BotOperationClient` or schema-1 input contracts describe the retired SDK;
+> see the [current modular SDK migration](architecture/modular-bot-sdk-migration.md) for schema 2.
+
 Applies to: OBCX C++26 reflected-actor cutover
 
 Date: 2026-07-30
